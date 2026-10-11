@@ -46,16 +46,25 @@ private fun uriName(context: Context, uri: Uri): String {
     } catch (_: Exception) { "Kiválasztott fájl" }
 }
 
+@android.annotation.SuppressLint("MissingPermission")
 private fun lastLocation(context: Context): String {
-    if (!hasPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) &&
-        !hasPermission(context, Manifest.permission.ACCESS_FINE_LOCATION)) {
-        return "Ehhez helymeghatározási engedély szükséges."
-    }
+    // Explicit permission checks are essential: GPS requires FINE; network
+    // provider may use COARSE. Lint cannot trace permission checks through
+    // provider selection, hence the narrowly scoped annotation.
+    val precise = hasPermission(context, Manifest.permission.ACCESS_FINE_LOCATION)
+    val approximate = hasPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION)
+    if (!precise && !approximate) return "Ehhez helymeghatározási engedély szükséges."
     return try {
         val manager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
-        val location = listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER)
-            .mapNotNull { provider -> try { manager.getLastKnownLocation(provider) } catch (_: Exception) { null } }
-            .maxByOrNull { it.time }
+        val providers = buildList {
+            if (precise) add(LocationManager.GPS_PROVIDER)
+            if (approximate || precise) add(LocationManager.NETWORK_PROVIDER)
+        }
+        val location = providers.mapNotNull { provider ->
+            try { manager.getLastKnownLocation(provider) }
+            catch (_: SecurityException) { null }
+            catch (_: IllegalArgumentException) { null }
+        }.maxByOrNull { it.time }
         if (location == null) "Nincs elérhető korábbi helyadat; kapcsold be a helymeghatározást."
         else {
             val uri = Uri.parse("geo:" + location.latitude + "," + location.longitude +
