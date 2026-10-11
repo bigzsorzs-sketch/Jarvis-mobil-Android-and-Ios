@@ -165,32 +165,32 @@ internal fun MessageInboxScreen(context: Context, onPermissions: () -> Unit) {
         }
         dictatedKey = null
     }
-    Text("Üzenetek", color = Color.White, style = MaterialTheme.typography.headlineSmall)
+    Text("Üzenetek", color = JarvisPalette.mainText, style = MaterialTheme.typography.headlineSmall)
     Spacer(Modifier.height(12.dp))
     Text(
         "WhatsApp, Messenger, SMS-alkalmazások és más támogatott appok friss értesítései. " +
             "A teljes beszélgetéselőzményt Jarvis nem látja. Az üzeneteket nem tölti fel és nem menti tartósan.",
-        color = Color(0xFFB5C3D8)
+        color = JarvisPalette.subtleText
     )
     Spacer(Modifier.height(12.dp))
     OutlinedButton(onClick = onPermissions) { Text("Értesítési engedélyek") }
     OutlinedButton(onClick = { MessageBuffer.clear(); info = "Az ideiglenes üzenetlista kiürítve." }) {
         Text("Üzenetlista ürítése")
     }
-    if (info.isNotEmpty()) Text(info, color = Color(0xFF60D5E5))
+    if (info.isNotEmpty()) Text(info, color = JarvisPalette.accent)
     if (notices.isEmpty()) {
         Spacer(Modifier.height(12.dp))
         Text("Nincs új, elérhető üzenetértesítés. Engedélyezd az értesítések olvasását, majd várj egy új üzenetre.",
-            color = Color(0xFFB5C3D8))
+            color = JarvisPalette.subtleText)
     }
     notices.forEach { notice ->
         key(notice.key) {
             Spacer(Modifier.height(10.dp))
-            Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF182334))) {
+            Card(colors = CardDefaults.cardColors(containerColor = JarvisPalette.panel)) {
                 Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(notice.appName + " · " + notice.sender,
-                        color = Color(0xFF60D5E5), fontWeight = FontWeight.Bold)
-                    Text(notice.body, color = Color.White)
+                        color = JarvisPalette.accent, fontWeight = FontWeight.Bold)
+                    Text(notice.body, color = JarvisPalette.mainText)
                     OutlinedButton(onClick = {
                         speaker.speak(notice.sender + ": " + notice.body, TextToSpeech.QUEUE_FLUSH, null, notice.key)
                     }) { Text("🔊 Felolvasás") }
@@ -218,7 +218,7 @@ internal fun MessageInboxScreen(context: Context, onPermissions: () -> Unit) {
                         }
                     } else {
                         Text("Ehhez az értesítéshez az alkalmazás nem adott gyorsválasz-lehetőséget.",
-                            color = Color(0xFFB5C3D8))
+                            color = JarvisPalette.subtleText)
                     }
                     OutlinedButton(onClick = {
                         info = if (MessageBuffer.openOriginal(context, notice.key))

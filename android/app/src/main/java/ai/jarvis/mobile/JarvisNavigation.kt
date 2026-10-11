@@ -98,7 +98,7 @@ internal fun JarvisToolLanding(context: Context, page: String, onOpen: (String) 
         }
         "Navigáció" -> {
             Text("Hangos útvonaltervezés: a mentett címek alapján a telepített térképalkalmazás indul.",
-                color = Color(0xFFB5C3D8))
+                color = JarvisPalette.subtleText)
             Button(onClick = {
                 message = if (VoiceNavigation.resolve(context, "HOME") == null)
                     "Előbb mentsd el az otthoni címet az Eszközök menüben."
@@ -110,7 +110,7 @@ internal fun JarvisToolLanding(context: Context, page: String, onOpen: (String) 
         }
         "Email" -> {
             Text("Emailvázlatot készíthetsz. Gmail-fiók olvasása és keresése külön OAuth-kapcsolatot igényel.",
-                color = Color(0xFFB5C3D8))
+                color = JarvisPalette.subtleText)
             Button(onClick = { message = if (openEmail(context)) "Megnyitottam az emailírást."
                 else "Nincs kompatibilis levelezőalkalmazás." }) { Text("Email írása") }
         }
@@ -131,13 +131,13 @@ internal fun JarvisToolLanding(context: Context, page: String, onOpen: (String) 
         }
         "Jegyzetek" -> {
             Text("A helyi, titkosított jegyzeteket az Eszközök oldalon szerkesztheted.",
-                color = Color(0xFFB5C3D8))
+                color = JarvisPalette.subtleText)
             Button(onClick = { onOpen("Továbbiak") }) { Text("Jegyzetek megnyitása") }
         }
         "Ébresztő" -> {
             val next = JarvisAlarms.current(context)
             Text(if (next > 0) "Aktív saját Jarvis-ébresztő." else "Nincs aktív saját Jarvis-ébresztő.",
-                color = Color(0xFFB5C3D8))
+                color = JarvisPalette.subtleText)
             Button(onClick = {
                 message = if (openAlarms(context)) "Megnyitottam az Óra alkalmazást."
                 else "Nem találok Óra alkalmazást."
@@ -146,16 +146,16 @@ internal fun JarvisToolLanding(context: Context, page: String, onOpen: (String) 
         }
         "Rendszerállapot" -> {
             Text("Jarvis Mobile – belső Android prototípus. Az AI-agy még nincs élesen bekötve.",
-                color = Color(0xFFB5C3D8))
+                color = JarvisPalette.subtleText)
             Text("Hey Jarvis: " + if (HandsFreeStatus.running) "Aktív" else "Kikapcsolva",
                 color = JarvisPalette.accent)
             Text("A zöld GitHub-build nem helyettesíti a telefonos tesztet.",
-                color = Color(0xFFB5C3D8))
+                color = JarvisPalette.subtleText)
             Button(onClick = { onOpen("Engedélyek") }) { Text("Engedélyek") }
         }
     }
     if (message.isNotEmpty()) {
         Spacer(Modifier.height(14.dp))
-        Text(message, color = Color(0xFF60D5E5))
+        Text(message, color = JarvisPalette.accent)
     }
 }

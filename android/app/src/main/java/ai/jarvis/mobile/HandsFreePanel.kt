@@ -48,24 +48,24 @@ internal fun HandsFreePanel(context: Context) {
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) start()
         else issue = "Hangfigyeléshez mikrofonengedély szükséges."
     }
-    Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF182334))) {
+    Card(colors = CardDefaults.cardColors(containerColor = JarvisPalette.panel)) {
         Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text("🎙️ Hey Jarvis – kéz nélküli mód (BÉTA)",
-                color = Color.White, fontWeight = FontWeight.Bold)
+                color = JarvisPalette.mainText, fontWeight = FontWeight.Bold)
             Text("Indítsd el, majd mondd: Hey Jarvis. Az üzeneteket felolvasom, " +
                 "a válaszokat csak az igen/nem megerősítésed után adom át a gyorsválasznak.",
-                color = Color(0xFFB5C3D8))
+                color = JarvisPalette.subtleText)
             Text("Időkorlát: 15 perc. A telefon beszédfelismerőjét használja, " +
                 "amely nem egész napos ébresztőszó-motor; egyes készülékeken " +
                 "háttérben leállhat, és a beszédfelismerő szolgáltatója felhőt is használhat.",
-                style = MaterialTheme.typography.bodySmall, color = Color(0xFFB5C3D8))
-            Text("Állapot: $status", color = Color(0xFF60D5E5))
+                style = MaterialTheme.typography.bodySmall, color = JarvisPalette.subtleText)
+            Text("Állapot: $status", color = JarvisPalette.accent)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Column(Modifier.weight(1f)) {
                     Text("Privát üzenetek felolvasása lezárt képernyőn",
-                        color = Color.White, style = MaterialTheme.typography.bodyMedium)
+                        color = JarvisPalette.mainText, style = MaterialTheme.typography.bodyMedium)
                     Text("Alapértelmezés: kikapcsolva. Mások is hallhatják a felolvasást.",
-                        color = Color(0xFFB5C3D8), style = MaterialTheme.typography.bodySmall)
+                        color = JarvisPalette.subtleText, style = MaterialTheme.typography.bodySmall)
                 }
                 Switch(checked = allowWhileLocked, onCheckedChange = { enabled ->
                     SecurePrefs(context).write("voice_private_on_lock", enabled.toString())
@@ -91,11 +91,11 @@ internal fun HandsFreePanel(context: Context) {
                 }
             }
             if (issue.isNotBlank()) Text(issue, color = Color(0xFFFFAAAA))
-            if (heard.isNotBlank()) Text("Hallottam: $heard", color = Color.White)
-            if (answer.isNotBlank()) Text("Jarvis: $answer", color = Color(0xFFB5C3D8))
+            if (heard.isNotBlank()) Text("Hallottam: $heard", color = JarvisPalette.mainText)
+            if (answer.isNotBlank()) Text("Jarvis: $answer", color = JarvisPalette.subtleText)
             Text("A mikrofon aktív állapotát az Android értesítés mutatja. " +
                 "Ott is leállíthatod a figyelést. Az üzenetekhez külön értesítési hozzáférés kell.",
-                style = MaterialTheme.typography.bodySmall, color = Color(0xFFB5C3D8))
+                style = MaterialTheme.typography.bodySmall, color = JarvisPalette.subtleText)
         }
     }
 }

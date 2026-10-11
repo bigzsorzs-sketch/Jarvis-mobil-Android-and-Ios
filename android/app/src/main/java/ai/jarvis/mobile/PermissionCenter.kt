@@ -210,7 +210,7 @@ internal fun PermissionCenter(context: Context, onDone: () -> Unit, onMessages: 
         Button(onClick = onMessages) { Text("📨 Beérkező üzenetek") }
         Spacer(Modifier.height(8.dp))
     }
-    if (status.isNotBlank()) Text(status, color = Color(0xFF60D5E5))
+    if (status.isNotBlank()) Text(status, color = JarvisPalette.accent)
     Spacer(Modifier.height(12.dp))
     Button(onClick = onDone, modifier = Modifier.fillMaxWidth()) {
         Text("Folytatás a Jarvis főoldalára")

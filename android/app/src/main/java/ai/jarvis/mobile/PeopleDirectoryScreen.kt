@@ -21,10 +21,10 @@ internal fun PeopleDirectoryScreen(context: Context, onPermissions: () -> Unit) 
     var message by remember { mutableStateOf("") }
     var people by remember { mutableStateOf(PeopleDirectory.load(context)) }
 
-    Text("Ismerősök és becenevek", style = MaterialTheme.typography.headlineSmall, color = Color.White)
+    Text("Ismerősök és becenevek", style = MaterialTheme.typography.headlineSmall, color = JarvisPalette.mainText)
     Text("Például: Drágám → Eszter telefonszáma, címe. " +
         "Ezt te állítod be; Jarvis nem találja ki a személyazonosságot.",
-        color = Color(0xFFB5C3D8))
+        color = JarvisPalette.subtleText)
     Spacer(Modifier.height(12.dp))
     OutlinedTextField(
         nickname, onValueChange = { nickname = it.take(60) },
@@ -73,15 +73,15 @@ internal fun PeopleDirectoryScreen(context: Context, onPermissions: () -> Unit) 
             }
         } catch (_: Exception) { message = "A titkosított mentés nem sikerült." }
     }) { Text("Személy mentése") }
-    if (message.isNotBlank()) Text(message, color = Color(0xFF60D5E5))
+    if (message.isNotBlank()) Text(message, color = JarvisPalette.accent)
     Spacer(Modifier.height(18.dp))
     people.forEach { person ->
         key(person.nickname) {
-            Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF182334))) {
+            Card(colors = CardDefaults.cardColors(containerColor = JarvisPalette.panel)) {
                 Column(Modifier.fillMaxWidth().padding(12.dp)) {
-                    Text(person.nickname, color = Color.White)
-                    Text(person.phone, color = Color(0xFFB5C3D8))
-                    if (person.address.isNotBlank()) Text(person.address, color = Color(0xFFB5C3D8))
+                    Text(person.nickname, color = JarvisPalette.mainText)
+                    Text(person.phone, color = JarvisPalette.subtleText)
+                    if (person.address.isNotBlank()) Text(person.address, color = JarvisPalette.subtleText)
                     OutlinedButton(onClick = {
                         nickname = person.nickname
                         phone = person.phone
@@ -102,5 +102,5 @@ internal fun PeopleDirectoryScreen(context: Context, onPermissions: () -> Unit) 
     }
     Text("WhatsApphoz nemzetközi telefonszám kell. Messenger-névjegy nem azonos a telefonos " +
         "névjeggyel; ott a címzett kiválasztását a Messenger végzi.",
-        color = Color(0xFFB5C3D8), style = MaterialTheme.typography.bodySmall)
+        color = JarvisPalette.subtleText, style = MaterialTheme.typography.bodySmall)
 }
