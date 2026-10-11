@@ -24,6 +24,20 @@ const BODY_LIMIT = 16 * 1024;
 const MAX_INPUT = 8000;
 const MAX_OUTPUT_TOKENS = 800;
 
+// Atomic, fail-closed rate and per-account request quota. No admin client input.
+const QUOTA_SCRIPT = `
+  local r = tonumber(redis.call('GET', KEYS[1]) or '0')
+  local m = tonumber(redis.call('GET', KEYS[2]) or '0')
+  if r >= tonumber(ARGV[1]) or m >= tonumber(ARGV[2]) then
+    return 1
+  end
+  redis.call('INCR', KEYS[1])
+  redis.call('INCR', KEYS[2])
+  if r == 0 then redis.call('EXPIRE', KEYS[1], tonumber(ARGV[3])) end
+  if m == 0 then redis.call('EXPIRE', KEYS[2], tonumber(ARGV[4])) end
+  return 0
+`;
+
 function reply(res: ServerResponse, status: number, data: Record<string, unknown>): void {
   res.writeHead(status, {
     "content-type": "application/json; charset=utf-8",
@@ -65,16 +79,6 @@ const server = http.createServer(async (req, res) => {
     if (await redis.get("subscription:" + subject) !== "active") {
       return reply(res, 403, { error: "SUBSCRIPTION_REQUIRED" });
     }
-    const minute = Math.floor(Date.now() / 60000);
-    const month = new Date().toISOString().slice(0, 7);
-    const rateKey = "rate:" + subject + ":" + minute;
-    const monthlyKey = "monthly:" + subject + ":" + month;
-    const count = await redis.incr(rateKey);
-    const monthly = await redis.incr(monthlyKey);
-    await Promise.all([redis.expire(rateKey, 180), redis.expire(monthlyKey, 40 * 86400)]);
-    if (count > 12 || monthly > 1000) {
-      return reply(res, 429, { error: "USAGE_LIMIT" });
-    }
     let data: unknown;
     try { data = await readInput(req); }
     catch { return reply(res, 400, { error: "INVALID_BODY" }); }
@@ -82,6 +86,18 @@ const server = http.createServer(async (req, res) => {
     if (typeof message !== "string" || !message.trim() || message.length > MAX_INPUT) {
       return reply(res, 400, { error: "INVALID_MESSAGE" });
     }
+    // Redis Lua makes both quota checks and consumption atomic across devices.
+    // Neither malformed payloads nor concurrent requests can consume/bypass a
+    // partially updated quota. This is a request cap, NOT a monetary budget.
+    const minute = Math.floor(Date.now() / 60000);
+    const month = new Date().toISOString().slice(0, 7);
+    const rateKey = "rate:" + subject + ":" + minute;
+    const monthlyKey = "monthly:" + subject + ":" + month;
+    const quota = await redis.eval(QUOTA_SCRIPT, {
+      keys: [rateKey, monthlyKey],
+      arguments: ["12", "1000", "180", String(40 * 86400)]
+    });
+    if (quota !== 0) return reply(res, 429, { error: "USAGE_LIMIT" });
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 25000);
     let upstream: Response;
