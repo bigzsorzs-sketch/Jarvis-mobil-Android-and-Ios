@@ -32,22 +32,27 @@ import kotlin.math.sin
  */
 @Composable
 internal fun JarvisVoiceOrb(modifier: Modifier = Modifier) {
-    val transition = rememberInfiniteTransition(label = "Jarvis energy waves")
-    val phase by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = (2 * PI).toFloat(),
-        animationSpec = infiniteRepeatable(tween(2400, easing = LinearEasing), RepeatMode.Restart),
-        label = "Orb phase"
-    )
-    val listening = HandsFreeStatus.running
+    // Idle draws a fixed, perfectly still orb and waves. The animation clock is
+    // not created until Android detects actual speech or Jarvis is speaking.
+    val userSpeaking = HandsFreeStatus.userSpeaking
     val speaking = HandsFreeStatus.speaking
+    val active = userSpeaking || speaking
+    val phase = if (active) {
+        val transition = rememberInfiniteTransition(label = "Speaking-only Jarvis energy")
+        val animated by transition.animateFloat(
+            initialValue = 0f,
+            targetValue = (2 * PI).toFloat(),
+            animationSpec = infiniteRepeatable(tween(1350, easing = LinearEasing), RepeatMode.Restart),
+            label = "Live voice phase"
+        )
+        animated
+    } else 0f
     val level = when {
-        speaking -> max(0.12f, HandsFreeStatus.outputLevel.coerceIn(0f, 1f))
-        listening -> HandsFreeStatus.micLevel.coerceIn(0f, 1f)
-        else -> 0.04f
+        speaking -> max(0.16f, HandsFreeStatus.outputLevel.coerceIn(0f, 1f))
+        userSpeaking -> max(0.10f, HandsFreeStatus.micLevel.coerceIn(0f, 1f))
+        else -> 0f
     }
-    val ambient = (sin(phase.toDouble()).toFloat() + 1f) * 0.5f
-    val energy = (0.17f + level * 0.78f + ambient * 0.12f).coerceIn(0f, 1f)
+    val energy = if (active) (0.12f + level * 0.83f).coerceIn(0f, 1f) else 0f
     Canvas(modifier.fillMaxWidth().height(285.dp)) {
         val w = size.width
         val h = size.height
@@ -71,7 +76,8 @@ internal fun JarvisVoiceOrb(modifier: Modifier = Modifier) {
             radius = radius * 2.2f, center = center
         )
         for (index in 1..3) {
-            val expansion = (index * 0.17f + (phase / (2 * PI)).toFloat() * 0.06f)
+            val expansion = index * 0.17f +
+                (if (active) (phase / (2 * PI)).toFloat() * 0.06f else 0f)
             drawCircle(
                 color = Color(0xFF72C9FF).copy(alpha = (0.17f - index * 0.028f).coerceAtLeast(0f)),
                 center = center,
@@ -83,7 +89,7 @@ internal fun JarvisVoiceOrb(modifier: Modifier = Modifier) {
         for (track in 0..5) {
             val path = Path()
             val amplitude = h * (0.082f + 0.021f * track) * (0.40f + energy * 0.75f)
-            val travel = phase * if (track % 2 == 0) 1f else -0.7f
+            val travel = if (active) phase * (if (track % 2 == 0) 1f else -0.7f) else 0f
             for (xIndex in 0..120) {
                 val x = w * xIndex / 120f
                 val wave = sin((x / w * (2.0 + track * 0.32) * PI + travel).toDouble()).toFloat()
@@ -145,7 +151,9 @@ internal fun JarvisVoiceOrb(modifier: Modifier = Modifier) {
         for (i in 0 until bars) {
             val relative = (i - (bars - 1) / 2f) / (bars / 2f)
             val falloff = (1f - abs(relative)).coerceAtLeast(0.08f)
-            val modulation = abs(sin((i * 0.53 + phase * 1.75).toDouble())).toFloat()
+            val modulation = if (active)
+                abs(sin((i * 0.53 + phase * 1.75).toDouble())).toFloat()
+                else 0.12f
             val barH = (radius * (0.05f + falloff * modulation *
                 (0.19f + level * 0.55f))).coerceAtLeast(2.dp.toPx())
             val x = cx + (i - (bars - 1) / 2f) * radius * 0.056f

@@ -18,6 +18,7 @@ internal object HandsFreeStatus {
     var heard by mutableStateOf("")
     var answer by mutableStateOf("")
     var speaking by mutableStateOf(false)
+    var userSpeaking by mutableStateOf(false)
     var micLevel by mutableFloatStateOf(0f)
     var outputLevel by mutableFloatStateOf(0f)
 }
@@ -200,6 +201,7 @@ class HandsFreeService : Service(), RecognitionListener {
         speaking = true
         HandsFreeStatus.speaking = true
         HandsFreeStatus.micLevel = 0f
+        HandsFreeStatus.userSpeaking = false
         recognizer?.cancel()
         val engine = tts
         if (ttsReady && engine != null &&
@@ -492,21 +494,30 @@ class HandsFreeService : Service(), RecognitionListener {
     }
 
     override fun onReadyForSpeech(params: Bundle?) {}
-    override fun onBeginningOfSpeech() {}
+    override fun onBeginningOfSpeech() {
+        HandsFreeStatus.userSpeaking = true
+    }
     override fun onRmsChanged(rmsdB: Float) {
         if (!running || speaking) return
         val normalized = ((rmsdB + 2f) / 13f).coerceIn(0f, 1f)
         HandsFreeStatus.micLevel = HandsFreeStatus.micLevel * 0.65f + normalized * 0.35f
     }
     override fun onBufferReceived(buffer: ByteArray?) {}
-    override fun onEndOfSpeech() {}
+    override fun onEndOfSpeech() {
+        HandsFreeStatus.userSpeaking = false
+        HandsFreeStatus.micLevel = 0f
+    }
     override fun onPartialResults(partialResults: Bundle?) {}
     override fun onEvent(eventType: Int, params: Bundle?) {}
     override fun onResults(results: Bundle?) {
+        HandsFreeStatus.userSpeaking = false
+        HandsFreeStatus.micLevel = 0f
         if (running && !speaking)
             process(results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty())
     }
     override fun onError(error: Int) {
+        HandsFreeStatus.userSpeaking = false
+        HandsFreeStatus.micLevel = 0f
         if (!running || speaking) return
         if (error == SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS) {
             shutdown("A mikrofonengedély megszűnt.")
@@ -521,6 +532,7 @@ class HandsFreeService : Service(), RecognitionListener {
         running = false
         HandsFreeStatus.running = false
         HandsFreeStatus.speaking = false
+        HandsFreeStatus.userSpeaking = false
         HandsFreeStatus.micLevel = 0f
         HandsFreeStatus.outputLevel = 0f
         HandsFreeStatus.status = status
