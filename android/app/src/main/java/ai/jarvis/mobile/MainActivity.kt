@@ -6,6 +6,7 @@ import android.graphics.Paint
 import android.graphics.pdf.PdfDocument
 import android.net.Uri
 import android.os.Bundle
+import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.compose.BackHandler
@@ -64,6 +65,9 @@ class MainActivity : ComponentActivity() {
         window.statusBarColor = android.graphics.Color.rgb(8, 14, 25)
         window.navigationBarColor = android.graphics.Color.rgb(8, 14, 25)
         if (android.os.Build.VERSION.SDK_INT >= 29) window.isNavigationBarContrastEnforced = false
+        // Resize instead of panning the entire screen (which hides the composer
+        // and pushes the orb behind the system status bar on some OEM phones).
+        window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
         setContent { JarvisApp(this) }
     }
 }

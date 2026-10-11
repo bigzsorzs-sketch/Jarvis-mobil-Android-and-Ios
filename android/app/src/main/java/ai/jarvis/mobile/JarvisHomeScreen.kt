@@ -32,6 +32,8 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -57,7 +59,12 @@ internal fun JarvisHomeScreen(
     onCallConfirm: () -> Unit,
     onCallDismiss: () -> Unit
 ) {
-    var text by remember { mutableStateOf("") }
+    // Retain unsent writing if Android recreates this screen while the IME changes.
+    var text by rememberSaveable { mutableStateOf("") }
+    // A small-height layout is essential: without it, the fixed-height orb
+    // pushes the composer below the IME on smaller screens.
+    val density = LocalDensity.current
+    val keyboardVisible = WindowInsets.ime.getBottom(density) > 0
     var issue by remember { mutableStateOf("") }
     val keyboard = LocalSoftwareKeyboardController.current
     val handsFree = HandsFreeStatus.running
@@ -189,33 +196,37 @@ internal fun JarvisHomeScreen(
                 }
             }
         }
-        Spacer(Modifier.height(18.dp))
-        JarvisVoiceOrb()
-        Text(
-            "Jarvis",
-            fontSize = 37.sp, fontWeight = FontWeight.Bold, color = JarvisInk
-        )
-        Text(
-            "Egy agy. Hanggal mindent elérek.",
-            color = JarvisMuted, fontSize = 14.sp, textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
-        )
-        Spacer(Modifier.height(18.dp))
-        val spokenStatus = when {
-            HandsFreeStatus.speaking -> "Jarvis beszél..."
-            handsFree -> "Figyelek rád..."
-            else -> "Készen állok"
-        }
-        Surface(color = if (isDark) Color(0xFF192C4C) else Color(0xFFE8F2FF),
-            shape = RoundedCornerShape(28.dp)) {
-            Row(
-                modifier = Modifier.padding(horizontal = 18.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically
+        if (!keyboardVisible) {
+            // The orb and tagline deliberately collapse when the keyboard opens.
+            // This reserves a guaranteed bottom area for the text composer.
+            Spacer(Modifier.height(18.dp))
+            JarvisVoiceOrb()
+            Text("Jarvis", fontSize = 37.sp, fontWeight = FontWeight.Bold,
+                color = JarvisInk)
+            Text(
+                "Egy agy. Hanggal mindent elérek.",
+                color = JarvisMuted, fontSize = 14.sp, textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
+            )
+            Spacer(Modifier.height(18.dp))
+            val spokenStatus = when {
+                HandsFreeStatus.speaking -> "Jarvis beszél..."
+                handsFree -> "Figyelek rád..."
+                else -> "Készen állok"
+            }
+            Surface(
+                color = if (isDark) Color(0xFF192C4C) else Color(0xFFE8F2FF),
+                shape = RoundedCornerShape(28.dp)
             ) {
-                Text("●", fontSize = 18.sp,
-                    color = if (handsFree) JarvisBlue else Color(0xFF9AAAC1))
-                Spacer(Modifier.width(8.dp))
-                Text(spokenStatus, fontSize = 14.sp, color = JarvisBlue)
+                Row(
+                    modifier = Modifier.padding(horizontal = 18.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("●", fontSize = 18.sp,
+                        color = if (handsFree) JarvisBlue else Color(0xFF9AAAC1))
+                    Spacer(Modifier.width(8.dp))
+                    Text(spokenStatus, fontSize = 14.sp, color = JarvisBlue)
+                }
             }
         }
         if (issue.isNotEmpty()) {
@@ -273,7 +284,8 @@ internal fun JarvisHomeScreen(
         }
         Row(
             modifier = Modifier.fillMaxWidth()
-                .padding(start = 13.dp, end = 13.dp, bottom = 14.dp)
+                .padding(start = 13.dp, end = 13.dp,
+                    bottom = if (keyboardVisible) 5.dp else 14.dp)
                 .shadow(9.dp, RoundedCornerShape(36.dp))
                 .background(JarvisPalette.panel, RoundedCornerShape(36.dp))
                 .padding(start = 3.dp, end = 5.dp, top = 5.dp, bottom = 5.dp),
