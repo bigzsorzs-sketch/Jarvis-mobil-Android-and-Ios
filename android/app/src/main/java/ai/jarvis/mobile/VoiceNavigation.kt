@@ -9,7 +9,7 @@ import java.util.Locale
 internal object VoiceNavigation {
     fun destinationFrom(command: String): String? {
         val named = Regex(
-            "(?iu)^(?:nyisd\s+meg\s+a\s+térképet\s+és\s+állítsd\s+be\s+(?:a\s+|az\s+)?|navigálj\s+)(.+?)\s+(?:címnek|címére|címéhez)[.!?]?$"
+            "(?iu)^(?:nyisd\\s+meg\\s+a\\s+térképet\\s+és\\s+állítsd\\s+be\\s+(?:a\\s+|az\\s+)?|navigálj\\s+)(.+?)\\s+(?:címnek|címére|címéhez)[.!?]?$"
         ).find(command.trim())
         if (named != null) return "PERSON:" + named.groupValues[1].trim()
         val match = Regex(
