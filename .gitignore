@@ -1,0 +1,22 @@
+# Android / Gradle
+.gradle/
+**/build/
+local.properties
+*.apk
+*.aab
+# Apple / Xcode
+.DS_Store
+DerivedData/
+*.xcuserstate
+xcuserdata/
+*.ipa
+*.app/
+*.xcworkspace/xcuserdata/
+# Secrets
+.env
+.env.*
+!*.example
+*.keystore
+*.jks
+*.p12
+*.mobileprovision
