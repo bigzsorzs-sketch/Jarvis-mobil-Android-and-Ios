@@ -115,6 +115,12 @@ internal object ExternalTasks {
         return uc && listOf("journal", "uzenet", "fiok", "account").any { it in normalized }
     }
 
+    fun resemblesGmailSearch(input: String): Boolean {
+        val n = PeopleDirectory.normalized(input)
+        return ("keresd" in n || "nezd meg" in n) &&
+            listOf("email", "e mail", "level").any { it in n }
+    }
+
     fun parseGmailSearch(input: String): String? {
         val matched = Regex("(?iu)^(?:keresd\\s+meg|keresd|nézd\\s+meg)\\s+(.+?)\\s+(?:emailt|e-mailt|levelet)\\b.*$")
             .find(input.trim()) ?: return null

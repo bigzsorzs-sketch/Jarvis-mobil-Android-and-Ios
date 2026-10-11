@@ -252,6 +252,9 @@ private fun ChatScreen(context: Context, onNavigate: (String) -> Unit) {
                 ExternalTasks.dispatch(context, HandoffTask.UcJournal)
             ExternalTasks.parseGmailSearch(command) != null ->
                 ExternalTasks.dispatch(context, HandoffTask.GmailSearch(ExternalTasks.parseGmailSearch(command)!!))
+            ExternalTasks.resemblesGmailSearch(command) ->
+                "Nem tudom biztosan, melyik levélre gondolsz. Mondd meg a feladót vagy tárgyat. " +
+                    "Gmail OAuth nélkül nem olvashatok és nem küldhetek választ."
             VoiceEmail.parse(command) != null -> {
                 if (VoiceEmail.openComposer(context, VoiceEmail.parse(command)!!))
                     "Megnyitottam a levelet a levelezőprogramban. Ellenőrizd, majd ott küldd el."

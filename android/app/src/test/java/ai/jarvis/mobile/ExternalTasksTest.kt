@@ -21,6 +21,7 @@ class ExternalTasksTest {
             ExternalTasks.parseMessage("Írj WhatsApp-on Sulynak hogy Szia, később hívlak")
         )
         assertNull(ExternalTasks.parseGmailSearch("Keresd meg ezt az emailt és írj rá választ"))
+        assertTrue(ExternalTasks.resemblesGmailSearch("Keresd meg ezt az emailt"))
         assertEquals("számla", ExternalTasks.parseGmailSearch("Keresd meg számla emailt"))
     }
     @Test fun ucNavigationIsExplicit() {

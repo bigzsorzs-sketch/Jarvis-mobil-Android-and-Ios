@@ -388,6 +388,11 @@ class HandsFreeService : Service(), RecognitionListener {
             }
             return
         }
+        if (ExternalTasks.resemblesGmailSearch(command)) {
+            speak("Nem tudom melyik levelet keresed. Add meg a feladót vagy tárgyat. " +
+                "Gmail OAuth nélkül még nem tudom elolvasni és megválaszolni.")
+            return
+        }
         val email = VoiceEmail.parse(command)
         if (email != null) {
             HandsFreeNavigation.mailDraft = email
