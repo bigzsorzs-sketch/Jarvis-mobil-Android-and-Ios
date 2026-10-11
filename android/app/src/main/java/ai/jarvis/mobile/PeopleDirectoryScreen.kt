@@ -69,7 +69,7 @@ internal fun PeopleDirectoryScreen(context: Context, onPermissions: () -> Unit) 
                 contactSearch = ""
                 address = ""
             } else {
-                message = "Adj meg egy becenevet és egy érvényes +44… telefonszámot."
+                message = "Adj meg egy becenevet és országkóddal kezdődő számot (pl. +447…). A 0-val kezdődő helyi szám nem elég."
             }
         } catch (_: Exception) { message = "A titkosított mentés nem sikerült." }
     }) { Text("Személy mentése") }

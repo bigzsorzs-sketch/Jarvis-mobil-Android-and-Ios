@@ -15,6 +15,7 @@ class PeopleDirectoryTest {
     }
     @Test fun onlyValidatedInternationalNumbers() {
         assertTrue(PeopleDirectory.validPhone("+447700900123"))
+        assertFalse(PeopleDirectory.validPhone("07700900123"))
         assertFalse(PeopleDirectory.validPhone("+44 hello"))
         assertFalse(PeopleDirectory.validPhone("123"))
     }

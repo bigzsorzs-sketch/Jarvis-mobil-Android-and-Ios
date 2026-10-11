@@ -30,7 +30,7 @@ internal object PeopleDirectory {
     }
 
     fun validPhone(phone: String): Boolean =
-        phone.matches(Regex("\\+?[0-9]{8,15}"))
+        phone.matches(Regex("\\+[1-9][0-9]{7,14}"))
 
     fun load(context: Context): List<KnownPerson> {
         val source = SecurePrefs(context).read(STORE, "[]")
