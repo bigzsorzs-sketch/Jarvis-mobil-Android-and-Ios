@@ -21,6 +21,7 @@ internal object HandsFreeStatus {
 internal object HandsFreeNavigation {
     var destination by mutableStateOf<String?>(null)
     var mapTarget by mutableStateOf<String?>(null)
+    var mailDraft by mutableStateOf<EmailDraft?>(null)
 }
 
 /** User-started, time-limited recognition session. Not a true always-on hotword engine. */
@@ -273,6 +274,12 @@ class HandsFreeService : Service(), RecognitionListener {
                     speak("Engedélyezd az értesítéseket, hogy az ébresztő jelezzen.")
                 JarvisAlarms.Result.Failed -> speak("Nem sikerült beállítani az ébresztőt.")
             }
+            return
+        }
+        val email = VoiceEmail.parse(command)
+        if (email != null) {
+            HandsFreeNavigation.mailDraft = email
+            speak("Előkészítettem a levelet. A küldést csak a levelezőalkalmazásban tudod jóváhagyni; háttérből nem indítok automatikus emailt.")
             return
         }
         val nav = VoiceNavigation.destinationFrom(command)

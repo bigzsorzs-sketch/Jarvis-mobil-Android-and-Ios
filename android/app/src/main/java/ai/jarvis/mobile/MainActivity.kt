@@ -75,6 +75,13 @@ fun JarvisApp(context: Context) {
         if (onboardingPrefs.getBoolean("permissions_reviewed", false)) "Főoldal" else "Engedélyek"
     ) }
     BackHandler(enabled = page != "Főoldal") { page = "Főoldal" }
+    val requestedEmail = HandsFreeNavigation.mailDraft
+    LaunchedEffect(requestedEmail) {
+        if (requestedEmail != null) {
+            VoiceEmail.openComposer(context, requestedEmail)
+            HandsFreeNavigation.mailDraft = null
+        }
+    }
     val requestedMap = HandsFreeNavigation.mapTarget
     LaunchedEffect(requestedMap) {
         if (requestedMap != null) {
@@ -217,6 +224,11 @@ private fun ChatScreen(context: Context, onNavigate: (String) -> Unit) {
         val command = prompt.trim()
         if (command.isBlank()) return
         val result = when {
+            VoiceEmail.parse(command) != null -> {
+                if (VoiceEmail.openComposer(context, VoiceEmail.parse(command)!!))
+                    "Megnyitottam a levelet a levelezőprogramban. Ellenőrizd, majd ott küldd el."
+                else "Nem találtam kompatibilis emailalkalmazást."
+            }
             VoiceNavigation.destinationFrom(command) != null -> {
                 val destination = VoiceNavigation.destinationFrom(command)!!
                 when {
