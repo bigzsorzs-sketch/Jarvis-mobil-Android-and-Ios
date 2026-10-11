@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.media.MediaMetadataRetriever
 import android.os.Build
 import java.io.File
+import java.io.FileInputStream
 
 /** Local preview only: this is NOT cloud AI understanding or audio transcription. */
 internal data class JarvisVideoFrame(val timestampMs: Long, val thumbnail: File)
@@ -32,7 +33,9 @@ internal object JarvisVideoInspector {
             directory.mkdirs()
             val retriever = MediaMetadataRetriever()
             try {
-                retriever.setDataSource(attachment.localFile.absolutePath)
+                // The app stages files with an opaque .bin extension, so use
+                // the descriptor rather than relying on an extension-based parser.
+                FileInputStream(attachment.localFile).use { retriever.setDataSource(it.fd) }
                 val duration = retriever.extractMetadata(
                     MediaMetadataRetriever.METADATA_KEY_DURATION
                 )?.toLongOrNull() ?: 0L

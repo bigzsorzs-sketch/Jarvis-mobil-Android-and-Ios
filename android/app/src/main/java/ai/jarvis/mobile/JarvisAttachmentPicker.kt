@@ -2,14 +2,19 @@ package ai.jarvis.mobile
 
 import android.content.Context
 import android.net.Uri
+import android.graphics.BitmapFactory
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
@@ -29,6 +34,8 @@ internal fun JarvisAttachmentPicker(
     var open by remember { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
     var pendingCameraFile by remember { mutableStateOf<File?>(null) }
+    var inspectedVideo by remember { mutableStateOf<JarvisVideoInspection?>(null) }
+    var previewTitle by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
 
     fun stage(uris: List<Uri>, image: Boolean, sourceFile: File? = null) {
@@ -77,6 +84,62 @@ internal fun JarvisAttachmentPicker(
     IconButton(onClick = { open = true }) {
         Text("+", fontSize = 29.sp,
             color = JarvisPalette.mainText)
+    }
+    if (inspectedVideo != null) {
+        val detail = inspectedVideo!!
+        AlertDialog(
+            onDismissRequest = { inspectedVideo = null },
+            title = { Text("Videó áttekintése: " + previewTitle) },
+            text = {
+                Column(
+                    modifier = Modifier.heightIn(max = 540.dp)
+                        .verticalScroll(rememberScrollState())
+                ) {
+                    Text(
+                        "Hossz: " + JarvisVideoSampling.formatDuration(detail.durationMs) +
+                            " · Felbontás: " + detail.width + "×" + detail.height
+                    )
+                    Text(
+                        if (detail.hasAudioTrack) "Hangsáv van a videóban."
+                        else "Nem található hangsáv."
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "Helyben kinyert képkockák: " + detail.frames.size + "/" +
+                            JarvisVideoSampling.MAX_FRAMES
+                    )
+                    Text(
+                        "Ez még nem AI-alapú tartalomelemzés. Beszédátirat és " +
+                            "a videó értelmezése az AI-agy bekötése után lesz elérhető.",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    detail.frames.forEach { frame ->
+                        val bitmap = remember(frame.thumbnail.absolutePath) {
+                            BitmapFactory.decodeFile(frame.thumbnail.absolutePath)
+                                ?.asImageBitmap()
+                        }
+                        Text(JarvisVideoSampling.formatDuration(frame.timestampMs),
+                            style = MaterialTheme.typography.labelMedium)
+                        if (bitmap != null) {
+                            Image(
+                                bitmap = bitmap,
+                                contentDescription = "Videóképkocka " +
+                                    JarvisVideoSampling.formatDuration(frame.timestampMs),
+                                modifier = Modifier.fillMaxWidth().heightIn(max = 210.dp),
+                                contentScale = ContentScale.Fit
+                            )
+                        }
+                        Spacer(Modifier.height(10.dp))
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { inspectedVideo = null }) {
+                    Text("Bezárás")
+                }
+            }
+        )
     }
     if (open) {
         ModalBottomSheet(
@@ -141,7 +204,30 @@ internal fun JarvisAttachmentPicker(
                                 style = MaterialTheme.typography.bodySmall
                             )
                         }
+                        if (attachment.mimeType.startsWith("video/")) {
+                            TextButton(onClick = {
+                                if (!busy) {
+                                    busy = true
+                                    scope.launch {
+                                        val result = withContext(Dispatchers.IO) {
+                                            JarvisVideoInspector.inspect(context, attachment)
+                                        }
+                                        busy = false
+                                        result.onSuccess {
+                                            previewTitle = attachment.displayName
+                                            inspectedVideo = it
+                                        }.onFailure {
+                                            onStatus("A videó nem dolgozható fel ezen a készüléken: " +
+                                                (it.message ?: "ismeretlen hiba"))
+                                        }
+                                    }
+                                }
+                            }, enabled = !busy) {
+                                Text("Képkockák")
+                            }
+                        }
                         TextButton(onClick = {
+                            JarvisVideoInspector.removeCache(context, attachment.id)
                             JarvisAttachments.delete(attachment)
                             items.remove(attachment)
                         }) { Text("Eltávolítás") }
