@@ -32,6 +32,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
+import androidx.core.view.WindowInsetsControllerCompat
+import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -80,7 +82,26 @@ fun JarvisApp(context: Context) {
     var page by remember { mutableStateOf(
         if (onboardingPrefs.getBoolean("permissions_reviewed", false)) "Főoldal" else "Engedélyek"
     ) }
-    BackHandler(enabled = page != "Főoldal") { page = "Főoldal" }
+    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+    val drawerScope = rememberCoroutineScope()
+    var homeCommand by remember { mutableStateOf<String?>(null) }
+    BackHandler(enabled = drawerState.isOpen || page != "Főoldal") {
+        if (drawerState.isOpen) drawerScope.launch { drawerState.close() }
+        else page = "Főoldal"
+    }
+    SideEffect {
+        (context as? Activity)?.window?.let { window ->
+            val light = page == "Főoldal"
+            window.statusBarColor = if (light) android.graphics.Color.WHITE
+                else android.graphics.Color.rgb(8, 14, 25)
+            window.navigationBarColor = if (light) android.graphics.Color.rgb(246, 250, 255)
+                else android.graphics.Color.rgb(8, 14, 25)
+            WindowInsetsControllerCompat(window, window.decorView).apply {
+                isAppearanceLightStatusBars = light
+                isAppearanceLightNavigationBars = light
+            }
+        }
+    }
     val appIsForeground = HandsFreeNavigation.appIsForeground
     val externalRequest = HandsFreeNavigation.external
     var handoffResult by remember { mutableStateOf("") }
@@ -117,66 +138,101 @@ fun JarvisApp(context: Context) {
     val invoices = remember { mutableStateListOf<Invoice>().apply { addAll(readInvoices(securePrefs.read("invoices", "[]"))) } }
     val notes = remember { mutableStateListOf<String>().apply { addAll(readNotes(securePrefs.read("notes", "[]"))) } }
 
-    MaterialTheme(colorScheme = darkColorScheme(
-        primary = Cyan, background = Night, surface = Panel, onSurface = White,
-        onBackground = White, onPrimary = Night
+    val onHome = page == "Főoldal"
+    MaterialTheme(colorScheme = if (onHome) lightColorScheme(
+        primary = Color(0xFF075FF1), background = Color.White,
+        surface = Color.White, onSurface = Color(0xFF08142E)
+    ) else darkColorScheme(
+        primary = Cyan, background = Night, surface = Panel,
+        onSurface = White, onBackground = White, onPrimary = Night
     )) {
-        Box(Modifier.fillMaxSize().background(Night)) {
-        Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).imePadding().background(Night)) {
-            Row(
-                Modifier.fillMaxWidth().padding(18.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Column {
-                    Text("JARVIS", color = Cyan, fontSize = 26.sp, fontWeight = FontWeight.Black)
-                    Text("MOBILE  ·  BASIC  ·  ANDROID", color = Soft, fontSize = 10.sp)
+        ModalNavigationDrawer(
+            drawerState = drawerState,
+            drawerContent = {
+                JarvisDrawer(page) { selected ->
+                    page = selected
+                    drawerScope.launch { drawerState.close() }
                 }
-                Text("● NATÍV", color = Color(0xFF62E4B8), fontSize = 11.sp)
             }
-            HorizontalDivider(color = Color(0xFF243149))
-            if (handoffResult.isNotBlank()) {
-                Text(handoffResult, color = Cyan, fontSize = 12.sp,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
-            }
-            Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(16.dp)) {
-                when (page) {
-                    "Engedélyek" -> PermissionCenter(
-                        context,
-                        onDone = {
-                            onboardingPrefs.edit().putBoolean("permissions_reviewed", true).apply()
-                            page = "Főoldal"
-                        },
-                        onMessages = { page = "Üzenetek" }
+        ) {
+            Column(
+                Modifier.fillMaxSize()
+                    .windowInsetsPadding(WindowInsets.safeDrawing)
+                    .imePadding()
+                    .background(if (onHome) Color.White else Night)
+            ) {
+                if (onHome) {
+                    JarvisHomeScreen(
+                        context = context,
+                        onMenu = { drawerScope.launch { drawerState.open() } },
+                        onNavigate = { page = it },
+                        onCommand = { command ->
+                            homeCommand = command
+                            page = "Chat"
+                        }
                     )
-                    "Üzenetek" -> MessageInboxScreen(context, onPermissions = { page = "Engedélyek" })
-                    "Névjegyek" -> ContactsScreen(context, onPermissions = { page = "Engedélyek" })
-                    "Ismerősök" -> PeopleDirectoryScreen(context, onPermissions = { page = "Engedélyek" })
-                    "Főoldal" -> HomeScreen(context, readings, invoices, onGo = { page = it })
-                    "Chat" -> ChatScreen(context, onNavigate = { page = it })
-                    "Vércukor" -> GlucoseScreen(readings) {
-                        securePrefs.write("readings", writeReadings(readings))
+                } else {
+                    Row(
+                        Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        TextButton(onClick = { drawerScope.launch { drawerState.open() } }) {
+                            Text("☰", color = Cyan, fontSize = 25.sp)
+                        }
+                        Text(page, color = White, fontSize = 19.sp,
+                            fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                        TextButton(onClick = { page = "Főoldal" }) {
+                            Text("Főoldal", color = Cyan)
+                        }
                     }
-                    "Számlák" -> InvoiceScreen(context, invoices) {
-                        securePrefs.write("invoices", writeInvoices(invoices))
+                    HorizontalDivider(color = Color(0xFF243149))
+                    if (handoffResult.isNotBlank()) {
+                        Text(handoffResult, color = Cyan, fontSize = 12.sp,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
                     }
-                    else -> MoreScreen(context, notes, {
-                        securePrefs.write("notes", JSONArray(notes).toString())
-                    }, { page = it })
+                    Column(
+                        Modifier.weight(1f).fillMaxWidth()
+                            .verticalScroll(rememberScrollState())
+                            .padding(16.dp)
+                    ) {
+                        when (page) {
+                            "Engedélyek" -> PermissionCenter(
+                                context,
+                                onDone = {
+                                    onboardingPrefs.edit()
+                                        .putBoolean("permissions_reviewed", true).apply()
+                                    page = "Főoldal"
+                                },
+                                onMessages = { page = "Üzenetek" }
+                            )
+                            "Üzenetek" -> MessageInboxScreen(context, onPermissions = {
+                                page = "Engedélyek"
+                            })
+                            "Névjegyek" -> ContactsScreen(context, onPermissions = {
+                                page = "Engedélyek"
+                            })
+                            "Ismerősök" -> PeopleDirectoryScreen(context, onPermissions = {
+                                page = "Engedélyek"
+                            })
+                            "Chat" -> ChatScreen(
+                                context, onNavigate = { page = it },
+                                initialPrompt = homeCommand,
+                                onInitialConsumed = { homeCommand = null }
+                            )
+                            "Vércukor" -> GlucoseScreen(readings) {
+                                securePrefs.write("readings", writeReadings(readings))
+                            }
+                            "Számlák" -> InvoiceScreen(context, invoices) {
+                                securePrefs.write("invoices", writeInvoices(invoices))
+                            }
+                            "Továbbiak" -> MoreScreen(context, notes, {
+                                securePrefs.write("notes", JSONArray(notes).toString())
+                            }, { page = it })
+                            else -> JarvisToolLanding(context, page, onOpen = { page = it })
+                        }
+                    }
                 }
             }
-            HorizontalDivider(color = Color(0xFF243149))
-            Row(
-                Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 9.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
-                Pages.forEach { item ->
-                    TextButton(onClick = { page = item }, contentPadding = PaddingValues(horizontal = 6.dp)) {
-                        Text(item, color = if (page == item) Cyan else Soft, fontSize = 11.sp)
-                    }
-                }
-            }
-        }
         }
     }
 }
@@ -227,7 +283,12 @@ private fun SurfaceCard(content: @Composable ColumnScope.() -> Unit) {
 }
 
 @Composable
-private fun ChatScreen(context: Context, onNavigate: (String) -> Unit) {
+private fun ChatScreen(
+    context: Context,
+    onNavigate: (String) -> Unit,
+    initialPrompt: String? = null,
+    onInitialConsumed: () -> Unit = {}
+) {
     var prompt by remember { mutableStateOf("") }
     var speechError by remember { mutableStateOf("") }
     var pendingPhoneCall by remember { mutableStateOf<VoiceCalling.Target?>(null) }
@@ -303,6 +364,13 @@ private fun ChatScreen(context: Context, onNavigate: (String) -> Unit) {
         }
         log.add(command to result)
         prompt = ""
+    }
+    LaunchedEffect(initialPrompt) {
+        if (!initialPrompt.isNullOrBlank()) {
+            prompt = initialPrompt
+            send()
+            onInitialConsumed()
+        }
     }
     Text("Jarvis – helyi parancsok", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = White)
     Spacer(Modifier.height(12.dp))
