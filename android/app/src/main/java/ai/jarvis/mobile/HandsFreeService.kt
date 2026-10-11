@@ -19,6 +19,7 @@ internal object HandsFreeStatus {
     var answer by mutableStateOf("")
 }
 internal object HandsFreeNavigation {
+    var appIsForeground by mutableStateOf(false)
     var destination by mutableStateOf<String?>(null)
     var mapTarget by mutableStateOf<String?>(null)
     var mailDraft by mutableStateOf<EmailDraft?>(null)

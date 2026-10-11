@@ -47,6 +47,12 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         PermissionRefresh.serial += 1
+        HandsFreeNavigation.appIsForeground = true
+    }
+
+    override fun onPause() {
+        HandsFreeNavigation.appIsForeground = false
+        super.onPause()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -75,18 +81,21 @@ fun JarvisApp(context: Context) {
         if (onboardingPrefs.getBoolean("permissions_reviewed", false)) "Főoldal" else "Engedélyek"
     ) }
     BackHandler(enabled = page != "Főoldal") { page = "Főoldal" }
+    val appIsForeground = HandsFreeNavigation.appIsForeground
     val requestedEmail = HandsFreeNavigation.mailDraft
-    LaunchedEffect(requestedEmail) {
-        if (requestedEmail != null) {
-            VoiceEmail.openComposer(context, requestedEmail)
-            HandsFreeNavigation.mailDraft = null
+    LaunchedEffect(requestedEmail, appIsForeground) {
+        if (requestedEmail != null && appIsForeground) {
+            if (VoiceEmail.openComposer(context, requestedEmail)) {
+                HandsFreeNavigation.mailDraft = null
+            }
         }
     }
     val requestedMap = HandsFreeNavigation.mapTarget
-    LaunchedEffect(requestedMap) {
-        if (requestedMap != null) {
-            VoiceNavigation.open(context, requestedMap)
-            HandsFreeNavigation.mapTarget = null
+    LaunchedEffect(requestedMap, appIsForeground) {
+        if (requestedMap != null && appIsForeground) {
+            if (VoiceNavigation.open(context, requestedMap)) {
+                HandsFreeNavigation.mapTarget = null
+            }
         }
     }
     val voiceDestination = HandsFreeNavigation.destination
