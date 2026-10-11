@@ -44,6 +44,11 @@ data class Reading(val value: String, val stamp: String)
 data class Invoice(val client: String, val amount: String, val stamp: String)
 
 class MainActivity : ComponentActivity() {
+    override fun onResume() {
+        super.onResume()
+        PermissionRefresh.serial += 1
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // Android 15+ enforces edge-to-edge. Keep system bars dark while Compose
@@ -65,7 +70,10 @@ private val Pages = listOf("Főoldal", "Chat", "Vércukor", "Számlák", "Továb
 @Composable
 fun JarvisApp(context: Context) {
     val securePrefs = remember { SecurePrefs(context) }
-    var page by remember { mutableStateOf("Főoldal") }
+    val onboardingPrefs = remember { context.getSharedPreferences("jarvis_onboarding_v1", Context.MODE_PRIVATE) }
+    var page by remember { mutableStateOf(
+        if (onboardingPrefs.getBoolean("permissions_reviewed", false)) "Főoldal" else "Engedélyek"
+    ) }
     BackHandler(enabled = page != "Főoldal") { page = "Főoldal" }
     val readings = remember { mutableStateListOf<Reading>().apply { addAll(readReadings(securePrefs.read("readings", "[]"))) } }
     val invoices = remember { mutableStateListOf<Invoice>().apply { addAll(readInvoices(securePrefs.read("invoices", "[]"))) } }
@@ -91,6 +99,16 @@ fun JarvisApp(context: Context) {
             HorizontalDivider(color = Color(0xFF243149))
             Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(16.dp)) {
                 when (page) {
+                    "Engedélyek" -> PermissionCenter(
+                        context,
+                        onDone = {
+                            onboardingPrefs.edit().putBoolean("permissions_reviewed", true).apply()
+                            page = "Főoldal"
+                        },
+                        onMessages = { page = "Üzenetek" }
+                    )
+                    "Üzenetek" -> MessageInboxScreen(context, onPermissions = { page = "Engedélyek" })
+                    "Névjegyek" -> ContactsScreen(context, onPermissions = { page = "Engedélyek" })
                     "Főoldal" -> HomeScreen(readings, invoices, onGo = { page = it })
                     "Chat" -> ChatScreen(context, onNavigate = { page = it })
                     "Vércukor" -> GlucoseScreen(readings) {
@@ -378,6 +396,15 @@ private fun MoreScreen(context: Context, notes: MutableList<String>, persist: ()
     if (result.isNotEmpty()) {
         Spacer(Modifier.height(10.dp))
         Text(result, color = Cyan, fontSize = 13.sp)
+    }
+    Spacer(Modifier.height(12.dp))
+    SurfaceCard {
+        Text("🔐 Engedélyek és üzenetek", color = White, fontWeight = FontWeight.Bold)
+        Text("Fotók, dokumentumok, pontos GPS, névjegyek és értesítések: mindegyik külön engedélyezhető.",
+            color = Soft, fontSize = 12.sp)
+        Button(onClick = { onGo("Engedélyek") }) { Text("Engedélyközpont megnyitása") }
+        OutlinedButton(onClick = { onGo("Üzenetek") }) { Text("WhatsApp / Messenger / üzenetek") }
+        OutlinedButton(onClick = { onGo("Névjegyek") }) { Text("Névjegyek megtekintése") }
     }
     Spacer(Modifier.height(12.dp))
     SurfaceCard {

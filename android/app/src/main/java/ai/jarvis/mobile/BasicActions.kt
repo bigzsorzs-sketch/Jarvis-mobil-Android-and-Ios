@@ -13,7 +13,7 @@ import java.util.Locale
  */
 internal enum class BasicAction {
     OPEN_GLUCOSE, OPEN_INVOICES, OPEN_HOME, OPEN_NOTES,
-    OPEN_EMAIL, OPEN_MAP, OPEN_CALENDAR, OPEN_ALARMS, OPEN_DIALER, UNKNOWN
+    OPEN_EMAIL, OPEN_MAP, OPEN_CALENDAR, OPEN_ALARMS, OPEN_DIALER, OPEN_MESSAGES, OPEN_PERMISSIONS, UNKNOWN
 }
 
 internal object BasicCommandRouter {
@@ -23,6 +23,8 @@ internal object BasicCommandRouter {
         return when {
             listOf("vércukor", "vercukor", "cukornapl", "glucose", "blood sugar").any { it in input } -> BasicAction.OPEN_GLUCOSE
             listOf("száml", "szaml", "invoice", "billing").any { it in input } -> BasicAction.OPEN_INVOICES
+            listOf("whatsapp", "messenger", "üzenet", "uzenet", "sms", "telegram", "signal").any { it in input } -> BasicAction.OPEN_MESSAGES
+            listOf("engedély", "engedely", "permissions").any { it in input } -> BasicAction.OPEN_PERMISSIONS
             listOf("email", "e-mail", "gmail", "levelez", "levél", "level", "mail").any { it in input } -> BasicAction.OPEN_EMAIL
             listOf("térkép", "terkep", "navig", "maps", "route").any { it in input } -> BasicAction.OPEN_MAP
             listOf("naptár", "naptar", "calendar").any { it in input } -> BasicAction.OPEN_CALENDAR
@@ -69,6 +71,8 @@ internal fun openDialer(context: Context): Boolean =
 
 internal fun performBasicAction(context: Context, action: BasicAction, onNavigate: (String) -> Unit): String {
     return when (action) {
+        BasicAction.OPEN_MESSAGES -> { onNavigate("Üzenetek"); "Megnyitottam az üzeneteket. Értesítési hozzáférés szükséges." }
+        BasicAction.OPEN_PERMISSIONS -> { onNavigate("Engedélyek"); "Megnyitottam az engedélyeket." }
         BasicAction.OPEN_GLUCOSE -> { onNavigate("Vércukor"); "Megnyitottam a vércukornaplót." }
         BasicAction.OPEN_INVOICES -> { onNavigate("Számlák"); "Megnyitottam a számlázást." }
         BasicAction.OPEN_HOME -> { onNavigate("Főoldal"); "Megnyitottam a főoldalt." }
