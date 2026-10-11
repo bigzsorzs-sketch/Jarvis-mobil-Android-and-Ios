@@ -9,6 +9,13 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import android.app.Activity
+import android.speech.RecognizerIntent
+import android.speech.tts.TextToSpeech
+import androidx.compose.foundation.Canvas
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -57,12 +64,12 @@ private val Pages = listOf("Főoldal", "Chat", "Vércukor", "Számlák", "Továb
 
 @Composable
 fun JarvisApp(context: Context) {
-    val prefs = remember { context.getSharedPreferences("jarvis_basic_v1", Context.MODE_PRIVATE) }
+    val securePrefs = remember { SecurePrefs(context) }
     var page by remember { mutableStateOf("Főoldal") }
     BackHandler(enabled = page != "Főoldal") { page = "Főoldal" }
-    val readings = remember { mutableStateListOf<Reading>().apply { addAll(readReadings(prefs.getString("readings", "[]") ?: "[]")) } }
-    val invoices = remember { mutableStateListOf<Invoice>().apply { addAll(readInvoices(prefs.getString("invoices", "[]") ?: "[]")) } }
-    val notes = remember { mutableStateListOf<String>().apply { addAll(readNotes(prefs.getString("notes", "[]") ?: "[]")) } }
+    val readings = remember { mutableStateListOf<Reading>().apply { addAll(readReadings(securePrefs.read("readings", "[]"))) } }
+    val invoices = remember { mutableStateListOf<Invoice>().apply { addAll(readInvoices(securePrefs.read("invoices", "[]"))) } }
+    val notes = remember { mutableStateListOf<String>().apply { addAll(readNotes(securePrefs.read("notes", "[]"))) } }
 
     MaterialTheme(colorScheme = darkColorScheme(
         primary = Cyan, background = Night, surface = Panel, onSurface = White,
@@ -85,15 +92,15 @@ fun JarvisApp(context: Context) {
             Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(16.dp)) {
                 when (page) {
                     "Főoldal" -> HomeScreen(readings, invoices, onGo = { page = it })
-                    "Chat" -> ChatScreen()
+                    "Chat" -> ChatScreen(context, onNavigate = { page = it })
                     "Vércukor" -> GlucoseScreen(readings) {
-                        prefs.edit().putString("readings", writeReadings(readings)).apply()
+                        securePrefs.write("readings", writeReadings(readings))
                     }
                     "Számlák" -> InvoiceScreen(context, invoices) {
-                        prefs.edit().putString("invoices", writeInvoices(invoices)).apply()
+                        securePrefs.write("invoices", writeInvoices(invoices))
                     }
                     else -> MoreScreen(context, notes, {
-                        prefs.edit().putString("notes", JSONArray(notes).toString()).apply()
+                        securePrefs.write("notes", JSONArray(notes).toString())
                     }, { page = it })
                 }
             }
@@ -157,17 +164,59 @@ private fun SurfaceCard(content: @Composable ColumnScope.() -> Unit) {
 }
 
 @Composable
-private fun ChatScreen() {
+private fun ChatScreen(context: Context, onNavigate: (String) -> Unit) {
     var prompt by remember { mutableStateOf("") }
-    var attempted by remember { mutableStateOf(false) }
-    Text("Jarvis chat", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = White)
+    var speechError by remember { mutableStateOf("") }
+    val log = remember { mutableStateListOf<Pair<String, String>>() }
+    val speaker = remember(context) { TextToSpeech(context) { } }
+    DisposableEffect(speaker) { onDispose { speaker.stop(); speaker.shutdown() } }
+    val voiceLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val heard = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()
+            if (!heard.isNullOrBlank()) { prompt = heard; speechError = "" }
+        }
+    }
+    fun send() {
+        val command = prompt.trim()
+        if (command.isBlank()) return
+        val result = performBasicAction(context, BasicCommandRouter.classify(command), onNavigate)
+        log.add(command to result)
+        prompt = ""
+    }
+    Text("Jarvis – helyi parancsok", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = White)
     Spacer(Modifier.height(12.dp))
     SurfaceCard {
-        Text("Az AI-kapcsolat még nincs konfigurálva.", color = Cyan)
-        Text("Ez nem szimulált AI: nem állítjuk, hogy egy modell válaszolt.", color = Soft, fontSize = 13.sp)
-        OutlinedTextField(value = prompt, onValueChange = { prompt = it }, label = { Text("Írj Jarvisnak") }, modifier = Modifier.fillMaxWidth())
-        Button(onClick = { attempted = true }, enabled = prompt.isNotBlank()) { Text("Küldés") }
-        if (attempted) Text("A felhőalapú AI API bekötése a következő fejlesztési fázis.", color = Soft)
+        Text("Működő offline telefonparancsok", color = Cyan, fontWeight = FontWeight.SemiBold)
+        Text("Próbáld: »Nyisd meg a vércukrot«, »Email«, »Térkép«, »Számlázás«, »Naptár« vagy »Ébresztő«.", color = Soft, fontSize = 13.sp)
+        Text("Az AI még nincs bekötve; ez valódi helyi parancsfeldolgozás, nem AI-válasz.", color = Soft, fontSize = 12.sp)
+        OutlinedTextField(value = prompt, onValueChange = { prompt = it },
+            label = { Text("Írj vagy diktálj Jarvisnak") }, modifier = Modifier.fillMaxWidth())
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(onClick = { send() }, enabled = prompt.isNotBlank()) { Text("Végrehajtás") }
+            OutlinedButton(onClick = {
+                val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                    putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                    putExtra(RecognizerIntent.EXTRA_LANGUAGE, "hu-HU")
+                    putExtra(RecognizerIntent.EXTRA_PROMPT, "Mondd a Jarvis parancsot")
+                }
+                try { voiceLauncher.launch(intent) }
+                catch (_: Exception) { speechError = "Nincs kompatibilis beszédfelismerő." }
+            }) { Text("🎤 Diktálás") }
+        }
+        if (speechError.isNotEmpty()) Text(speechError, color = Color(0xFFFFA5A5))
+    }
+    Spacer(Modifier.height(12.dp))
+    log.takeLast(12).asReversed().forEach { (query, reply) ->
+        SurfaceCard {
+            Text(query, fontWeight = FontWeight.Bold, color = White)
+            Text(reply, color = Soft, fontSize = 13.sp)
+            TextButton(onClick = { speaker.speak(reply, TextToSpeech.QUEUE_FLUSH, null, "jarvis-reply") }) {
+                Text("🔊 Felolvasás")
+            }
+        }
+        Spacer(Modifier.height(8.dp))
     }
 }
 
@@ -197,6 +246,38 @@ private fun GlucoseScreen(readings: MutableList<Reading>, persist: () -> Unit) {
         if (error.isNotEmpty()) Text(error, color = Color(0xFFFFA5A5))
     }
     Spacer(Modifier.height(14.dp))
+    val values = readings.take(30).mapNotNull { it.value.toDoubleOrNull() }
+    if (values.isNotEmpty()) {
+        SurfaceCard {
+            Text("Mérési áttekintés", color = White, fontWeight = FontWeight.SemiBold)
+            Text(
+                "Átlag: " + "%.1f".format(Locale.UK, values.average()) +
+                    " · Min: " + "%.1f".format(Locale.UK, values.minOrNull() ?: 0.0) +
+                    " · Max: " + "%.1f".format(Locale.UK, values.maxOrNull() ?: 0.0) + " mmol/L",
+                color = Soft, fontSize = 12.sp
+            )
+            if (values.size >= 2) {
+                Canvas(Modifier.fillMaxWidth().height(130.dp)) {
+                    val ordered = values.reversed()
+                    val lower = (ordered.minOrNull() ?: 0.0) - 1.0
+                    val upper = (ordered.maxOrNull() ?: 1.0) + 1.0
+                    val stepX = size.width / (ordered.size - 1)
+                    val points = ordered.mapIndexed { i, value ->
+                        Offset(
+                            i * stepX,
+                            (size.height * (1.0 - ((value - lower) / (upper - lower)))).toFloat()
+                        )
+                    }
+                    for (i in 0 until points.lastIndex) {
+                        drawLine(Cyan, points[i], points[i + 1], strokeWidth = 4.dp.toPx())
+                    }
+                    points.forEach { drawCircle(Cyan, 3.dp.toPx(), it) }
+                }
+            }
+            Text("Tájékoztató grafikon. Orvosi döntést nem helyettesít.", color = Soft, fontSize = 11.sp)
+        }
+        Spacer(Modifier.height(10.dp))
+    }
     if (readings.isEmpty()) Text("Még nincs mentett mérés.", color = Soft)
     readings.forEachIndexed { index, reading ->
         SurfaceCard {
@@ -251,37 +332,58 @@ private fun InvoiceScreen(context: Context, invoices: MutableList<Invoice>, pers
 @Composable
 private fun MoreScreen(context: Context, notes: MutableList<String>, persist: () -> Unit, onGo: (String) -> Unit) {
     var note by remember { mutableStateOf("") }
+    var eventName by remember { mutableStateOf("") }
+    var result by remember { mutableStateOf("") }
     Text("Basic eszközök", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = White)
     Spacer(Modifier.height(12.dp))
     SurfaceCard {
-        Text("📧 Email", fontWeight = FontWeight.Bold)
-        Text("Az alapértelmezett email-alkalmazás nyílik meg.", color = Soft, fontSize = 12.sp)
+        Text("📧 Email", color = White, fontWeight = FontWeight.Bold)
+        Text("Valódi emailírás a telefon levelezőalkalmazásával. Gmail-fiók olvasásához külön OAuth-kapcsolat szükséges.", color = Soft, fontSize = 12.sp)
+        Button(onClick = { result = if (openEmail(context)) "Email alkalmazás megnyitva." else "Nincs email alkalmazás." }) { Text("Email írása") }
+    }
+    Spacer(Modifier.height(12.dp))
+    SurfaceCard {
+        Text("🧭 Navigáció", color = White, fontWeight = FontWeight.Bold)
+        Button(onClick = { result = if (openMap(context)) "Térkép megnyitva." else "Nincs térkép alkalmazás." }) { Text("Térkép megnyitása") }
+    }
+    Spacer(Modifier.height(12.dp))
+    SurfaceCard {
+        Text("📅 Naptár és emlékeztetők", color = White, fontWeight = FontWeight.Bold)
+        OutlinedTextField(value = eventName, onValueChange = { eventName = it }, label = { Text("Esemény címe") }, modifier = Modifier.fillMaxWidth())
         Button(onClick = {
-            val intent = Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:"))
-            safeOpen(context, intent)
-        }) { Text("Email írása") }
+            result = if (eventName.isNotBlank() && addCalendarEvent(context, eventName.trim()))
+                "A naptárban ellenőrizd és mentsd az eseményt."
+            else "Adj meg címet, és legyen telepített naptár."
+        }) { Text("Esemény létrehozása") }
+        OutlinedButton(onClick = { result = if (openAlarms(context)) "Ébresztők megnyitva." else "Nincs óra alkalmazás." }) { Text("Ébresztők") }
     }
     Spacer(Modifier.height(12.dp))
     SurfaceCard {
-        Text("🧭 Navigáció", fontWeight = FontWeight.Bold)
-        Button(onClick = { safeOpen(context, Intent(Intent.ACTION_VIEW, Uri.parse("geo:0,0?q="))) }) { Text("Térkép megnyitása") }
+        Text("📞 Telefon", color = White, fontWeight = FontWeight.Bold)
+        Text("A tárcsázót nyitja meg. Hívást nem indít önállóan.", color = Soft, fontSize = 12.sp)
+        OutlinedButton(onClick = { result = if (openDialer(context)) "Tárcsázó megnyitva." else "Nincs tárcsázó alkalmazás." }) { Text("Tárcsázó") }
     }
     Spacer(Modifier.height(12.dp))
     SurfaceCard {
-        Text("🧠 Helyi jegyzetek", fontWeight = FontWeight.Bold)
+        Text("🧠 Titkosítva tárolt jegyzetek", color = White, fontWeight = FontWeight.Bold)
         OutlinedTextField(value = note, onValueChange = { note = it }, label = { Text("Új jegyzet") }, modifier = Modifier.fillMaxWidth())
         Button(onClick = { if (note.isNotBlank()) { notes.add(0, note.trim()); persist(); note = "" } }) { Text("Mentés") }
         notes.forEachIndexed { index, text ->
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(text, Modifier.weight(1f))
+                Text(text, Modifier.weight(1f), color = White)
                 TextButton(onClick = { notes.removeAt(index); persist() }) { Text("Törlés") }
             }
         }
     }
+    if (result.isNotEmpty()) {
+        Spacer(Modifier.height(10.dp))
+        Text(result, color = Cyan, fontSize = 13.sp)
+    }
     Spacer(Modifier.height(12.dp))
     SurfaceCard {
-        Text("🔒 Funkciók fejlesztés alatt", fontWeight = FontWeight.Bold)
-        Text("Központi AI, Gmail OAuth, Libre 2 szinkron, OBD2, hangvezérlés, 42 nyelv és PC-s adatszinkron későbbi modulok. A Windows Self-Repair nem része a mobilappnak.", color = Soft, fontSize = 12.sp)
+        Text("🔒 Integrációk folyamatban", color = White, fontWeight = FontWeight.Bold)
+        Text("Központi AI, Gmail-fiókszinkron, Libre 2 szinkron, OBD2, 42 nyelv és PC-s adatszinkron további fejlesztést igényel. A Self-Repair nem kerül mobilra.", color = Soft, fontSize = 12.sp)
+        TextButton(onClick = { onGo("Chat") }) { Text("Hangos helyi parancsok") }
     }
 }
 
