@@ -29,7 +29,22 @@ jobs:
         with:
           gradle-version: "8.9"
       - name: Run Kotlin tests, Android lint and compile debug APK
-        run: gradle -p android :app:testDebugUnitTest :app:lintDebug :app:assembleDebug --stacktrace
+        shell: bash
+        run: |
+          if ! gradle -p android :app:testDebugUnitTest :app:lintDebug :app:assembleDebug --stacktrace; then
+            echo "::group::Android lint details"
+            cat android/app/build/reports/lint-results-debug.txt 2>/dev/null || true
+            cat android/app/build/intermediates/lint_intermediate_text_report/debug/lintReportDebug/lint-results-debug.txt 2>/dev/null || true
+            echo "::endgroup::"
+            exit 1
+          fi
+      - name: Upload Android lint report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Jarvis-Android-Lint-Report
+          path: android/app/build/reports/lint-results-debug.*
+          if-no-files-found: ignore
       - name: Upload installable debug APK
         uses: actions/upload-artifact@v4
         with:
