@@ -7,6 +7,11 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.speech.RecognizerIntent
+import android.speech.tts.TextToSpeech
+import android.speech.tts.UtteranceProgressListener
+import android.os.Handler
+import android.os.Looper
+import java.util.Locale
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -56,6 +61,37 @@ internal fun JarvisHomeScreen(
     var issue by remember { mutableStateOf("") }
     val keyboard = LocalSoftwareKeyboardController.current
     val handsFree = HandsFreeStatus.running
+    var ttsReady by remember { mutableStateOf(false) }
+    val player = remember(context) {
+        TextToSpeech(context) { code -> ttsReady = code == TextToSpeech.SUCCESS }
+    }
+    DisposableEffect(player) {
+        val mainThread = Handler(Looper.getMainLooper())
+        player.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+            override fun onStart(utteranceId: String?) {
+                mainThread.post { HandsFreeStatus.speaking = true }
+            }
+            override fun onDone(utteranceId: String?) {
+                mainThread.post {
+                    HandsFreeStatus.speaking = false
+                    HandsFreeStatus.outputLevel = 0f
+                }
+            }
+            @Deprecated("Deprecated in Java")
+            override fun onError(utteranceId: String?) {
+                mainThread.post {
+                    HandsFreeStatus.speaking = false
+                    HandsFreeStatus.outputLevel = 0f
+                }
+            }
+        })
+        onDispose {
+            player.stop()
+            player.shutdown()
+            HandsFreeStatus.speaking = false
+            HandsFreeStatus.outputLevel = 0f
+        }
+    }
 
     fun submit(value: String) {
         val command = value.trim()
@@ -218,6 +254,19 @@ internal fun JarvisHomeScreen(
                             fontWeight = FontWeight.SemiBold)
                         Spacer(Modifier.height(4.dp))
                         Text(answer, color = JarvisMuted, fontSize = 13.sp)
+                        TextButton(onClick = {
+                            if (ttsReady && !handsFree) {
+                                player.language = Locale.forLanguageTag("hu-HU")
+                                val success = player.speak(
+                                    answer, TextToSpeech.QUEUE_FLUSH, null,
+                                    "home-" + System.currentTimeMillis()
+                                )
+                                if (success != TextToSpeech.SUCCESS)
+                                    issue = "A telefon beszédmotorja nem érhető el."
+                            }
+                        }, enabled = ttsReady && !handsFree) {
+                            Text("🔊 Felolvasás")
+                        }
                     }
                 }
             }
