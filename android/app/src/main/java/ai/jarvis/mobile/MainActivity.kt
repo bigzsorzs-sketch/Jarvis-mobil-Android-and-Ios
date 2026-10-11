@@ -405,6 +405,22 @@ private fun MoreScreen(context: Context, notes: MutableList<String>, persist: ()
     }
     Spacer(Modifier.height(12.dp))
     SurfaceCard {
+        Text("⏰ Jarvis ébresztő", color = White, fontWeight = FontWeight.Bold)
+        val activeAlarm = JarvisAlarms.current(context)
+        Text(
+            if (activeAlarm > 0L) "Következő ébresztő: " +
+                SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.UK).format(Date(activeAlarm))
+            else "Nincs aktív Jarvis-ébresztő.",
+            color = Soft, fontSize = 12.sp
+        )
+        Text("Hangos értesítéssel jelez. Az ébresztés pontos időzítéséhez külön Android-engedély kell.",
+            color = Soft, fontSize = 12.sp)
+        OutlinedButton(onClick = { onGo("Engedélyek") }) { Text("Ébresztési engedélyek") }
+        Button(onClick = { result = if (JarvisAlarms.cancel(context)) "A Jarvis-ébresztőt töröltem."
+            else "Nincs törölhető Jarvis-ébresztő." }) { Text("Saját ébresztő törlése") }
+    }
+    Spacer(Modifier.height(12.dp))
+    SurfaceCard {
         Text("📞 Telefon", color = White, fontWeight = FontWeight.Bold)
         Text("A tárcsázót nyitja meg. Hívást nem indít önállóan.", color = Soft, fontSize = 12.sp)
         OutlinedButton(onClick = { result = if (openDialer(context)) "Tárcsázó megnyitva." else "Nincs tárcsázó alkalmazás." }) { Text("Tárcsázó") }
