@@ -1,0 +1,23 @@
+name: Check AI gateway development skeleton
+on:
+  push:
+    branches: [main]
+    paths:
+      - "server/**"
+      - ".github/workflows/gateway-typecheck.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  gateway-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install development dependencies
+        run: cd server && npm install --no-audit --no-fund
+      - name: TypeScript strict type check
+        run: cd server && npm run typecheck
