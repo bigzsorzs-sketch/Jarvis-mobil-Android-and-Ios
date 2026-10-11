@@ -2,9 +2,17 @@
 
 Separate **native mobile** Jarvis repository, independent from the Windows Electron app. This is a first **functional Basic prototype**, not a production release.
 
+## Android 0.1.6-dev — named contacts and cross-app voice handoffs (internal only)
+
+This adds an encrypted, user-edited **nicknames + phone numbers + addresses** directory, including Hungarian name endings such as "drágámat" and "Eszterhez". With explicit contact mapping, a spoken phone-call request still requires confirmation. Navigation can use the contact's saved address.
+
+Voice messages can be dictated, spoken back and confirmed before **opening** WhatsApp (phone-number deep link) or Messenger (share/recipient-selection UI). The **message is not automatically sent** inside those apps. Messenger cannot identify a personal friend by name through a public third-party API in this build. Gmail can only open a web search; email reply/read via Gmail API requires separate OAuth consent. Jarvis opens the **official** GOV.UK UC sign-in page but does **not** enter login details or check Journal updates.
+
+All code remains **development/debug-only**; compilation/Lint are not proof of real-device behavior. See [full test scenarios](docs/ANDROID_VOICE_TASKS_0.1.6-dev.md) and [internal QA checklist](docs/ANDROID_INTERNAL_QA.md). No cloud AI, production Android signing, Play release or full-account integration has been created. The repo is public; do not commit provider secrets.
+
 ## Android 0.1.5-dev — internal development (no public release)
 
-This development branch includes the approved blue Jarvis orb launcher icon, a cleaned-up Chat screen (the "Próbáld..." example removed), and Hungarian alarm commands. The app can schedule **one Jarvis-owned** Android AlarmManager alarm at a time and cancel it by command. Alarm timing and notification permissions are requested separately. The alarm currently triggers an Android sound notification rather than a fully tested full-screen alarm; **do not rely on it as your only important wake-up alarm**.
+The development build includes the approved blue Jarvis orb launcher icon, a cleaned-up Chat screen (the "Próbáld..." example removed), and Hungarian alarm commands. The app can schedule **one Jarvis-owned** Android AlarmManager alarm at a time and cancel it by command. Alarm timing and notification permissions are requested separately. The alarm currently triggers an Android sound notification rather than a fully tested full-screen alarm; **do not rely on it as your only important wake-up alarm**.
 
 The optional, user-started 15-minute "Hey Jarvis" foreground voice mode can handle supported commands, including a spoken reply to a supported messaging notification with explicit yes/no confirmation. Android voice recognition is **not a guaranteed always-on/offline hotword engine**; recognition can depend on device services, network and background restrictions.
 
