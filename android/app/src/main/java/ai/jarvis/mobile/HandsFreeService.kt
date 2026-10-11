@@ -296,8 +296,7 @@ class HandsFreeService : Service(), RecognitionListener {
         tts?.shutdown()
         tts = null
         ttsReady = false
-        if (Build.VERSION.SDK_INT >= 24) stopForeground(STOP_FOREGROUND_REMOVE)
-        else @Suppress("DEPRECATION") stopForeground(true)
+        stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
     }
     override fun onDestroy() {

@@ -106,6 +106,10 @@ internal fun PermissionCenter(context: Context, onDone: () -> Unit, onMessages: 
         PermissionRefresh.serial += 1
         status = if (it.values.any { granted -> granted }) "Helyhozzáférés megadva." else "Helyhozzáférés nincs megadva."
     }
+    val microphoneRequest = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+        PermissionRefresh.serial += 1
+        status = if (it) "Mikrofon-hozzáférés engedélyezve." else "Nem engedélyezted a mikrofont."
+    }
     val contactsRequest = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
         PermissionRefresh.serial += 1
         status = if (it) "Névjegyek engedélyezve." else "Névjegyhozzáférés elutasítva."
@@ -214,11 +218,14 @@ internal fun PermissionCenter(context: Context, onDone: () -> Unit, onMessages: 
     ) { status = if (openEmail(context)) "Az emailalkalmazás megnyílt." else "Nincs telepített emailalkalmazás." }
     Spacer(Modifier.height(10.dp))
     PermissionTile(
-        "🎙️ Hang és mikrofon",
-        "A hangparancsot jelenleg a telepített Android beszédfelismerő végzi. " +
-            "Folyamatos háttérmikrofonhoz külön fejlesztés és felhasználói hozzájárulás szükséges.",
-        "Diktálás a Jarvis Chat menüben"
-    ) { status = "Nyisd meg a Chat oldalt és koppints a Diktálás gombra." }
+        "🎙️ Hey Jarvis – mikrofon és hangvezérlés",
+        "Az engedély önmagában nem kapcsolja be a mikrofont. A Főoldalon külön indítható " +
+            "egy látható, maximum 15 perces hangfigyelő munkamenet. A beszédfelismerő " +
+            "Android-szolgáltatója internetet is használhat.",
+        if (hasPermission(context, Manifest.permission.RECORD_AUDIO))
+            "Mikrofon engedélyezve · Hangos mód külön indítható"
+        else "Nincs mikrofonengedély"
+    ) { microphoneRequest.launch(Manifest.permission.RECORD_AUDIO) }
     Spacer(Modifier.height(10.dp))
     if (listener) {
         Button(onClick = onMessages) { Text("📨 Beérkező üzenetek") }

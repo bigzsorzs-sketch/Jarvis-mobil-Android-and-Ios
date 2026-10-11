@@ -75,6 +75,13 @@ fun JarvisApp(context: Context) {
         if (onboardingPrefs.getBoolean("permissions_reviewed", false)) "Főoldal" else "Engedélyek"
     ) }
     BackHandler(enabled = page != "Főoldal") { page = "Főoldal" }
+    val voiceDestination = HandsFreeNavigation.destination
+    LaunchedEffect(voiceDestination) {
+        if (voiceDestination != null) {
+            page = voiceDestination
+            HandsFreeNavigation.destination = null
+        }
+    }
     val readings = remember { mutableStateListOf<Reading>().apply { addAll(readReadings(securePrefs.read("readings", "[]"))) } }
     val invoices = remember { mutableStateListOf<Invoice>().apply { addAll(readInvoices(securePrefs.read("invoices", "[]"))) } }
     val notes = remember { mutableStateListOf<String>().apply { addAll(readNotes(securePrefs.read("notes", "[]"))) } }
@@ -109,7 +116,7 @@ fun JarvisApp(context: Context) {
                     )
                     "Üzenetek" -> MessageInboxScreen(context, onPermissions = { page = "Engedélyek" })
                     "Névjegyek" -> ContactsScreen(context, onPermissions = { page = "Engedélyek" })
-                    "Főoldal" -> HomeScreen(readings, invoices, onGo = { page = it })
+                    "Főoldal" -> HomeScreen(context, readings, invoices, onGo = { page = it })
                     "Chat" -> ChatScreen(context, onNavigate = { page = it })
                     "Vércukor" -> GlucoseScreen(readings) {
                         securePrefs.write("readings", writeReadings(readings))
@@ -139,7 +146,7 @@ fun JarvisApp(context: Context) {
 }
 
 @Composable
-private fun HomeScreen(readings: List<Reading>, invoices: List<Invoice>, onGo: (String) -> Unit) {
+private fun HomeScreen(context: Context, readings: List<Reading>, invoices: List<Invoice>, onGo: (String) -> Unit) {
     Text("Üdv újra!", fontSize = 27.sp, fontWeight = FontWeight.Bold, color = White)
     Text("Az önálló Android Jarvis alapverziója.", color = Soft)
     Spacer(Modifier.height(16.dp))
@@ -148,6 +155,8 @@ private fun HomeScreen(readings: List<Reading>, invoices: List<Invoice>, onGo: (
         Text("A közös AI-agy és felhőszinkron még nincs bekötve.", color = Soft, fontSize = 13.sp)
         Text("A helyi vércukor- és számlaadatok ezen a telefonon tárolódnak.", fontSize = 12.sp)
     }
+    Spacer(Modifier.height(16.dp))
+    HandsFreePanel(context)
     Spacer(Modifier.height(16.dp))
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Box(Modifier.weight(1f)) { ActionTile("🩸 Vércukor", readings.size.toString() + " mérés", onClick = { onGo("Vércukor") }) }
@@ -160,7 +169,7 @@ private fun HomeScreen(readings: List<Reading>, invoices: List<Invoice>, onGo: (
     }
     Spacer(Modifier.height(16.dp))
     Text("Következő fejlesztési lépések", fontWeight = FontWeight.SemiBold, color = White)
-    Text("• Központi AI API és bejelentkezés\n• PC–mobil szinkron\n• Hangvezérlés és natív rendszerkapcsolatok\n• Libre 2 és OBD2 integráció tesztelése", color = Soft, fontSize = 13.sp)
+    Text("• Központi AI API és bejelentkezés\n• PC–mobil szinkron\n• Állandó, offline ébresztőszó-motor fejlesztése\n• Libre 2 és OBD2 integráció tesztelése", color = Soft, fontSize = 13.sp)
 }
 
 @Composable
