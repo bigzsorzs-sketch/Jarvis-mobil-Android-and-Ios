@@ -37,7 +37,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
@@ -203,11 +202,6 @@ internal fun JarvisHomeScreen(
             JarvisVoiceOrb()
             Text("Jarvis", fontSize = 37.sp, fontWeight = FontWeight.Bold,
                 color = JarvisInk)
-            Text(
-                "Egy agy. Hanggal mindent elérek.",
-                color = JarvisMuted, fontSize = 14.sp, textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
-            )
             Spacer(Modifier.height(18.dp))
             val spokenStatus = when {
                 HandsFreeStatus.speaking -> "Jarvis beszél..."
