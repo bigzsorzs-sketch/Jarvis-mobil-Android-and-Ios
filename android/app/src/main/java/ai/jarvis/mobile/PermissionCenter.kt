@@ -114,6 +114,10 @@ internal fun PermissionCenter(context: Context, onDone: () -> Unit, onMessages: 
         PermissionRefresh.serial += 1
         status = if (it) "Telefonálás engedélyezve." else "Telefonálás nem engedélyezve."
     }
+    val alertsRequest = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+        PermissionRefresh.serial += 1
+        status = if (it) "Értesítések engedélyezve." else "Értesítések elutasítva."
+    }
     val contactsRequest = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
         PermissionRefresh.serial += 1
         status = if (it) "Névjegyek engedélyezve." else "Névjegyhozzáférés elutasítva."
@@ -227,6 +231,19 @@ internal fun PermissionCenter(context: Context, onDone: () -> Unit, onMessages: 
             "Google OAuth-bejelentkezést igényel, nem Android tárhelyengedélyt.",
         "Emailírás működik · Gmail-fiók nincs összekapcsolva"
     ) { status = if (openEmail(context)) "Az emailalkalmazás megnyílt." else "Nincs telepített emailalkalmazás." }
+    Spacer(Modifier.height(10.dp))
+    PermissionTile(
+        "🔔 Jarvis értesítések",
+        "Az ébresztők és a hangfigyelés állapotjelzéséhez. Ez nem ad hozzáférést más alkalmazások üzeneteihez.",
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+            hasPermission(context, Manifest.permission.POST_NOTIFICATIONS))
+            "Jarvis értesítések engedélyezve"
+        else "Nincs értesítési engedély"
+    ) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
+            alertsRequest.launch(Manifest.permission.POST_NOTIFICATIONS)
+        else status = "A régebbi Androidon nincs külön értesítési runtime engedély."
+    }
     Spacer(Modifier.height(10.dp))
     PermissionTile(
         "⏰ Jarvis pontos ébresztő",
