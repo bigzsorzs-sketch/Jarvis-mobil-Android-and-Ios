@@ -230,9 +230,7 @@ internal fun JarvisHomeScreen(
                 .padding(start = 3.dp, end = 5.dp, top = 5.dp, bottom = 5.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            IconButton(onClick = { onNavigate("Fájlok") }) {
-                Text("+", fontSize = 29.sp, color = JarvisInk)
-            }
+            JarvisAttachmentPicker(context, isDark, onStatus = { issue = it })
             BasicTextField(
                 value = text,
                 onValueChange = { text = it },
