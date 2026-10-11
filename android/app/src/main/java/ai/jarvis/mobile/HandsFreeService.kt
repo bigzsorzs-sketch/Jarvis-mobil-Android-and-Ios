@@ -171,8 +171,10 @@ class HandsFreeService : Service(), RecognitionListener {
     private fun privateVoiceAllowed(): Boolean {
         val guard = getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager
         val locked = guard.isDeviceLocked
-        if (!locked) return true
-        return SecurePrefs(this).read("voice_private_on_lock", "false") == "true"
+        val enabled = if (locked)
+            SecurePrefs(this).read("voice_private_on_lock", "false") == "true"
+        else false
+        return VoicePrivacyPolicy.mayUsePrivateData(locked, enabled)
     }
 
     private fun clearProposal() { proposed = null; confirmUntil = 0L }
