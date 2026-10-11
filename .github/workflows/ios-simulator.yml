@@ -1,0 +1,33 @@
+name: Build iOS Simulator
+on:
+  push:
+    branches: [main]
+    paths:
+      - "ios/**"
+      - ".github/workflows/ios-simulator.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  ios-simulator:
+    runs-on: macos-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Generate Xcode project
+        run: cd ios && xcodegen generate --spec project.yml
+      - name: Compile native iOS app
+        run: |
+          xcodebuild -project ios/JarvisMobile.xcodeproj \
+            -scheme JarvisMobile -configuration Debug \
+            -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build/ios \
+            CODE_SIGNING_ALLOWED=NO build
+      - name: Upload simulator app
+        uses: actions/upload-artifact@v4
+        with:
+          name: Jarvis-iOS-Simulator
+          path: build/ios/Build/Products/Debug-iphonesimulator/JarvisMobile.app/
+          if-no-files-found: error
