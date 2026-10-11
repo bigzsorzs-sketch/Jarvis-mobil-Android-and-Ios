@@ -8,6 +8,7 @@ import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -38,6 +39,11 @@ data class Invoice(val client: String, val amount: String, val stamp: String)
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Android 15+ enforces edge-to-edge. Keep system bars dark while Compose
+        // places interactive elements strictly inside safe drawing insets.
+        window.statusBarColor = android.graphics.Color.rgb(8, 14, 25)
+        window.navigationBarColor = android.graphics.Color.rgb(8, 14, 25)
+        if (android.os.Build.VERSION.SDK_INT >= 29) window.isNavigationBarContrastEnforced = false
         setContent { JarvisApp(this) }
     }
 }
@@ -53,6 +59,7 @@ private val Pages = listOf("Főoldal", "Chat", "Vércukor", "Számlák", "Továb
 fun JarvisApp(context: Context) {
     val prefs = remember { context.getSharedPreferences("jarvis_basic_v1", Context.MODE_PRIVATE) }
     var page by remember { mutableStateOf("Főoldal") }
+    BackHandler(enabled = page != "Főoldal") { page = "Főoldal" }
     val readings = remember { mutableStateListOf<Reading>().apply { addAll(readReadings(prefs.getString("readings", "[]") ?: "[]")) } }
     val invoices = remember { mutableStateListOf<Invoice>().apply { addAll(readInvoices(prefs.getString("invoices", "[]") ?: "[]")) } }
     val notes = remember { mutableStateListOf<String>().apply { addAll(readNotes(prefs.getString("notes", "[]") ?: "[]")) } }
@@ -61,7 +68,8 @@ fun JarvisApp(context: Context) {
         primary = Cyan, background = Night, surface = Panel, onSurface = White,
         onBackground = White, onPrimary = Night
     )) {
-        Column(Modifier.fillMaxSize().background(Night)) {
+        Box(Modifier.fillMaxSize().background(Night)) {
+        Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).imePadding().background(Night)) {
             Row(
                 Modifier.fillMaxWidth().padding(18.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -101,12 +109,13 @@ fun JarvisApp(context: Context) {
                 }
             }
         }
+        }
     }
 }
 
 @Composable
 private fun HomeScreen(readings: List<Reading>, invoices: List<Invoice>, onGo: (String) -> Unit) {
-    Text("Üdv újra!", fontSize = 27.sp, fontWeight = FontWeight.Bold)
+    Text("Üdv újra!", fontSize = 27.sp, fontWeight = FontWeight.Bold, color = White)
     Text("Az önálló Android Jarvis alapverziója.", color = Soft)
     Spacer(Modifier.height(16.dp))
     SurfaceCard {
@@ -125,14 +134,14 @@ private fun HomeScreen(readings: List<Reading>, invoices: List<Invoice>, onGo: (
         Box(Modifier.weight(1f)) { ActionTile("🧭 Eszközök", "Email, térkép, jegyzet", onClick = { onGo("Továbbiak") }) }
     }
     Spacer(Modifier.height(16.dp))
-    Text("Következő fejlesztési lépések", fontWeight = FontWeight.SemiBold)
+    Text("Következő fejlesztési lépések", fontWeight = FontWeight.SemiBold, color = White)
     Text("• Központi AI API és bejelentkezés\n• PC–mobil szinkron\n• Hangvezérlés és natív rendszerkapcsolatok\n• Libre 2 és OBD2 integráció tesztelése", color = Soft, fontSize = 13.sp)
 }
 
 @Composable
 private fun ActionTile(title: String, detail: String, onClick: () -> Unit) {
     SurfaceCard {
-        Text(title, fontWeight = FontWeight.Bold)
+        Text(title, fontWeight = FontWeight.Bold, color = White)
         Text(detail, color = Soft, fontSize = 12.sp)
         OutlinedButton(onClick = onClick, modifier = Modifier.fillMaxWidth()) { Text("Megnyitás") }
     }
@@ -151,7 +160,7 @@ private fun SurfaceCard(content: @Composable ColumnScope.() -> Unit) {
 private fun ChatScreen() {
     var prompt by remember { mutableStateOf("") }
     var attempted by remember { mutableStateOf(false) }
-    Text("Jarvis chat", fontSize = 24.sp, fontWeight = FontWeight.Bold)
+    Text("Jarvis chat", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = White)
     Spacer(Modifier.height(12.dp))
     SurfaceCard {
         Text("Az AI-kapcsolat még nincs konfigurálva.", color = Cyan)
@@ -166,7 +175,7 @@ private fun ChatScreen() {
 private fun GlucoseScreen(readings: MutableList<Reading>, persist: () -> Unit) {
     var input by remember { mutableStateOf("") }
     var error by remember { mutableStateOf("") }
-    Text("Vércukornapló", fontSize = 24.sp, fontWeight = FontWeight.Bold)
+    Text("Vércukornapló", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = White)
     Text("mmol/L · helyi mentés · nem orvosi döntéstámogató eszköz", color = Soft, fontSize = 12.sp)
     Spacer(Modifier.height(12.dp))
     SurfaceCard {
@@ -208,7 +217,7 @@ private fun InvoiceScreen(context: Context, invoices: MutableList<Invoice>, pers
     var client by remember { mutableStateOf("") }
     var amount by remember { mutableStateOf("") }
     var error by remember { mutableStateOf("") }
-    Text("Egyszerű számlázás", fontSize = 24.sp, fontWeight = FontWeight.Bold)
+    Text("Egyszerű számlázás", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = White)
     Text("Helyi prototípus: éles adózási/VAT megfelelőség még nincs ellenőrizve.", color = Soft, fontSize = 12.sp)
     Spacer(Modifier.height(12.dp))
     SurfaceCard {
@@ -242,7 +251,7 @@ private fun InvoiceScreen(context: Context, invoices: MutableList<Invoice>, pers
 @Composable
 private fun MoreScreen(context: Context, notes: MutableList<String>, persist: () -> Unit, onGo: (String) -> Unit) {
     var note by remember { mutableStateOf("") }
-    Text("Basic eszközök", fontSize = 24.sp, fontWeight = FontWeight.Bold)
+    Text("Basic eszközök", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = White)
     Spacer(Modifier.height(12.dp))
     SurfaceCard {
         Text("📧 Email", fontWeight = FontWeight.Bold)
