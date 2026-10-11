@@ -72,6 +72,7 @@ internal object JarvisAlarms {
         context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
             .getLong("trigger_millis", 0L)
 
+    @android.annotation.SuppressLint("ApplySharedPref")
     fun schedule(context: Context, time: AlarmTime): Result {
         if (!canSchedule(context)) return Result.NoExactAlarmPermission
         if (!notificationAllowed(context)) return Result.NoNotificationPermission
@@ -93,10 +94,16 @@ internal object JarvisAlarms {
                 AlarmManager.AlarmClockInfo(calendar.timeInMillis, showIntent),
                 ringIntent(context)
             )
-            context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE).edit()
-                .putLong("trigger_millis", calendar.timeInMillis)
-                .commit()
-            Result.Created(String.format(Locale.UK, "%02d:%02d", time.hour, time.minute))
+            // Synchronous commit is intentional here: do not report the alarm
+            // as saved if persistence fails. Cancel any orphan scheduling.
+            val persisted = context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
+                .edit().putLong("trigger_millis", calendar.timeInMillis).commit()
+            if (!persisted) {
+                manager(context).cancel(ringIntent(context))
+                Result.Failed
+            } else {
+                Result.Created(String.format(Locale.UK, "%02d:%02d", time.hour, time.minute))
+            }
         } catch (_: Exception) {
             Result.Failed
         }
