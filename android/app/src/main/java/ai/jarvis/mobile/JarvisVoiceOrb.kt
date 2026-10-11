@@ -36,7 +36,7 @@ internal fun JarvisVoiceOrb(modifier: Modifier = Modifier) {
     // not created until Android detects actual speech or Jarvis is speaking.
     val userSpeaking = HandsFreeStatus.userSpeaking
     val speaking = HandsFreeStatus.speaking
-    val active = userSpeaking || speaking
+    val active = OrbMotionPolicy.animate(userSpeaking, speaking)
     val phase = if (active) {
         val transition = rememberInfiniteTransition(label = "Speaking-only Jarvis energy")
         val animated by transition.animateFloat(
