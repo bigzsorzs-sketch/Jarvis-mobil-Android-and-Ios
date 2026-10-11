@@ -215,9 +215,8 @@ private fun ChatScreen(context: Context, onNavigate: (String) -> Unit) {
     Text("Jarvis – helyi parancsok", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = White)
     Spacer(Modifier.height(12.dp))
     SurfaceCard {
-        Text("Működő offline telefonparancsok", color = Cyan, fontWeight = FontWeight.SemiBold)
-        Text("Próbáld: »Nyisd meg a vércukrot«, »Email«, »Térkép«, »Számlázás«, »Naptár« vagy »Ébresztő«.", color = Soft, fontSize = 13.sp)
-        Text("Az AI még nincs bekötve; ez valódi helyi parancsfeldolgozás, nem AI-válasz.", color = Soft, fontSize = 12.sp)
+        Text("Hang- és szöveges vezérlés", color = Cyan, fontWeight = FontWeight.SemiBold)
+        Text("A helyi telefonparancsok használhatók; a felhőalapú AI még nincs bekötve.", color = Soft, fontSize = 12.sp)
         OutlinedTextField(value = prompt, onValueChange = { prompt = it },
             label = { Text("Írj vagy diktálj Jarvisnak") }, modifier = Modifier.fillMaxWidth())
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
