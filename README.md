@@ -2,6 +2,19 @@
 
 Separate **native mobile** Jarvis repository, independent from the Windows Electron app. This is a first **functional Basic prototype**, not a production release.
 
+## Android 0.1.3 — permissions and messaging (2026-10-11)
+
+- A first-run, **opt-in** permission center with per-feature controls and an explicit Continue button. Permissions remain optional.
+- **Notification listener**: user enables it via Android Settings. This permission technically allows access to all app notifications; Jarvis processes only WhatsApp, WhatsApp Business, Messenger, Google/Samsung Messages, Telegram and Signal notifications. Messages stay in volatile app memory, max. 30, not uploaded to AI.
+- **Read aloud**: a user presses the Read button on a visible notification preview. **Reply**: user types, reviews and presses Send. This uses Android RemoteInput **only if that app exposes a supported inline quick-reply action**. No autonomous sending or access to complete message history.
+- **GPS**: a separate permission request for precise/approximate coordinates; displays the *last known* location on an installed map, not guaranteed real time.
+- **Photos and files**: scoped Android photo picker and Storage Access Framework document picker. No blanket gallery, storage or all-files access.
+- **Contacts**: optional Android READ_CONTACTS grant, local lookup of up to 80 entries, opens dialer for explicit user action.
+- **Email**: opens the system email composer; reading/managing Gmail requires a separate Google OAuth authorization flow (not available yet).
+- **Speech**: existing voice command recognition is mediated by a compatible installed Android recognition provider, and is not a 24/7 listening system.
+- Android 0.1.3 is a **debug preview**, not a production Basic app. Automatic AI agent replies, actual WhatsApp/Messenger chat API access, full account synchronization, and Google Play policy review remain unfinished. Some Android devices restrict notification-listener access for sideloaded apps.
+- **Do not paste a cloud AI API key into chats or commit it to GitHub.** Provider secrets must be kept on a restricted backend and accessed through authenticated, per-user requests. This repository was public at the time of development; change it to private before proprietary or sensitive integration work.
+
 ## Android 0.1.2 test build — 2026-10-11
 
 The **Android 0.1.2** native prototype now includes:
