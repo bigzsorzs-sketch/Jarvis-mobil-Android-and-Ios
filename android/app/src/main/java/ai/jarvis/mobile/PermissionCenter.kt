@@ -218,6 +218,15 @@ internal fun PermissionCenter(context: Context, onDone: () -> Unit, onMessages: 
     ) { status = if (openEmail(context)) "Az emailalkalmazás megnyílt." else "Nincs telepített emailalkalmazás." }
     Spacer(Modifier.height(10.dp))
     PermissionTile(
+        "⏰ Jarvis pontos ébresztő",
+        "A hanggal beállított Jarvis-ébresztő az alkalmazás bezárása után is jelezhet. " +
+            "A pontos ébresztéshez Android-különengedély és értesítési engedély szükséges. " +
+            "Jelenleg hangos értesítés, még nem teljes képernyős óraalkalmazás.",
+        if (JarvisAlarms.canSchedule(context)) "Pontos ébresztés engedélyezve"
+        else "Különengedély szükséges"
+    ) { JarvisAlarms.requestExactPermission(context) }
+    Spacer(Modifier.height(10.dp))
+    PermissionTile(
         "🎙️ Hey Jarvis – mikrofon és hangvezérlés",
         "Az engedély önmagában nem kapcsolja be a mikrofont. A Főoldalon külön indítható " +
             "egy látható, maximum 15 perces hangfigyelő munkamenet. A beszédfelismerő " +

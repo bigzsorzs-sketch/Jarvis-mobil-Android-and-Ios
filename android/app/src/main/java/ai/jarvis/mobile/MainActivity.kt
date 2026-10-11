@@ -208,10 +208,27 @@ private fun ChatScreen(context: Context, onNavigate: (String) -> Unit) {
     fun send() {
         val command = prompt.trim()
         if (command.isBlank()) return
-        val result = if (AlarmCommands.hasUnsupportedDate(command) && BasicCommandRouter.classify(command) == BasicAction.OPEN_ALARMS) {
-            "A holnapra megadott időpontot az alap Óra-API nem támogatja. Nyisd meg az órát, és állítsd be kézzel."
-        } else AlarmCommands.userFacingResult(context, command)
-            ?: performBasicAction(context, BasicCommandRouter.classify(command), onNavigate)
+        val result = when {
+            AlarmCommands.hasUnsupportedDate(command) && BasicCommandRouter.classify(command) == BasicAction.OPEN_ALARMS ->
+                "Konkrét jövőbeli napot még nem támogatok. Nem hoztam létre ébresztőt."
+            command.contains("töröld", ignoreCase = true) && command.contains("ébreszt", ignoreCase = true) ->
+                if (JarvisAlarms.cancel(context)) "A Jarvis saját ébresztőjét töröltem."
+                else "Nincs törölhető Jarvis-ébresztő. Más Óra alkalmazás ébresztőit nem módosítom."
+            AlarmCommands.parseAlarmTime(command) != null -> {
+                val time = AlarmCommands.parseAlarmTime(command)!!
+                when (val answer = JarvisAlarms.schedule(context, time)) {
+                    is JarvisAlarms.Result.Created ->
+                        "Beállítottam a Jarvis-ébresztőt " + answer.time + " időpontra. " +
+                            "Az Android értesítési hanggal jelez; ez még béta ébresztő."
+                    JarvisAlarms.Result.NoExactAlarmPermission ->
+                        "Előbb engedélyezd a pontos ébresztéseket az Engedélyközpontban."
+                    JarvisAlarms.Result.NoNotificationPermission ->
+                        "Az ébresztő jelzéséhez engedélyezd az értesítéseket."
+                    JarvisAlarms.Result.Failed -> "Nem sikerült az ébresztőt beállítani."
+                }
+            }
+            else -> performBasicAction(context, BasicCommandRouter.classify(command), onNavigate)
+        }
         log.add(command to result)
         prompt = ""
     }

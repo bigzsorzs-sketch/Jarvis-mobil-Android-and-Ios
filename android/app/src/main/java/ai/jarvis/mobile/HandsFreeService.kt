@@ -239,11 +239,21 @@ class HandsFreeService : Service(), RecognitionListener {
             }
             return
         }
+        if (command.contains("töröld", ignoreCase = true) && command.contains("ébreszt", ignoreCase = true)) {
+            speak(if (JarvisAlarms.cancel(this)) "Töröltem a Jarvis-ébresztőt."
+                else "Nem találtam törölhető Jarvis-ébresztőt.")
+            return
+        }
         val alarmTime = AlarmCommands.parseAlarmTime(command)
         if (alarmTime != null) {
-            // Android restricts system Activity launches from background microphone services.
-            // We do not claim that the Clock alarm was created while backgrounded.
-            speak("Az ébresztési időpontot felismertem. Az Óra alkalmazásból történő beállításhoz nyisd meg a Jarvist, és add ki a parancsot a Chat oldalon.")
+            when (val result = JarvisAlarms.schedule(this, alarmTime)) {
+                is JarvisAlarms.Result.Created -> speak("Beállítottam a Jarvis-ébresztőt " + result.time + " időpontra.")
+                JarvisAlarms.Result.NoExactAlarmPermission ->
+                    speak("Engedélyezd a pontos ébresztéseket a Jarvis engedélyközpontjában.")
+                JarvisAlarms.Result.NoNotificationPermission ->
+                    speak("Engedélyezd az értesítéseket, hogy az ébresztő jelezzen.")
+                JarvisAlarms.Result.Failed -> speak("Nem sikerült beállítani az ébresztőt.")
+            }
             return
         }
         val action = BasicCommandRouter.classify(command)
