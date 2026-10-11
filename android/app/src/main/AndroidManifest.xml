@@ -1,5 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
+
+    <!-- No READ_SMS, SEND_SMS, READ_MEDIA_IMAGES, MANAGE_EXTERNAL_STORAGE or AccessibilityService.
+         File and photo access is scoped to user-selected content. -->
     <application
         android:label="Jarvis Mobile"
         android:theme="@android:style/Theme.Material.Light.NoActionBar"
@@ -14,6 +20,15 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <service
+            android:name=".JarvisNotificationListener"
+            android:label="Jarvis üzenetolvasás"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="ai.jarvis.mobile.files"
