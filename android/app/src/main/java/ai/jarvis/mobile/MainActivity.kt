@@ -82,6 +82,14 @@ fun JarvisApp(context: Context) {
     ) }
     BackHandler(enabled = page != "Főoldal") { page = "Főoldal" }
     val appIsForeground = HandsFreeNavigation.appIsForeground
+    val externalRequest = HandsFreeNavigation.external
+    var handoffResult by remember { mutableStateOf("") }
+    LaunchedEffect(externalRequest, appIsForeground) {
+        if (externalRequest != null && appIsForeground) {
+            handoffResult = ExternalTasks.dispatch(context, externalRequest)
+            HandsFreeNavigation.external = null
+        }
+    }
     val requestedEmail = HandsFreeNavigation.mailDraft
     LaunchedEffect(requestedEmail, appIsForeground) {
         if (requestedEmail != null && appIsForeground) {
@@ -139,6 +147,7 @@ fun JarvisApp(context: Context) {
                     )
                     "Üzenetek" -> MessageInboxScreen(context, onPermissions = { page = "Engedélyek" })
                     "Névjegyek" -> ContactsScreen(context, onPermissions = { page = "Engedélyek" })
+                    "Ismerősök" -> PeopleDirectoryScreen(context, onPermissions = { page = "Engedélyek" })
                     "Főoldal" -> HomeScreen(context, readings, invoices, onGo = { page = it })
                     "Chat" -> ChatScreen(context, onNavigate = { page = it })
                     "Vércukor" -> GlucoseScreen(readings) {
@@ -233,6 +242,12 @@ private fun ChatScreen(context: Context, onNavigate: (String) -> Unit) {
         val command = prompt.trim()
         if (command.isBlank()) return
         val result = when {
+            ExternalTasks.parseMessage(command) != null ->
+                ExternalTasks.dispatch(context, HandoffTask.Message(ExternalTasks.parseMessage(command)!!))
+            ExternalTasks.parseUcJournal(command) ->
+                ExternalTasks.dispatch(context, HandoffTask.UcJournal)
+            ExternalTasks.parseGmailSearch(command) != null ->
+                ExternalTasks.dispatch(context, HandoffTask.GmailSearch(ExternalTasks.parseGmailSearch(command)!!))
             VoiceEmail.parse(command) != null -> {
                 if (VoiceEmail.openComposer(context, VoiceEmail.parse(command)!!))
                     "Megnyitottam a levelet a levelezőprogramban. Ellenőrizd, majd ott küldd el."
@@ -454,6 +469,16 @@ private fun MoreScreen(context: Context, notes: MutableList<String>, persist: ()
     Text("Basic eszközök", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = White)
     Spacer(Modifier.height(12.dp))
     SurfaceCard {
+        Text("🌐 Biztonságos fiókmegnyitás", color = White, fontWeight = FontWeight.Bold)
+        Text("Az UC Journal csak a hivatalos GOV.UK bejelentkezés után olvasható. " +
+            "Jarvis nem ismeri a jelszavadat, és nem tudja ellenőrizni az új üzeneteket.",
+            color = Soft, fontSize = 12.sp)
+        Button(onClick = {
+            result = ExternalTasks.dispatch(context, HandoffTask.UcJournal)
+        }) { Text("UC – hivatalos bejelentkezés") }
+    }
+    Spacer(Modifier.height(12.dp))
+    SurfaceCard {
         Text("📧 Email", color = White, fontWeight = FontWeight.Bold)
         Text("Valódi emailírás a telefon levelezőalkalmazásával. Gmail-fiók olvasásához külön OAuth-kapcsolat szükséges.", color = Soft, fontSize = 12.sp)
         Button(onClick = { result = if (openEmail(context)) "Email alkalmazás megnyitva." else "Nincs email alkalmazás." }) { Text("Email írása") }
@@ -531,6 +556,7 @@ private fun MoreScreen(context: Context, notes: MutableList<String>, persist: ()
         Button(onClick = { onGo("Engedélyek") }) { Text("Engedélyközpont megnyitása") }
         OutlinedButton(onClick = { onGo("Üzenetek") }) { Text("WhatsApp / Messenger / üzenetek") }
         OutlinedButton(onClick = { onGo("Névjegyek") }) { Text("Névjegyek megtekintése") }
+        Button(onClick = { onGo("Ismerősök") }) { Text("Ismerősök, becenevek és címek") }
     }
     Spacer(Modifier.height(12.dp))
     SurfaceCard {

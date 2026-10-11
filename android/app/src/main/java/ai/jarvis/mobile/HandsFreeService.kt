@@ -23,6 +23,7 @@ internal object HandsFreeNavigation {
     var destination by mutableStateOf<String?>(null)
     var mapTarget by mutableStateOf<String?>(null)
     var mailDraft by mutableStateOf<EmailDraft?>(null)
+    var external by mutableStateOf<HandoffTask?>(null)
 }
 
 /** User-started, time-limited recognition session. Not a true always-on hotword engine. */
@@ -302,6 +303,33 @@ class HandsFreeService : Service(), RecognitionListener {
                 JarvisAlarms.Result.NoNotificationPermission ->
                     speak("Engedélyezd az értesítéseket, hogy az ébresztő jelezzen.")
                 JarvisAlarms.Result.Failed -> speak("Nem sikerült beállítani az ébresztőt.")
+            }
+            return
+        }
+        val outgoing = ExternalTasks.parseMessage(command)
+        if (outgoing != null) {
+            if (!privateVoiceAllowed()) {
+                speak("A telefon lezárva. A privát üzenetekhez előbb oldd fel.")
+            } else {
+                HandsFreeNavigation.external = HandoffTask.Message(outgoing)
+                speak("Előkészítettem az üzenetalkalmazás megnyitását. " +
+                    "A küldést a WhatsAppban vagy Messengerben kell jóváhagynod.")
+            }
+            return
+        }
+        if (ExternalTasks.parseUcJournal(command)) {
+            HandsFreeNavigation.external = HandoffTask.UcJournal
+            speak("A hivatalos UC oldal megnyitását előkészítettem. " +
+                "Bejelentkezést és Journal-ellenőrzést még nem végzek automatikusan.")
+            return
+        }
+        val gmailQuery = ExternalTasks.parseGmailSearch(command)
+        if (gmailQuery != null) {
+            if (!privateVoiceAllowed()) {
+                speak("A Gmail megnyitásához oldd fel a telefont.")
+            } else {
+                HandsFreeNavigation.external = HandoffTask.GmailSearch(gmailQuery)
+                speak("A Gmail keresést előkészítettem. A levelek tartalmát még nem látom.")
             }
             return
         }
