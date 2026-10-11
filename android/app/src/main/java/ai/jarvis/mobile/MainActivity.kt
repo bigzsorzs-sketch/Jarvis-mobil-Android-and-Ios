@@ -75,6 +75,13 @@ fun JarvisApp(context: Context) {
         if (onboardingPrefs.getBoolean("permissions_reviewed", false)) "Főoldal" else "Engedélyek"
     ) }
     BackHandler(enabled = page != "Főoldal") { page = "Főoldal" }
+    val requestedMap = HandsFreeNavigation.mapTarget
+    LaunchedEffect(requestedMap) {
+        if (requestedMap != null) {
+            VoiceNavigation.open(context, requestedMap)
+            HandsFreeNavigation.mapTarget = null
+        }
+    }
     val voiceDestination = HandsFreeNavigation.destination
     LaunchedEffect(voiceDestination) {
         if (voiceDestination != null) {
@@ -210,6 +217,16 @@ private fun ChatScreen(context: Context, onNavigate: (String) -> Unit) {
         val command = prompt.trim()
         if (command.isBlank()) return
         val result = when {
+            VoiceNavigation.destinationFrom(command) != null -> {
+                val destination = VoiceNavigation.destinationFrom(command)!!
+                when {
+                    VoiceNavigation.resolve(context, destination) == null ->
+                        "Előbb add meg az otthoni címedet az Eszközök menüben."
+                    VoiceNavigation.open(context, destination) ->
+                        "Átadtam az útvonalat a térképalkalmazásnak."
+                    else -> "Nem sikerült kompatibilis térképalkalmazást megnyitni."
+                }
+            }
             VoiceCalling.extractRequest(command) != null -> {
                 when (val match = VoiceCalling.lookup(context, VoiceCalling.extractRequest(command)!!)) {
                     is VoiceCalling.Lookup.Found -> {
@@ -411,6 +428,7 @@ private fun InvoiceScreen(context: Context, invoices: MutableList<Invoice>, pers
 private fun MoreScreen(context: Context, notes: MutableList<String>, persist: () -> Unit, onGo: (String) -> Unit) {
     var note by remember { mutableStateOf("") }
     var eventName by remember { mutableStateOf("") }
+    var homeAddress by remember(context) { mutableStateOf(VoiceNavigation.homeAddress(context)) }
     var result by remember { mutableStateOf("") }
     Text("Basic eszközök", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = White)
     Spacer(Modifier.height(12.dp))
@@ -422,7 +440,18 @@ private fun MoreScreen(context: Context, notes: MutableList<String>, persist: ()
     Spacer(Modifier.height(12.dp))
     SurfaceCard {
         Text("🧭 Navigáció", color = White, fontWeight = FontWeight.Bold)
-        Button(onClick = { result = if (openMap(context)) "Térkép megnyitva." else "Nincs térkép alkalmazás." }) { Text("Térkép megnyitása") }
+        OutlinedTextField(value = homeAddress, onValueChange = { homeAddress = it },
+            label = { Text("Otthoni cím (csak ezen a telefonon)") }, modifier = Modifier.fillMaxWidth())
+        Button(onClick = {
+            if (homeAddress.isBlank()) {
+                result = "Adj meg egy teljes címet a hazanavigációhoz."
+            } else {
+                VoiceNavigation.saveHome(context, homeAddress)
+                result = "Az otthoni címed titkosított helyi tárhelyre került."
+            }
+        }) { Text("Otthoni cím mentése") }
+        OutlinedButton(onClick = { result = if (openMap(context)) "Térkép megnyitva."
+            else "Nincs térképalkalmazás." }) { Text("Térkép megnyitása") }
     }
     Spacer(Modifier.height(12.dp))
     SurfaceCard {

@@ -20,6 +20,7 @@ internal object HandsFreeStatus {
 }
 internal object HandsFreeNavigation {
     var destination by mutableStateOf<String?>(null)
+    var mapTarget by mutableStateOf<String?>(null)
 }
 
 /** User-started, time-limited recognition session. Not a true always-on hotword engine. */
@@ -271,6 +272,16 @@ class HandsFreeService : Service(), RecognitionListener {
                 JarvisAlarms.Result.NoNotificationPermission ->
                     speak("Engedélyezd az értesítéseket, hogy az ébresztő jelezzen.")
                 JarvisAlarms.Result.Failed -> speak("Nem sikerült beállítani az ébresztőt.")
+            }
+            return
+        }
+        val nav = VoiceNavigation.destinationFrom(command)
+        if (nav != null) {
+            if (VoiceNavigation.resolve(this, nav) == null) {
+                speak("Először add meg az otthoni címedet a Jarvis Eszközök képernyőjén.")
+            } else {
+                HandsFreeNavigation.mapTarget = nav
+                speak("Előkészítettem az útvonalat. A térkép akkor nyílik meg, ha Jarvis előtérben van.")
             }
             return
         }
