@@ -105,7 +105,15 @@ internal fun JarvisHomeScreen(
                 shape = CircleShape, color = Color.White, shadowElevation = 3.dp
             ) {
                 IconButton(onClick = onMenu) {
-                    Text("☰", fontSize = 24.sp, color = JarvisInk)
+                    Column(
+                        modifier = Modifier.width(23.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Box(Modifier.fillMaxWidth().height(2.5.dp)
+                            .background(JarvisInk, RoundedCornerShape(4.dp)))
+                        Box(Modifier.fillMaxWidth(0.72f).height(2.5.dp)
+                            .background(JarvisInk, RoundedCornerShape(4.dp)))
+                    }
                 }
             }
             Row(

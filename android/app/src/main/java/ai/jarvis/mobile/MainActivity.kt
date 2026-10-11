@@ -73,7 +73,6 @@ private val Panel = Color(0xFF182334)
 private val Cyan = Color(0xFF60D5E5)
 private val White = Color(0xFFF1F5FA)
 private val Soft = Color(0xFFB5C3D8)
-private val Pages = listOf("Főoldal", "Chat", "Vércukor", "Számlák", "Továbbiak")
 
 @Composable
 fun JarvisApp(context: Context) {
@@ -234,42 +233,6 @@ fun JarvisApp(context: Context) {
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun HomeScreen(context: Context, readings: List<Reading>, invoices: List<Invoice>, onGo: (String) -> Unit) {
-    Text("Üdv újra!", fontSize = 27.sp, fontWeight = FontWeight.Bold, color = White)
-    Text("Az önálló Android Jarvis alapverziója.", color = Soft)
-    Spacer(Modifier.height(16.dp))
-    SurfaceCard {
-        Text("JARVIS BASIC", color = Cyan, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-        Text("A közös AI-agy és felhőszinkron még nincs bekötve.", color = Soft, fontSize = 13.sp)
-        Text("A helyi vércukor- és számlaadatok ezen a telefonon tárolódnak.", fontSize = 12.sp)
-    }
-    Spacer(Modifier.height(16.dp))
-    HandsFreePanel(context)
-    Spacer(Modifier.height(16.dp))
-    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        Box(Modifier.weight(1f)) { ActionTile("🩸 Vércukor", readings.size.toString() + " mérés", onClick = { onGo("Vércukor") }) }
-        Box(Modifier.weight(1f)) { ActionTile("🧾 Számlák", invoices.size.toString() + " számla", onClick = { onGo("Számlák") }) }
-    }
-    Spacer(Modifier.height(12.dp))
-    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        Box(Modifier.weight(1f)) { ActionTile("💬 Asszisztens", "Chat felület", onClick = { onGo("Chat") }) }
-        Box(Modifier.weight(1f)) { ActionTile("🧭 Eszközök", "Email, térkép, jegyzet", onClick = { onGo("Továbbiak") }) }
-    }
-    Spacer(Modifier.height(16.dp))
-    Text("Következő fejlesztési lépések", fontWeight = FontWeight.SemiBold, color = White)
-    Text("• Központi AI API és bejelentkezés\n• PC–mobil szinkron\n• Állandó, offline ébresztőszó-motor fejlesztése\n• Libre 2 és OBD2 integráció tesztelése", color = Soft, fontSize = 13.sp)
-}
-
-@Composable
-private fun ActionTile(title: String, detail: String, onClick: () -> Unit) {
-    SurfaceCard {
-        Text(title, fontWeight = FontWeight.Bold, color = White)
-        Text(detail, color = Soft, fontSize = 12.sp)
-        OutlinedButton(onClick = onClick, modifier = Modifier.fillMaxWidth()) { Text("Megnyitás") }
     }
 }
 

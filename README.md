@@ -2,6 +2,14 @@
 
 Separate **native mobile** Jarvis repository, independent from the Windows Electron app. This is a first **functional Basic prototype**, not a production release.
 
+## Android 0.1.7-dev — voice-first Jarvis home (internal only)
+
+The approved light white/cyan design is implemented as **native Jetpack Compose**, not a static screenshot. Home shows a reactive Jarvis orb (animated wave ribbons and center waveform), a two-line drawer button, Chat/Munka switch, and a bottom prompt bar with dictated command, tools access and opt-in 15-minute voice session button. The drawer includes every requested Basic tool; routes open real Android screens or truthful external-app handoff explanations. One-shot home prompts run through the **same existing local executor as Chat**, not a pretend AI bot.
+
+Orb motion is driven by Android speech recognizer RMS and by synthesized speech PCM energy **when the chosen TTS engine supplies it**. Where TTS sample callbacks are unavailable, an ambient speaking animation remains. Tight audiovisual timing, hands-free audio capture and background operation require physical Android device verification.
+
+**Not production-ready:** cloud AI is not connected; third-party messages and UC Journal do not gain unauthorized account access. This is a debug build, with no GitHub Release or Play Store publication.
+
 ## Android 0.1.6-dev — named contacts and cross-app voice handoffs (internal only)
 
 This adds an encrypted, user-edited **nicknames + phone numbers + addresses** directory, including Hungarian name endings such as "drágámat" and "Eszterhez". With explicit contact mapping, a spoken phone-call request still requires confirmation. Navigation can use the contact's saved address.
