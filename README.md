@@ -2,6 +2,20 @@
 
 Separate **native mobile** Jarvis repository, independent from the Windows Electron app. This is a first **functional Basic prototype**, not a production release.
 
+## Android 0.1.5-dev — internal development (no public release)
+
+This development branch includes the approved blue Jarvis orb launcher icon, a cleaned-up Chat screen (the "Próbáld..." example removed), and Hungarian alarm commands. The app can schedule **one Jarvis-owned** Android AlarmManager alarm at a time and cancel it by command. Alarm timing and notification permissions are requested separately. The alarm currently triggers an Android sound notification rather than a fully tested full-screen alarm; **do not rely on it as your only important wake-up alarm**.
+
+The optional, user-started 15-minute "Hey Jarvis" foreground voice mode can handle supported commands, including a spoken reply to a supported messaging notification with explicit yes/no confirmation. Android voice recognition is **not a guaranteed always-on/offline hotword engine**; recognition can depend on device services, network and background restrictions.
+
+- **Phone:** Contact lookup and voice-initiated phone calls require explicit contacts/phone permissions, exact matching and spoken yes/no confirmation; sending a call request is not proof the remote party answered.
+- **Navigation:** Spoken destination parsing and an encrypted on-device home address; map activity opens when Android permits it.
+- **Email:** Creates a draft in the user's mail app for review, **never sends in the background**, and does not yet read Gmail.
+- **AI:** `server/` contains an authenticated, *non-deployed* backend proof of concept and a separate type-check workflow. **No live AI key, AI login or mobile AI connection has been configured.**
+- **Internal only:** GitHub Actions produces debug APK artifacts, but no GitHub Release, Play Store submission or production signing has been created.
+
+The native Android and gateway builds are automated, but real-device checks remain necessary. The source repository is currently **public**; switch it to **private** before commercial code, keys, customer records or sensitive integration work.
+
 ## Android 0.1.4 — Hey Jarvis voice mode (beta)
 
 - Start from the app Home screen; grant microphone and optional notification permissions.
