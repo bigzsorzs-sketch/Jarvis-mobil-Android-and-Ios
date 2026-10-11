@@ -28,8 +28,8 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.9"
-      - name: Compile native Android APK
-        run: gradle -p android :app:assembleDebug --stacktrace
+      - name: Test Basic command routing and compile native Android APK
+        run: gradle -p android :app:testDebugUnitTest :app:assembleDebug --stacktrace
       - name: Upload installable debug APK
         uses: actions/upload-artifact@v4
         with:
