@@ -15,6 +15,14 @@ class ExternalTasksTest {
         )
     }
 
+    @Test fun newWhatsappDraftWithMessage() {
+        assertEquals(
+            OutgoingMessage(MessengerPlatform.WHATSAPP, "Sulynak", "Szia, később hívlak"),
+            ExternalTasks.parseMessage("Írj WhatsApp-on Sulynak hogy Szia, később hívlak")
+        )
+        assertNull(ExternalTasks.parseGmailSearch("Keresd meg ezt az emailt és írj rá választ"))
+        assertEquals("számla", ExternalTasks.parseGmailSearch("Keresd meg számla emailt"))
+    }
     @Test fun ucNavigationIsExplicit() {
         assertTrue(ExternalTasks.parseUcJournal("Nézd meg van-e új üzenet a UC journalban"))
         assertFalse(ExternalTasks.parseUcJournal("Hívd fel a drágámat"))

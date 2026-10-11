@@ -22,7 +22,7 @@ internal object ExternalTasks {
         val tail = input.substring(app.range.last + 1).trim()
         val found = Regex("(?iu)^keresd\\s+meg\\s+(?:a\\s+|az\\s+)?(.+?)(?:\\s+és\\s+(?:írj|küldj|üzenj).*)?$")
             .find(tail)
-        val forward = Regex("(?iu)^(?:nak|nek|ra|re)?\\s*(?:a\\s+|az\\s+)?(.+?)\\s+(?:hogy|szöveg|üzenet)\\s+(.+)$")
+        val forward = Regex("(?iu)^(?:a\\s+|az\\s+)?(.+?)\\s+(?:hogy|szöveg|üzenet)\\s+(.+)$")
             .find(tail)
         val target = when {
             found != null -> found.groupValues[1].trim()
@@ -118,7 +118,10 @@ internal object ExternalTasks {
     fun parseGmailSearch(input: String): String? {
         val matched = Regex("(?iu)^(?:keresd\\s+meg|keresd|nézd\\s+meg)\\s+(.+?)\\s+(?:emailt|e-mailt|levelet)\\b.*$")
             .find(input.trim()) ?: return null
-        return matched.groupValues[1].trim().takeIf { it.isNotBlank() && it.length <= 180 }
+        return matched.groupValues[1].trim().takeIf {
+            it.isNotBlank() && it.length <= 180 &&
+                it.lowercase() !in setOf("ezt", "ezt az", "ezt a", "azt", "azt az", "azt a")
+        }
     }
 
     /** Handoff to Gmail's web search, not an API search or automated reply. */
