@@ -42,7 +42,7 @@ internal fun HandsFreePanel(context: Context) {
     val request = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
-        if (permissions[Manifest.permission.RECORD_AUDIO] == true) start()
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) start()
         else issue = "Hangfigyeléshez mikrofonengedély szükséges."
     }
     Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF182334))) {
