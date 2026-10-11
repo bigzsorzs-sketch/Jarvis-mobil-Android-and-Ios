@@ -77,12 +77,17 @@ internal object VoiceCalling {
             PackageManager.PERMISSION_GRANTED
 
     /** This actually initiates the outgoing call; invoke only after explicit yes. */
+    @android.annotation.SuppressLint("MissingPermission")
     fun place(context: Context, target: Target): Boolean {
-        if (!canCall(context)) return false
+        // The caller must confirm explicitly; the permission is checked again
+        // immediately before the Telecom call, including after any revocation.
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.CALL_PHONE)
+            != PackageManager.PERMISSION_GRANTED) return false
         return try {
             val manager = context.getSystemService(Context.TELECOM_SERVICE) as TelecomManager
             manager.placeCall(Uri.parse("tel:" + Uri.encode(target.number)), Bundle.EMPTY)
             true // Submitted to Android Telecom; call establishment is not verified.
-        } catch (_: Exception) { false }
+        } catch (_: SecurityException) { false }
+          catch (_: Exception) { false }
     }
 }

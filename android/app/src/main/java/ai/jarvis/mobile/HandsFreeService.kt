@@ -86,7 +86,7 @@ class HandsFreeService : Service(), RecognitionListener {
                 .setOngoing(true)
                 .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Leállítás", stopIntent)
                 .build()
-            if (Build.VERSION.SDK_INT >= 29)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R)
                 startForeground(ID, notice, ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE)
             else startForeground(ID, notice)
         } catch (_: Exception) {

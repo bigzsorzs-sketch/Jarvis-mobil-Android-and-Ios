@@ -44,6 +44,7 @@ internal object JarvisAlarms {
             manager(context).canScheduleExactAlarms()
 
     fun requestExactPermission(context: Context) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
         try {
             context.startActivity(
                 Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM)
