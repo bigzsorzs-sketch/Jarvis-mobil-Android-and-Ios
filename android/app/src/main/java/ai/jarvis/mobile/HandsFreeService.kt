@@ -17,6 +17,9 @@ internal object HandsFreeStatus {
     var status by mutableStateOf("Kikapcsolva")
     var heard by mutableStateOf("")
     var answer by mutableStateOf("")
+    var speaking by mutableStateOf(false)
+    var micLevel by mutableFloatStateOf(0f)
+    var outputLevel by mutableFloatStateOf(0f)
 }
 internal object HandsFreeNavigation {
     var appIsForeground by mutableStateOf(false)
@@ -107,16 +110,46 @@ class HandsFreeService : Service(), RecognitionListener {
             if (ttsReady) {
                 tts?.language = Locale.forLanguageTag("hu-HU")
                 tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
-                    override fun onStart(utteranceId: String?) {}
+                    override fun onStart(utteranceId: String?) {
+                        HandsFreeStatus.speaking = true
+                    }
+                    override fun onAudioAvailable(utteranceId: String?, audio: ByteArray?) {
+                        if (audio == null || audio.size < 2) return
+                        // Most TTS engines supply PCM16 chunks. Some providers
+                        // omit audio callbacks entirely, in which case the orb
+                        // still uses its gentle speaking animation.
+                        var sum = 0.0
+                        var count = 0
+                        var i = 0
+                        while (i + 1 < audio.size) {
+                            val value = (audio[i].toInt() and 0xFF) or
+                                (audio[i + 1].toInt() shl 8)
+                            val sample = value.toShort().toInt() / 32768.0
+                            sum += sample * sample
+                            count++
+                            i += 64 // subsample large chunks to avoid audio thread stalls
+                        }
+                        if (count > 0) {
+                            val rms = kotlin.math.sqrt(sum / count).toFloat()
+                            HandsFreeStatus.outputLevel = (rms * 5f).coerceIn(0f, 1f)
+                        }
+                    }
                     override fun onDone(utteranceId: String?) {
                         handler.post {
                             speaking = false
+                            HandsFreeStatus.speaking = false
+                            HandsFreeStatus.outputLevel = 0f
                             if (running) again(450)
                         }
                     }
                     @Deprecated("Deprecated in Java")
                     override fun onError(utteranceId: String?) {
-                        handler.post { speaking = false; if (running) again(450) }
+                        handler.post {
+                            speaking = false
+                            HandsFreeStatus.speaking = false
+                            HandsFreeStatus.outputLevel = 0f
+                            if (running) again(450)
+                        }
                     }
                 })
             }
@@ -165,12 +198,19 @@ class HandsFreeService : Service(), RecognitionListener {
         HandsFreeStatus.status = "Jarvis válaszol"
         handler.removeCallbacks(restart)
         speaking = true
+        HandsFreeStatus.speaking = true
+        HandsFreeStatus.micLevel = 0f
         recognizer?.cancel()
         val engine = tts
         if (ttsReady && engine != null &&
             engine.speak(text, TextToSpeech.QUEUE_FLUSH, null,
                 "jarvis-" + SystemClock.uptimeMillis()) == TextToSpeech.SUCCESS) return
-        handler.postDelayed({ speaking = false; if (running) again(400) }, 1500)
+        handler.postDelayed({
+            speaking = false
+            HandsFreeStatus.speaking = false
+            HandsFreeStatus.outputLevel = 0f
+            if (running) again(400)
+        }, 1500)
     }
     private fun privateVoiceAllowed(): Boolean {
         val guard = getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager
@@ -453,7 +493,11 @@ class HandsFreeService : Service(), RecognitionListener {
 
     override fun onReadyForSpeech(params: Bundle?) {}
     override fun onBeginningOfSpeech() {}
-    override fun onRmsChanged(rmsdB: Float) {}
+    override fun onRmsChanged(rmsdB: Float) {
+        if (!running || speaking) return
+        val normalized = ((rmsdB + 2f) / 13f).coerceIn(0f, 1f)
+        HandsFreeStatus.micLevel = HandsFreeStatus.micLevel * 0.65f + normalized * 0.35f
+    }
     override fun onBufferReceived(buffer: ByteArray?) {}
     override fun onEndOfSpeech() {}
     override fun onPartialResults(partialResults: Bundle?) {}
@@ -476,6 +520,9 @@ class HandsFreeService : Service(), RecognitionListener {
     private fun shutdown(status: String) {
         running = false
         HandsFreeStatus.running = false
+        HandsFreeStatus.speaking = false
+        HandsFreeStatus.micLevel = 0f
+        HandsFreeStatus.outputLevel = 0f
         HandsFreeStatus.status = status
         clearProposal()
         proposedCall = null
