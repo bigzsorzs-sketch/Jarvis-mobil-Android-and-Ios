@@ -168,6 +168,13 @@ class HandsFreeService : Service(), RecognitionListener {
                 "jarvis-" + SystemClock.uptimeMillis()) == TextToSpeech.SUCCESS) return
         handler.postDelayed({ speaking = false; if (running) again(400) }, 1500)
     }
+    private fun privateVoiceAllowed(): Boolean {
+        val guard = getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager
+        val locked = guard.isDeviceLocked
+        if (!locked) return true
+        return SecurePrefs(this).read("voice_private_on_lock", "false") == "true"
+    }
+
     private fun clearProposal() { proposed = null; confirmUntil = 0L }
     private fun process(raw: String) {
         val heard = raw.trim()
@@ -181,6 +188,11 @@ class HandsFreeService : Service(), RecognitionListener {
             return
         }
         if (proposedCall != null) {
+            if (!privateVoiceAllowed()) {
+                proposedCall = null
+                speak("Lezárt képernyőn a privát műveletek tiltva vannak. Oldd fel a telefont.")
+                return
+            }
             if (now > proposedCallUntil) {
                 proposedCall = null
                 speak("Lejárt a hívás megerősítési ideje. Nem indítottam hívást.")
@@ -197,6 +209,11 @@ class HandsFreeService : Service(), RecognitionListener {
             return
         }
         if (proposed != null) {
+            if (!privateVoiceAllowed()) {
+                clearProposal()
+                speak("Lezárt képernyőn nem küldök privát üzenetet. Oldd fel a telefont.")
+                return
+            }
             if (now > confirmUntil) {
                 clearProposal()
                 speak("Lejárt a megerősítési idő. Nem küldtem el semmit.")
@@ -235,6 +252,11 @@ class HandsFreeService : Service(), RecognitionListener {
             else -> { again(600); return }
         }
         if (VoiceIntentParser.isReadMessage(command)) {
+            if (!privateVoiceAllowed()) {
+                lastMessageKey = null
+                speak("A telefon lezárva. A privát üzenetek felolvasásához oldd fel, vagy engedélyezd ezt külön a Jarvisban.")
+                return
+            }
             val app = VoiceIntentParser.messengerHint(command)
             val item = MessageBuffer.notices.firstOrNull {
                 app == null || it.appName.contains(app, ignoreCase = true)
@@ -250,6 +272,10 @@ class HandsFreeService : Service(), RecognitionListener {
         }
         val draft = VoiceIntentParser.replyDraft(command)
         if (draft != null) {
+            if (!privateVoiceAllowed()) {
+                speak("Lezárt képernyőn nem készítek privát üzenetválaszt.")
+                return
+            }
             val item = MessageBuffer.notices.firstOrNull { it.key == lastMessageKey }
             if (item == null) speak("Előbb olvastass fel egy üzenetet.")
             else if (!item.canReply) speak("Ehhez az értesítéshez nincs támogatott gyorsválasz.")
@@ -295,6 +321,10 @@ class HandsFreeService : Service(), RecognitionListener {
         }
         val calledName = VoiceCalling.extractRequest(command)
         if (calledName != null) {
+            if (!privateVoiceAllowed()) {
+                speak("A telefon lezárva. Hangos hívás előtt oldd fel, vagy engedélyezd a privát műveleteket a Jarvisban.")
+                return
+            }
             if (!VoiceCalling.canCall(this)) {
                 speak("Hívás indításához engedélyezd a Telefon hozzáférést az Engedélyközpontban.")
                 return

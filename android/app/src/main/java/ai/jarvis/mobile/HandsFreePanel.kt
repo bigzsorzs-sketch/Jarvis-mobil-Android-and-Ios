@@ -23,6 +23,9 @@ internal fun HandsFreePanel(context: Context) {
     val heard = HandsFreeStatus.heard
     val answer = HandsFreeStatus.answer
     var issue by remember { mutableStateOf("") }
+    var allowWhileLocked by remember(context) {
+        mutableStateOf(SecurePrefs(context).read("voice_private_on_lock", "false") == "true")
+    }
     fun start() {
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO)
             != PackageManager.PERMISSION_GRANTED) {
@@ -57,6 +60,18 @@ internal fun HandsFreePanel(context: Context) {
                 "háttérben leállhat, és a beszédfelismerő szolgáltatója felhőt is használhat.",
                 style = MaterialTheme.typography.bodySmall, color = Color(0xFFB5C3D8))
             Text("Állapot: $status", color = Color(0xFF60D5E5))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Column(Modifier.weight(1f)) {
+                    Text("Privát üzenetek felolvasása lezárt képernyőn",
+                        color = Color.White, style = MaterialTheme.typography.bodyMedium)
+                    Text("Alapértelmezés: kikapcsolva. Mások is hallhatják a felolvasást.",
+                        color = Color(0xFFB5C3D8), style = MaterialTheme.typography.bodySmall)
+                }
+                Switch(checked = allowWhileLocked, onCheckedChange = { enabled ->
+                    SecurePrefs(context).write("voice_private_on_lock", enabled.toString())
+                    allowWhileLocked = enabled
+                })
+            }
             if (!running) {
                 Button(onClick = {
                     val wanted = mutableListOf(Manifest.permission.RECORD_AUDIO)
