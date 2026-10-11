@@ -165,7 +165,12 @@ fun JarvisApp(context: Context) {
             drawerState = drawerState,
             drawerContent = {
                 JarvisDrawer(page) { selected ->
-                    page = selected
+                    if (selected == "Navigáció" || selected == "Térkép") {
+                        if (!openMap(context)) {
+                            conversation.add("Navigáció" to "Nem találok telepített térképalkalmazást.")
+                            page = "Főoldal"
+                        }
+                    } else page = selected
                     drawerScope.launch { drawerState.close() }
                 }
             }

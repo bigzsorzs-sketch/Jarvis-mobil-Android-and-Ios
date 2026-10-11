@@ -125,9 +125,9 @@ internal fun JarvisToolLanding(context: Context, page: String, onOpen: (String) 
             OutlinedButton(onClick = { onOpen("Navigáció") }) { Text("Navigációs beállítások") }
         }
         "Fájlok" -> {
-            Text("A telefon saját választójában engedélyezhetsz konkrét képeket és dokumentumokat.",
-                color = Color(0xFFB5C3D8))
-            Button(onClick = { onOpen("Engedélyek") }) { Text("Fotók és dokumentumok megnyitása") }
+            Text("Kamera, legfeljebb 20 kép és 1 GB összméret a főoldalon lévő + gombbal.",
+                color = JarvisPalette.subtleText)
+            Button(onClick = { onOpen("Főoldal") }) { Text("Vissza a + csatoláshoz") }
         }
         "Jegyzetek" -> {
             Text("A helyi, titkosított jegyzeteket az Eszközök oldalon szerkesztheted.",
