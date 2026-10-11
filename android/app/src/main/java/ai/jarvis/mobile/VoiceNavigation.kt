@@ -30,8 +30,9 @@ internal object VoiceNavigation {
     }
 
     fun resolve(context: Context, destination: String): String? {
-        if (destination != "HOME") return destination
-        return homeAddress(context).takeIf { it.isNotBlank() }
+        if (destination == "HOME") return homeAddress(context).takeIf { it.isNotBlank() }
+        val person = PeopleDirectory.find(context, destination)
+        return if (person != null) person.address.takeIf { it.isNotBlank() } else destination
     }
 
     fun open(context: Context, destination: String): Boolean {

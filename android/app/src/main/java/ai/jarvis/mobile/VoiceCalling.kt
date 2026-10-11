@@ -36,6 +36,8 @@ internal object VoiceCalling {
     }
 
     fun lookup(context: Context, spoken: String): Lookup {
+        val trusted = PeopleDirectory.find(context, spoken)
+        if (trusted != null) return Lookup.Found(Target(trusted.nickname, trusted.phone))
         val query = spoken.trim()
         val cleanedNumber = query.replace(Regex("[\\s()\\-]"), "")
         if (cleanedNumber.matches(Regex("\\+?[0-9]{5,16}"))) {

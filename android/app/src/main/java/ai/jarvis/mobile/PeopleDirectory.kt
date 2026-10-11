@@ -15,6 +15,7 @@ internal object PeopleDirectory {
     fun normalized(raw: String): String = Normalizer.normalize(
         raw.lowercase(Locale.forLanguageTag("hu-HU")), Normalizer.Form.NFD
     ).replace(Regex("\\p{M}+"), "")
+     .replace("-", "")
      .replace(Regex("[^a-z0-9 ]"), " ")
      .trim().replace(Regex("\\s+"), " ")
 
