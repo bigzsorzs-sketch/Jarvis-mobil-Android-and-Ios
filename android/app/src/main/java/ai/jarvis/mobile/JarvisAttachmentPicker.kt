@@ -87,8 +87,9 @@ internal fun JarvisAttachmentPicker(
                 Text("Csatolás Jarvishoz", style = MaterialTheme.typography.titleLarge,
                     color = JarvisPalette.mainText)
                 Spacer(Modifier.height(12.dp))
-                Text("Legfeljebb 20 kép · összesen maximum 1 GB. " +
-                    "A fájlokat a telefon helyi tárhelyén készítem elő.",
+                Text("PDF, Word, Excel, PowerPoint, TXT, CSV, ZIP, RAR, 7Z, " +
+                    "képek, hangok, videók és más fájlok. " +
+                    "Legfeljebb 20 kép és összesen 1 GB; egyelőre helyi előkészítés.",
                     color = JarvisPalette.subtleText)
                 Spacer(Modifier.height(14.dp))
                 TextButton(onClick = {
@@ -113,6 +114,8 @@ internal fun JarvisAttachmentPicker(
                 }
                 TextButton(onClick = {
                     open = false
+                    // Unrestricted scoped system picker: common and uncommon
+                    // formats remain selectable; no unrestricted storage access.
                     files.launch(arrayOf("*/*"))
                 }, enabled = !busy) {
                     Text("▤  Fájlok", color = JarvisPalette.mainText)
@@ -127,8 +130,17 @@ internal fun JarvisAttachmentPicker(
                 )
                 items.forEach { attachment ->
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text(attachment.displayName.take(29), color = JarvisPalette.mainText,
-                            modifier = Modifier.weight(1f))
+                        Column(Modifier.weight(1f)) {
+                            Text(attachment.displayName.take(36),
+                                color = JarvisPalette.mainText)
+                            Text(
+                                JarvisAttachments.categoryFor(attachment.mimeType, attachment.isImage) +
+                                    " · " + String.format(Locale.UK, "%.1f MB",
+                                        attachment.sizeBytes / 1_048_576.0),
+                                color = JarvisPalette.subtleText,
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
                         TextButton(onClick = {
                             JarvisAttachments.delete(attachment)
                             items.remove(attachment)
