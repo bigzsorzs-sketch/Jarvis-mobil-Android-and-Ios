@@ -19,6 +19,8 @@ class VoiceIntentParserTest {
 
     @Test fun targetedMessageReply() {
         assertTrue(VoiceIntentParser.isReadMessage("Olvasd fel az utolsó WhatsApp üzenetet"))
+        assertFalse(VoiceIntentParser.isReadMessage("Olvasd fel a vércukromat"))
+        assertFalse(VoiceIntentParser.isReadMessage("Olvasd fel a PIN-kódom"))
         assertEquals("WhatsApp", VoiceIntentParser.messengerHint("Olvasd fel a WhatsApp üzenetet"))
         assertEquals("20 perc múlva hazaérek", VoiceIntentParser.replyDraft("Válaszolj neki hogy 20 perc múlva hazaérek"))
         assertNull(VoiceIntentParser.replyDraft("válaszolj neki"))
