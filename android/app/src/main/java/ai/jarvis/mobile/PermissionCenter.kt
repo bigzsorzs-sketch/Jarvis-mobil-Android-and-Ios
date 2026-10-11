@@ -67,6 +67,15 @@ private fun lastLocation(context: Context): String {
     } catch (_: Exception) { "Helyadat jelenleg nem érhető el." }
 }
 
+
+private fun viewSelection(context: Context, uri: Uri): Boolean {
+    return try {
+        val type = context.contentResolver.getType(uri) ?: "*/*"
+        openSystemIntent(context, Intent(Intent.ACTION_VIEW)
+            .setDataAndType(uri, type).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION))
+    } catch (_: Exception) { false }
+}
+
 @Composable
 private fun PermissionTile(title: String, description: String, status: String, onClick: () -> Unit) {
     Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF182334))) {
@@ -83,6 +92,16 @@ private fun PermissionTile(title: String, description: String, status: String, o
 internal fun PermissionCenter(context: Context, onDone: () -> Unit, onMessages: () -> Unit) {
     val check = PermissionRefresh.serial
     var status by remember { mutableStateOf("") }
+    val selectedPhotos = remember { mutableStateListOf<Uri>() }
+    val secure = remember(context) { SecurePrefs(context) }
+    val selectedDocs = remember {
+        mutableStateListOf<Uri>().apply {
+            try {
+                val saved = org.json.JSONArray(secure.read("selected_documents", "[]"))
+                for (i in 0 until saved.length()) add(Uri.parse(saved.getString(i)))
+            } catch (_: Exception) {}
+        }
+    }
     val locationRequest = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
         PermissionRefresh.serial += 1
         status = if (it.values.any { granted -> granted }) "Helyhozzáférés megadva." else "Helyhozzáférés nincs megadva."
@@ -92,6 +111,8 @@ internal fun PermissionCenter(context: Context, onDone: () -> Unit, onMessages: 
         status = if (it) "Névjegyek engedélyezve." else "Névjegyhozzáférés elutasítva."
     }
     val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(5)) { uris ->
+        selectedPhotos.clear()
+        selectedPhotos.addAll(uris)
         status = if (uris.isEmpty()) "Nem választottál ki képet." else
             "Kiválasztottál " + uris.size + " képet. Ezekhez ideiglenes hozzáférést kaptam."
     }
@@ -102,6 +123,10 @@ internal fun PermissionCenter(context: Context, onDone: () -> Unit, onMessages: 
                     context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 } catch (_: Exception) { /* read access for current selection still applies */ }
             }
+            selectedDocs.clear()
+            selectedDocs.addAll(uris)
+            secure.write("selected_documents",
+                org.json.JSONArray().apply { selectedDocs.forEach { put(it.toString()) } }.toString())
             "Hozzáférhető fájlok: " + uris.take(3).joinToString(", ") { uriName(context, it) }
         }
     }
@@ -157,6 +182,11 @@ internal fun PermissionCenter(context: Context, onDone: () -> Unit, onMessages: 
             "nem az egész galériához.",
         "Kiválasztáskor kér hozzáférést"
     ) { photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)) }
+    selectedPhotos.take(5).forEachIndexed { index, uri ->
+        TextButton(onClick = { status = if (viewSelection(context, uri)) "Kép megnyitva." else "Nem nyitható meg a kép." }) {
+            Text("Kiválasztott kép " + (index + 1) + " – megnyitás")
+        }
+    }
     Spacer(Modifier.height(10.dp))
     PermissionTile(
         "📂 Dokumentumok és tárhely",
@@ -164,6 +194,11 @@ internal fun PermissionCenter(context: Context, onDone: () -> Unit, onMessages: 
             "A telefon összes fájljához nem kérünk korlátlan hozzáférést.",
         "Kiválasztott fájlokhoz engedély"
     ) { documentPicker.launch(arrayOf("*/*")) }
+    selectedDocs.take(12).forEach { uri ->
+        TextButton(onClick = { status = if (viewSelection(context, uri)) "Dokumentum megnyitva." else "A fájlhoz már nincs hozzáférés." }) {
+            Text("📄 " + uriName(context, uri))
+        }
+    }
     Spacer(Modifier.height(10.dp))
     PermissionTile(
         "👤 Névjegyek",

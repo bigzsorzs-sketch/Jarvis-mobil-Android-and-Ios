@@ -1,5 +1,9 @@
 package ai.jarvis.mobile
 
+import android.app.Activity
+import android.speech.RecognizerIntent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import android.app.Notification
 import android.app.PendingIntent
 import android.app.RemoteInput
@@ -34,16 +38,19 @@ internal object MessageBuffer {
     private val main = Handler(Looper.getMainLooper())
     val notices = mutableStateListOf<MessageNotice>()
     private val quickReplies = mutableMapOf<String, Pair<PendingIntent, Array<RemoteInput>>>()
+    private val messageOpens = mutableMapOf<String, PendingIntent>()
 
-    fun add(notice: MessageNotice, pending: PendingIntent?, inputs: Array<RemoteInput>?) {
+    fun add(notice: MessageNotice, pending: PendingIntent?, inputs: Array<RemoteInput>?, open: PendingIntent?) {
         main.post {
             notices.removeAll { it.key == notice.key }
             notices.add(0, notice)
+            if (open != null) messageOpens[notice.key] = open else messageOpens.remove(notice.key)
             if (pending != null && inputs != null && inputs.isNotEmpty()) {
                 quickReplies[notice.key] = pending to inputs
             } else quickReplies.remove(notice.key)
             while (notices.size > 30) {
                 quickReplies.remove(notices.last().key)
+                messageOpens.remove(notices.last().key)
                 notices.removeAt(notices.lastIndex)
             }
         }
@@ -53,6 +60,7 @@ internal object MessageBuffer {
         main.post {
             notices.removeAll { it.key == key }
             quickReplies.remove(key)
+            messageOpens.remove(key)
         }
     }
 
@@ -60,7 +68,13 @@ internal object MessageBuffer {
         main.post {
             notices.clear()
             quickReplies.clear()
+            messageOpens.clear()
         }
+    }
+
+    fun openOriginal(context: Context, key: String): Boolean {
+        val pending = messageOpens[key] ?: return false
+        return try { pending.send(); true } catch (_: Exception) { false }
     }
 
     /** Only explicitly user-triggered quick reply, and only if the source app exposes RemoteInput. */
@@ -116,8 +130,14 @@ class JarvisNotificationListener : NotificationListenerService() {
         MessageBuffer.add(
             MessageNotice(sbn.key, source, title.ifBlank { source }, body.take(2000), action != null),
             action?.actionIntent,
-            action?.remoteInputs
+            action?.remoteInputs,
+            sbn.notification.contentIntent
         )
+    }
+
+    override fun onListenerConnected() {
+        super.onListenerConnected()
+        try { activeNotifications?.forEach { onNotificationPosted(it) } } catch (_: Exception) {}
     }
 
     override fun onNotificationRemoved(sbn: StatusBarNotification?) {
@@ -135,6 +155,16 @@ internal fun MessageInboxScreen(context: Context, onPermissions: () -> Unit) {
     val speaker = remember(context) { TextToSpeech(context) { } }
     DisposableEffect(speaker) { onDispose { speaker.stop(); speaker.shutdown() } }
     var info by remember { mutableStateOf("") }
+    var dictatedKey by remember { mutableStateOf<String?>(null) }
+    val drafts = remember { mutableStateMapOf<String, String>() }
+    val dictateReply = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val heard = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()
+            val key = dictatedKey
+            if (!heard.isNullOrBlank() && key != null) drafts[key] = heard
+        }
+        dictatedKey = null
+    }
     Text("Üzenetek", color = Color.White, style = MaterialTheme.typography.headlineSmall)
     Spacer(Modifier.height(12.dp))
     Text(
@@ -155,7 +185,6 @@ internal fun MessageInboxScreen(context: Context, onPermissions: () -> Unit) {
     }
     notices.forEach { notice ->
         key(notice.key) {
-            var replyDraft by remember { mutableStateOf("") }
             Spacer(Modifier.height(10.dp))
             Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF182334))) {
                 Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -166,20 +195,36 @@ internal fun MessageInboxScreen(context: Context, onPermissions: () -> Unit) {
                         speaker.speak(notice.sender + ": " + notice.body, TextToSpeech.QUEUE_FLUSH, null, notice.key)
                     }) { Text("🔊 Felolvasás") }
                     if (notice.canReply) {
-                        OutlinedTextField(replyDraft, onValueChange = { replyDraft = it },
+                        OutlinedTextField(drafts[notice.key].orEmpty(),
+                            onValueChange = { drafts[notice.key] = it },
                             label = { Text("Válasz") }, modifier = Modifier.fillMaxWidth())
+                        OutlinedButton(onClick = {
+                            dictatedKey = notice.key
+                            try {
+                                dictateReply.launch(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                                    putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                                    putExtra(RecognizerIntent.EXTRA_LANGUAGE, "hu-HU")
+                                    putExtra(RecognizerIntent.EXTRA_PROMPT, "Diktáld a választ – küldés előtt ellenőrizheted")
+                                })
+                            } catch (_: Exception) { info = "Nincs telepített beszédfelismerő." }
+                        }) { Text("🎤 Válasz diktálása") }
                         Button(onClick = {
-                            info = if (MessageBuffer.reply(context, notice.key, replyDraft)) {
-                                replyDraft = ""
+                            info = if (MessageBuffer.reply(context, notice.key, drafts[notice.key].orEmpty())) {
+                                drafts[notice.key] = ""
                                 "A gyorsválaszt átadtam az üzenetalkalmazásnak. A kézbesítést ott ellenőrizd."
                             } else "A gyorsválasz nem sikerült. Nyisd meg az eredeti alkalmazást."
-                        }, enabled = replyDraft.isNotBlank()) {
+                        }, enabled = drafts[notice.key]?.isNotBlank() == true) {
                             Text("Válasz elküldése")
                         }
                     } else {
                         Text("Ehhez az értesítéshez az alkalmazás nem adott gyorsválasz-lehetőséget.",
                             color = Color(0xFFB5C3D8))
                     }
+                    OutlinedButton(onClick = {
+                        info = if (MessageBuffer.openOriginal(context, notice.key))
+                            "Megnyitottam az eredeti üzenetalkalmazást."
+                        else "Ez az értesítés már nem nyitható meg."
+                    }) { Text("Megnyitás az eredeti alkalmazásban") }
                 }
             }
         }
