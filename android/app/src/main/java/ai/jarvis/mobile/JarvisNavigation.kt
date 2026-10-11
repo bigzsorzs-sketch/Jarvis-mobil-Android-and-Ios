@@ -20,7 +20,6 @@ internal data class JarvisTool(val name: String, val route: String, val glyph: S
 internal object JarvisToolCatalog {
     val all = listOf(
         JarvisTool("Főoldal", "Főoldal", "⌂"),
-        JarvisTool("Chat", "Chat", "◉"),
         JarvisTool("Munka", "Munka", "▣"),
         JarvisTool("Navigáció", "Navigáció", "➤"),
         JarvisTool("Vércukor", "Vércukor", "♧"),

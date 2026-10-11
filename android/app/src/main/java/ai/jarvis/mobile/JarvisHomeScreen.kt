@@ -12,6 +12,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -44,7 +46,11 @@ internal fun JarvisHomeScreen(
     onToggleTheme: () -> Unit,
     onMenu: () -> Unit,
     onNavigate: (String) -> Unit,
-    onCommand: (String) -> Unit
+    onCommand: (String) -> Unit,
+    history: List<Pair<String, String>>,
+    pendingCall: VoiceCalling.Target?,
+    onCallConfirm: () -> Unit,
+    onCallDismiss: () -> Unit
 ) {
     var text by remember { mutableStateOf("") }
     var issue by remember { mutableStateOf("") }
@@ -129,9 +135,9 @@ internal fun JarvisHomeScreen(
                 Surface(
                     color = JarvisPalette.panel, shape = RoundedCornerShape(30.dp),
                     shadowElevation = 1.dp,
-                    modifier = Modifier.clickable { onNavigate("Chat") }
+                    modifier = Modifier.clickable { onNavigate("Főoldal") }
                 ) {
-                    Text("Chat", color = JarvisInk, fontSize = 15.sp,
+                    Text("Jarvis", color = JarvisInk, fontSize = 15.sp,
                         modifier = Modifier.padding(horizontal = 25.dp, vertical = 12.dp))
                 }
                 TextButton(onClick = { onNavigate("Munka") }) {
@@ -181,7 +187,41 @@ internal fun JarvisHomeScreen(
             Text(issue, color = Color(0xFFAA2732), fontSize = 12.sp,
                 modifier = Modifier.padding(horizontal = 16.dp))
         }
-        Spacer(Modifier.weight(1f))
+        if (pendingCall != null) {
+            AlertDialog(
+                onDismissRequest = onCallDismiss,
+                title = { Text("Hívás jóváhagyása") },
+                text = { Text("Fel szeretnéd hívni " + pendingCall.label +
+                    " számát: " + pendingCall.number + "?") },
+                confirmButton = {
+                    TextButton(onClick = onCallConfirm) { Text("Hívás indítása") }
+                },
+                dismissButton = {
+                    TextButton(onClick = onCallDismiss) { Text("Mégse") }
+                }
+            )
+        }
+        Column(
+            modifier = Modifier.weight(1f).fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            history.takeLast(8).asReversed().forEach { (request, answer) ->
+                Surface(
+                    color = if (isDark) Color(0xFF172741) else Color(0xFFF0F4FC),
+                    shape = RoundedCornerShape(17.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(Modifier.padding(12.dp)) {
+                        Text(request, color = JarvisInk, fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold)
+                        Spacer(Modifier.height(4.dp))
+                        Text(answer, color = JarvisMuted, fontSize = 13.sp)
+                    }
+                }
+            }
+        }
         Row(
             modifier = Modifier.fillMaxWidth()
                 .padding(start = 13.dp, end = 13.dp, bottom = 14.dp)

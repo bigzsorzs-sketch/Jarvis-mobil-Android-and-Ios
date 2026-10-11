@@ -88,7 +88,17 @@ fun JarvisApp(context: Context) {
     ) }
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val drawerScope = rememberCoroutineScope()
-    var homeCommand by remember { mutableStateOf<String?>(null) }
+    val conversation = remember { mutableStateListOf<Pair<String, String>>() }
+    var pendingCall by remember { mutableStateOf<VoiceCalling.Target?>(null) }
+    fun executeHome(command: String) {
+        if (command.isBlank()) return
+        val answer = JarvisCommandExecutor.run(
+            context, command, { destination -> page = destination },
+            { contact -> pendingCall = contact }
+        )
+        conversation.add(command to answer)
+        if (conversation.size > 50) conversation.removeAt(0)
+    }
     BackHandler(enabled = drawerState.isOpen || page != "Főoldal") {
         if (drawerState.isOpen) drawerScope.launch { drawerState.close() }
         else page = "Főoldal"
@@ -173,10 +183,18 @@ fun JarvisApp(context: Context) {
                         onToggleTheme = toggleTheme,
                         onMenu = { drawerScope.launch { drawerState.open() } },
                         onNavigate = { page = it },
-                        onCommand = { command ->
-                            homeCommand = command
-                            page = "Chat"
-                        }
+                        onCommand = { command -> executeHome(command) },
+                        history = conversation,
+                        pendingCall = pendingCall,
+                        onCallConfirm = {
+                            val person = pendingCall
+                            pendingCall = null
+                            val answer = if (person != null && VoiceCalling.place(context, person))
+                                "A híváskérést átadtam az Androidnak."
+                            else "A hívást nem sikerült elindítani. Ellenőrizd a telefonengedélyt."
+                            conversation.add("Hívás megerősítve" to answer)
+                        },
+                        onCallDismiss = { pendingCall = null }
                     )
                 } else {
                     Row(
@@ -224,11 +242,6 @@ fun JarvisApp(context: Context) {
                             "Ismerősök" -> PeopleDirectoryScreen(context, onPermissions = {
                                 page = "Engedélyek"
                             })
-                            "Chat" -> ChatScreen(
-                                context, onNavigate = { page = it },
-                                initialPrompt = homeCommand,
-                                onInitialConsumed = { homeCommand = null }
-                            )
                             "Vércukor" -> GlucoseScreen(readings) {
                                 securePrefs.write("readings", writeReadings(readings))
                             }
@@ -255,150 +268,6 @@ private fun SurfaceCard(content: @Composable ColumnScope.() -> Unit) {
         verticalArrangement = Arrangement.spacedBy(9.dp),
         content = content
     )
-}
-
-@Composable
-private fun ChatScreen(
-    context: Context,
-    onNavigate: (String) -> Unit,
-    initialPrompt: String? = null,
-    onInitialConsumed: () -> Unit = {}
-) {
-    var prompt by remember { mutableStateOf("") }
-    var speechError by remember { mutableStateOf("") }
-    var pendingPhoneCall by remember { mutableStateOf<VoiceCalling.Target?>(null) }
-    val log = remember { mutableStateListOf<Pair<String, String>>() }
-    val speaker = remember(context) { TextToSpeech(context) { } }
-    DisposableEffect(speaker) { onDispose { speaker.stop(); speaker.shutdown() } }
-    val voiceLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        if (result.resultCode == Activity.RESULT_OK) {
-            val heard = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()
-            if (!heard.isNullOrBlank()) { prompt = heard; speechError = "" }
-        }
-    }
-    fun send() {
-        val command = prompt.trim()
-        if (command.isBlank()) return
-        val result = when {
-            ExternalTasks.parseMessage(command) != null ->
-                ExternalTasks.dispatch(context, HandoffTask.Message(ExternalTasks.parseMessage(command)!!))
-            ExternalTasks.parseUcJournal(command) ->
-                ExternalTasks.dispatch(context, HandoffTask.UcJournal)
-            ExternalTasks.parseGmailSearch(command) != null ->
-                ExternalTasks.dispatch(context, HandoffTask.GmailSearch(ExternalTasks.parseGmailSearch(command)!!))
-            ExternalTasks.resemblesGmailSearch(command) ->
-                "Nem tudom biztosan, melyik levélre gondolsz. Mondd meg a feladót vagy tárgyat. " +
-                    "Gmail OAuth nélkül nem olvashatok és nem küldhetek választ."
-            VoiceEmail.parse(command) != null -> {
-                if (VoiceEmail.openComposer(context, VoiceEmail.parse(command)!!))
-                    "Megnyitottam a levelet a levelezőprogramban. Ellenőrizd, majd ott küldd el."
-                else "Nem találtam kompatibilis emailalkalmazást."
-            }
-            VoiceNavigation.destinationFrom(command) != null -> {
-                val destination = VoiceNavigation.destinationFrom(command)!!
-                when {
-                    VoiceNavigation.resolve(context, destination) == null ->
-                        "Előbb add meg az otthoni címedet az Eszközök menüben."
-                    VoiceNavigation.open(context, destination) ->
-                        "Átadtam az útvonalat a térképalkalmazásnak."
-                    else -> "Nem sikerült kompatibilis térképalkalmazást megnyitni."
-                }
-            }
-            VoiceCalling.extractRequest(command) != null -> {
-                when (val match = VoiceCalling.lookup(context, VoiceCalling.extractRequest(command)!!)) {
-                    is VoiceCalling.Lookup.Found -> {
-                        pendingPhoneCall = match.target
-                        "Hívás előkészítve: " + match.target.label + ". A telefonálást erősítsd meg."
-                    }
-                    VoiceCalling.Lookup.NoContactsAccess -> "Engedélyezd a Névjegyek hozzáférést."
-                    VoiceCalling.Lookup.NotFound -> "Nem találtam a kért névjegyet."
-                    VoiceCalling.Lookup.Ambiguous -> "Több azonos névjegyet találtam, pontosíts."
-                }
-            }
-            AlarmCommands.hasUnsupportedDate(command) && BasicCommandRouter.classify(command) == BasicAction.OPEN_ALARMS ->
-                "Konkrét jövőbeli napot még nem támogatok. Nem hoztam létre ébresztőt."
-            command.contains("töröld", ignoreCase = true) && command.contains("ébreszt", ignoreCase = true) ->
-                if (JarvisAlarms.cancel(context)) "A Jarvis saját ébresztőjét töröltem."
-                else "Nincs törölhető Jarvis-ébresztő. Más Óra alkalmazás ébresztőit nem módosítom."
-            AlarmCommands.parseAlarmTime(command) != null -> {
-                val time = AlarmCommands.parseAlarmTime(command)!!
-                when (val answer = JarvisAlarms.schedule(context, time)) {
-                    is JarvisAlarms.Result.Created ->
-                        "Beállítottam a Jarvis-ébresztőt " + answer.time + " időpontra. " +
-                            "Az Android értesítési hanggal jelez; ez még béta ébresztő."
-                    JarvisAlarms.Result.NoExactAlarmPermission ->
-                        "Előbb engedélyezd a pontos ébresztéseket az Engedélyközpontban."
-                    JarvisAlarms.Result.NoNotificationPermission ->
-                        "Az ébresztő jelzéséhez engedélyezd az értesítéseket."
-                    JarvisAlarms.Result.Failed -> "Nem sikerült az ébresztőt beállítani."
-                }
-            }
-            else -> performBasicAction(context, BasicCommandRouter.classify(command), onNavigate)
-        }
-        log.add(command to result)
-        prompt = ""
-    }
-    LaunchedEffect(initialPrompt) {
-        if (!initialPrompt.isNullOrBlank()) {
-            prompt = initialPrompt
-            send()
-            onInitialConsumed()
-        }
-    }
-    Text("Jarvis – helyi parancsok", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = White)
-    Spacer(Modifier.height(12.dp))
-    SurfaceCard {
-        Text("Hang- és szöveges vezérlés", color = Cyan, fontWeight = FontWeight.SemiBold)
-        Text("A helyi telefonparancsok használhatók; a felhőalapú AI még nincs bekötve.", color = Soft, fontSize = 12.sp)
-        OutlinedTextField(value = prompt, onValueChange = { prompt = it },
-            label = { Text("Írj vagy diktálj Jarvisnak") }, modifier = Modifier.fillMaxWidth())
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onClick = { send() }, enabled = prompt.isNotBlank()) { Text("Végrehajtás") }
-            OutlinedButton(onClick = {
-                val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                    putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                    putExtra(RecognizerIntent.EXTRA_LANGUAGE, "hu-HU")
-                    putExtra(RecognizerIntent.EXTRA_PROMPT, "Mondd a Jarvis parancsot")
-                }
-                try { voiceLauncher.launch(intent) }
-                catch (_: Exception) { speechError = "Nincs kompatibilis beszédfelismerő." }
-            }) { Text("🎤 Diktálás") }
-        }
-        if (speechError.isNotEmpty()) Text(speechError, color = Color(0xFFFFA5A5))
-    }
-    Spacer(Modifier.height(12.dp))
-    if (pendingPhoneCall != null) {
-        AlertDialog(
-            onDismissRequest = { pendingPhoneCall = null },
-            title = { Text("Hívás megerősítése") },
-            text = { Text("Hívjam: " + pendingPhoneCall!!.label + " / " + pendingPhoneCall!!.number + "?") },
-            confirmButton = {
-                TextButton(onClick = {
-                    val current = pendingPhoneCall
-                    pendingPhoneCall = null
-                    log.add("Hívás jóváhagyva" to
-                        if (current != null && VoiceCalling.place(context, current))
-                            "Átadtam a hívást az Android telefonrendszernek."
-                        else "Nem sikerült a hívás. Ellenőrizd a Telefon engedélyét.")
-                }) { Text("Hívás indítása") }
-            },
-            dismissButton = {
-                TextButton(onClick = { pendingPhoneCall = null }) { Text("Mégse") }
-            }
-        )
-    }
-    log.takeLast(12).asReversed().forEach { (query, reply) ->
-        SurfaceCard {
-            Text(query, fontWeight = FontWeight.Bold, color = White)
-            Text(reply, color = Soft, fontSize = 13.sp)
-            TextButton(onClick = { speaker.speak(reply, TextToSpeech.QUEUE_FLUSH, null, "jarvis-reply") }) {
-                Text("🔊 Felolvasás")
-            }
-        }
-        Spacer(Modifier.height(8.dp))
-    }
 }
 
 @Composable
