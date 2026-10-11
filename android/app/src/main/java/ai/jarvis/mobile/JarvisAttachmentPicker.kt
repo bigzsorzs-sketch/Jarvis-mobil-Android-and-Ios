@@ -63,7 +63,7 @@ internal fun JarvisAttachmentPicker(
 
     val gallery = rememberLauncherForActivityResult(
         ActivityResultContracts.PickMultipleVisualMedia(JarvisAttachments.MAX_IMAGES)
-    ) { selected -> stage(selected, true) }
+    ) { selected -> stage(selected, false) }
 
     val files = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenMultipleDocuments()
@@ -171,9 +171,9 @@ internal fun JarvisAttachmentPicker(
                 }
                 TextButton(onClick = {
                     open = false
-                    gallery.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
-                }, enabled = !busy && JarvisAttachments.imageCount(items) < JarvisAttachments.MAX_IMAGES) {
-                    Text("▧  Fényképek", color = JarvisPalette.mainText)
+                    gallery.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo))
+                }, enabled = !busy) {
+                    Text("▧  Fényképek és videók", color = JarvisPalette.mainText)
                 }
                 TextButton(onClick = {
                     open = false
