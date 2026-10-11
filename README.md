@@ -2,6 +2,15 @@
 
 Separate **native mobile** Jarvis repository, independent from the Windows Electron app. This is a first **functional Basic prototype**, not a production release.
 
+## Android 0.1.4 — Hey Jarvis voice mode (beta)
+
+- Start from the app Home screen; grant microphone and optional notification permissions.
+- Once explicitly started, a microphone **foreground service** shows a persistent Android notification with **Stop** action. The session lasts at most **15 minutes**, never starts on boot and can be stopped from the app or by voice ("állj le").
+- Speak **"Hey Jarvis"**, then a supported command (or give both together). Currently supported: opening Jarvis pages when the app is visible, reading fresh WhatsApp/Messenger and other supported notification previews, and dictating a reply.
+- To send a notification quick reply, Jarvis reads the draft and asks **"Elküldhetem?"**. Only an explicit **"igen"** within 40 seconds invokes Android RemoteInput. "Nem" cancels. Delivery confirmation is **not** available.
+- SpeechRecognizer prefers a device recognizer when available and restarts between utterances. **Android explicitly warns SpeechRecognizer is not intended for continuous wake-word monitoring**. It can use a remote voice provider, consume substantial battery, stop working on a locked/backgrounded phone, or terminate on device restrictions. This is a *limited experimental voice session*, NOT a reliable all-day always-on assistant. True on-device low-power keyword detection needs a separate wake-word engine and physical-device tests.
+- Background opening of arbitrary Android apps and full message history remain unsupported by Android's current APIs. No remote AI integration or API key is present.
+
 ## Android 0.1.3 — permissions and messaging (2026-10-11)
 
 - A first-run, **opt-in** permission center with per-feature controls and an explicit Continue button. Permissions remain optional.
