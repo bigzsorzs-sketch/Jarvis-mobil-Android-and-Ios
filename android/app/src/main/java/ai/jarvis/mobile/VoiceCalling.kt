@@ -1,0 +1,88 @@
+package ai.jarvis.mobile
+
+import android.Manifest
+import android.content.Context
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.Bundle
+import android.provider.ContactsContract
+import android.telecom.TelecomManager
+import androidx.core.content.ContextCompat
+import java.text.Normalizer
+import java.util.Locale
+
+/** Calls always require a targeted number and explicit confirmation. */
+internal object VoiceCalling {
+    data class Target(val label: String, val number: String)
+    sealed class Lookup {
+        data class Found(val target: Target) : Lookup()
+        data object NoContactsAccess : Lookup()
+        data object NotFound : Lookup()
+        data object Ambiguous : Lookup()
+    }
+
+    private fun normalize(text: String): String = Normalizer.normalize(
+        text.lowercase(Locale.ROOT), Normalizer.Form.NFD
+    ).replace(Regex("\\p{M}+"), "")
+        .replace(Regex("[^a-z0-9+ ]"), "")
+        .trim().replace(Regex("\\s+"), " ")
+
+    fun extractRequest(text: String): String? {
+        val matched = Regex(
+            "^(?:h[ií]vd\\s+fel|t[aá]rcs[aá]zd|telefon[aá]lj|call)\\s+(?:(?:a|az)\\s+)?(.+?)\\s*[.!?]?$",
+            RegexOption.IGNORE_CASE
+        ).find(text.trim()) ?: return null
+        return matched.groupValues[1].trim().takeIf { it.isNotBlank() }
+    }
+
+    fun lookup(context: Context, spoken: String): Lookup {
+        val query = spoken.trim()
+        val cleanedNumber = query.replace(Regex("[\\s()\\-]"), "")
+        if (cleanedNumber.matches(Regex("\\+?[0-9]{5,16}"))) {
+            return Lookup.Found(Target(query, cleanedNumber))
+        }
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CONTACTS)
+            != PackageManager.PERMISSION_GRANTED) return Lookup.NoContactsAccess
+        val candidates = mutableListOf<Target>()
+        try {
+            context.contentResolver.query(
+                ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
+                arrayOf(
+                    ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME,
+                    ContactsContract.CommonDataKinds.Phone.NUMBER
+                ), null, null, ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME + " ASC"
+            )?.use { cursor ->
+                val nameAt = cursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME)
+                val numberAt = cursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.NUMBER)
+                while (cursor.moveToNext() && candidates.size <= 2) {
+                    val name = cursor.getString(nameAt).orEmpty()
+                    val phone = cursor.getString(numberAt).orEmpty()
+                    val normalizedName = normalize(name)
+                    val normalizedQuery = normalize(query)
+                    val matches = normalizedQuery == normalizedName ||
+                        normalizedQuery == normalizedName + "t"
+                    if (matches && phone.isNotBlank()) candidates.add(Target(name, phone))
+                }
+            }
+        } catch (_: Exception) { return Lookup.NotFound }
+        return when (candidates.size) {
+            0 -> Lookup.NotFound
+            1 -> Lookup.Found(candidates.single())
+            else -> Lookup.Ambiguous
+        }
+    }
+
+    fun canCall(context: Context): Boolean =
+        ContextCompat.checkSelfPermission(context, Manifest.permission.CALL_PHONE) ==
+            PackageManager.PERMISSION_GRANTED
+
+    /** This actually initiates the outgoing call; invoke only after explicit yes. */
+    fun place(context: Context, target: Target): Boolean {
+        if (!canCall(context)) return false
+        return try {
+            val manager = context.getSystemService(Context.TELECOM_SERVICE) as TelecomManager
+            manager.placeCall(Uri.parse("tel:" + Uri.encode(target.number)), Bundle.EMPTY)
+            true // Submitted to Android Telecom; call establishment is not verified.
+        } catch (_: Exception) { false }
+    }
+}
