@@ -194,6 +194,7 @@ private fun SurfaceCard(content: @Composable ColumnScope.() -> Unit) {
 private fun ChatScreen(context: Context, onNavigate: (String) -> Unit) {
     var prompt by remember { mutableStateOf("") }
     var speechError by remember { mutableStateOf("") }
+    var pendingPhoneCall by remember { mutableStateOf<VoiceCalling.Target?>(null) }
     val log = remember { mutableStateListOf<Pair<String, String>>() }
     val speaker = remember(context) { TextToSpeech(context) { } }
     DisposableEffect(speaker) { onDispose { speaker.stop(); speaker.shutdown() } }
@@ -209,6 +210,17 @@ private fun ChatScreen(context: Context, onNavigate: (String) -> Unit) {
         val command = prompt.trim()
         if (command.isBlank()) return
         val result = when {
+            VoiceCalling.extractRequest(command) != null -> {
+                when (val match = VoiceCalling.lookup(context, VoiceCalling.extractRequest(command)!!)) {
+                    is VoiceCalling.Lookup.Found -> {
+                        pendingPhoneCall = match.target
+                        "Hívás előkészítve: " + match.target.label + ". A telefonálást erősítsd meg."
+                    }
+                    VoiceCalling.Lookup.NoContactsAccess -> "Engedélyezd a Névjegyek hozzáférést."
+                    VoiceCalling.Lookup.NotFound -> "Nem találtam a kért névjegyet."
+                    VoiceCalling.Lookup.Ambiguous -> "Több azonos névjegyet találtam, pontosíts."
+                }
+            }
             AlarmCommands.hasUnsupportedDate(command) && BasicCommandRouter.classify(command) == BasicAction.OPEN_ALARMS ->
                 "Konkrét jövőbeli napot még nem támogatok. Nem hoztam létre ébresztőt."
             command.contains("töröld", ignoreCase = true) && command.contains("ébreszt", ignoreCase = true) ->
@@ -254,6 +266,26 @@ private fun ChatScreen(context: Context, onNavigate: (String) -> Unit) {
         if (speechError.isNotEmpty()) Text(speechError, color = Color(0xFFFFA5A5))
     }
     Spacer(Modifier.height(12.dp))
+    if (pendingPhoneCall != null) {
+        AlertDialog(
+            onDismissRequest = { pendingPhoneCall = null },
+            title = { Text("Hívás megerősítése") },
+            text = { Text("Hívjam: " + pendingPhoneCall!!.label + " / " + pendingPhoneCall!!.number + "?") },
+            confirmButton = {
+                TextButton(onClick = {
+                    val current = pendingPhoneCall
+                    pendingPhoneCall = null
+                    log.add("Hívás jóváhagyva" to
+                        if (current != null && VoiceCalling.place(context, current))
+                            "Átadtam a hívást az Android telefonrendszernek."
+                        else "Nem sikerült a hívás. Ellenőrizd a Telefon engedélyét.")
+                }) { Text("Hívás indítása") }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingPhoneCall = null }) { Text("Mégse") }
+            }
+        )
+    }
     log.takeLast(12).asReversed().forEach { (query, reply) ->
         SurfaceCard {
             Text(query, fontWeight = FontWeight.Bold, color = White)

@@ -45,6 +45,8 @@ class HandsFreeService : Service(), RecognitionListener {
     private var replyWindowUntil = 0L
     private var lastMessageKey: String? = null
     private var proposed: Pair<String, String>? = null
+    private var proposedCall: VoiceCalling.Target? = null
+    private var proposedCallUntil = 0L
     private var confirmUntil = 0L
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -175,6 +177,22 @@ class HandsFreeService : Service(), RecognitionListener {
             shutdown("A hangfigyelés leállt.")
             return
         }
+        if (proposedCall != null) {
+            if (now > proposedCallUntil) {
+                proposedCall = null
+                speak("Lejárt a hívás megerősítési ideje. Nem indítottam hívást.")
+            } else if (VoiceIntentParser.isNo(heard)) {
+                proposedCall = null
+                speak("Rendben, a hívást nem indítottam el.")
+            } else if (VoiceIntentParser.isYes(heard)) {
+                val target = proposedCall
+                proposedCall = null
+                speak(if (target != null && VoiceCalling.place(this, target))
+                    "Átadtam a híváskérést az Android telefonrendszernek."
+                    else "A hívást nem tudtam elindítani. Ellenőrizd a Telefon engedélyét.")
+            } else speak("Csak az igen vagy nem választ várom a hívás előtt.")
+            return
+        }
         if (proposed != null) {
             if (now > confirmUntil) {
                 clearProposal()
@@ -256,6 +274,25 @@ class HandsFreeService : Service(), RecognitionListener {
             }
             return
         }
+        val calledName = VoiceCalling.extractRequest(command)
+        if (calledName != null) {
+            if (!VoiceCalling.canCall(this)) {
+                speak("Hívás indításához engedélyezd a Telefon hozzáférést az Engedélyközpontban.")
+                return
+            }
+            when (val match = VoiceCalling.lookup(this, calledName)) {
+                is VoiceCalling.Lookup.Found -> {
+                    proposedCall = match.target
+                    proposedCallUntil = now + 30_000L
+                    speak("Fel szeretnéd hívni " + match.target.label +
+                        " névjegyet? A szám: " + match.target.number + ". Mondj igent vagy nemet.")
+                }
+                VoiceCalling.Lookup.NoContactsAccess -> speak("A névjegy kereséséhez engedélyezd a Névjegyek hozzáférést.")
+                VoiceCalling.Lookup.Ambiguous -> speak("Több azonos névjegyet találtam. Pontosítsd a nevet.")
+                VoiceCalling.Lookup.NotFound -> speak("Nem találtam ilyen nevű névjegyet.")
+            }
+            return
+        }
         val action = BasicCommandRouter.classify(command)
         when (action) {
             BasicAction.OPEN_GLUCOSE, BasicAction.OPEN_INVOICES,
@@ -302,6 +339,8 @@ class HandsFreeService : Service(), RecognitionListener {
         HandsFreeStatus.running = false
         HandsFreeStatus.status = status
         clearProposal()
+        proposedCall = null
+        proposedCallUntil = 0L
         awaitingCommand = false
         lastMessageKey = null
         handler.removeCallbacks(restart)

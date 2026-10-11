@@ -110,6 +110,10 @@ internal fun PermissionCenter(context: Context, onDone: () -> Unit, onMessages: 
         PermissionRefresh.serial += 1
         status = if (it) "Mikrofon-hozzáférés engedélyezve." else "Nem engedélyezted a mikrofont."
     }
+    val phoneRequest = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+        PermissionRefresh.serial += 1
+        status = if (it) "Telefonálás engedélyezve." else "Telefonálás nem engedélyezve."
+    }
     val contactsRequest = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
         PermissionRefresh.serial += 1
         status = if (it) "Névjegyek engedélyezve." else "Névjegyhozzáférés elutasítva."
@@ -209,6 +213,13 @@ internal fun PermissionCenter(context: Context, onDone: () -> Unit, onMessages: 
         "Csak a felhasználó jóváhagyásával. Telefonos és későbbi kommunikációs funkciókhoz.",
         if (contacts) "Engedélyezve" else "Nincs engedély"
     ) { contactsRequest.launch(Manifest.permission.READ_CONTACTS) }
+    Spacer(Modifier.height(10.dp))
+    PermissionTile(
+        "📞 Hangos telefonhívások",
+        "Névjegy alapján hívás indítása csak külön CALL_PHONE engedéllyel és hangos igen/nem " +
+            "megerősítéssel. Minden hívást neked kell jóváhagynod.",
+        if (VoiceCalling.canCall(context)) "Telefon engedélyezve" else "Nincs telefonengedély"
+    ) { phoneRequest.launch(Manifest.permission.CALL_PHONE) }
     Spacer(Modifier.height(10.dp))
     PermissionTile(
         "📧 Email és Gmail",
