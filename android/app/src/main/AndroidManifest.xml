@@ -15,6 +15,9 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <queries>
         <intent><action android:name="android.speech.RecognitionService" /></intent>
+        <package android:name="com.whatsapp" />
+        <package android:name="com.facebook.orca" />
+        <package android:name="com.android.chrome" />
     </queries>
 
     <!-- No READ_SMS, SEND_SMS, READ_MEDIA_IMAGES, MANAGE_EXTERNAL_STORAGE or AccessibilityService.

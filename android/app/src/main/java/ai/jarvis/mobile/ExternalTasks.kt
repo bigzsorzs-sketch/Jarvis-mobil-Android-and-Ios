@@ -6,6 +6,12 @@ import android.net.Uri
 
 /** Targeted personal messages require app-level review; never claim to send in background. */
 internal enum class MessengerPlatform { WHATSAPP, MESSENGER }
+
+internal sealed interface HandoffTask {
+    data class Message(val message: OutgoingMessage) : HandoffTask
+    data class GmailSearch(val query: String) : HandoffTask
+    data object UcJournal : HandoffTask
+}
 internal data class OutgoingMessage(val platform: MessengerPlatform, val recipient: String, val text: String)
 
 internal object ExternalTasks {
@@ -54,6 +60,45 @@ internal object ExternalTasks {
             setPackage("com.facebook.orca")
         }
         return openSystemIntent(context, send)
+    }
+
+    fun dispatch(context: Context, task: HandoffTask): String {
+        return when (task) {
+            is HandoffTask.Message -> {
+                val msg = task.message
+                when (msg.platform) {
+                    MessengerPlatform.WHATSAPP -> {
+                        val entry = PeopleDirectory.find(context, msg.recipient)
+                        if (entry == null) {
+                            "Ehhez a névhez még nincs megbízható telefonszám. " +
+                                "Az Ismerősök és becenevek oldalon rendeld hozzá."
+                        } else if (openWhatsapp(context, entry.phone, msg.text)) {
+                            "Megnyitottam a WhatsApp-beszélgetést: " + entry.nickname +
+                                ". Az üzenet nem lett elküldve; ellenőrizd és a WhatsAppban küldd el."
+                        } else "Nem sikerült megnyitni a WhatsApp címzettet."
+                    }
+                    MessengerPlatform.MESSENGER -> {
+                        if (openMessengerShare(context, msg.text)) {
+                            "Megnyitottam a Messengert. A célzott névjegyet (" +
+                                msg.recipient + ") itt neked kell kiválasztanod; " +
+                                "nem küldtem üzenetet."
+                        } else "A Messenger nincs elérhetően telepítve, vagy nem fogadta az átadást."
+                    }
+                }
+            }
+            is HandoffTask.GmailSearch -> {
+                if (openGmailSearch(context, task.query))
+                    "Megnyitottam a Gmail webes keresést. A találatot és a válasz megírását " +
+                        "a Gmailban kell ellenőrizni; Jarvis nem olvasott leveleket."
+                else "Nem sikerült megnyitni a Gmail keresést."
+            }
+            HandoffTask.UcJournal -> {
+                if (openUcInBrowser(context))
+                    "Megnyitottam a hivatalos GOV.UK Universal Credit bejelentkezést. " +
+                        "A bejelentkezést és a Journal üzenetek ellenőrzését neked kell elvégezni."
+                else "Nem sikerült megnyitni a hivatalos UC bejelentkezési oldalt."
+            }
+        }
     }
 
     const val UC_OFFICIAL_SIGNIN = "https://www.gov.uk/sign-in-universal-credit"
