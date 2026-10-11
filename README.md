@@ -2,14 +2,29 @@
 
 Separate **native mobile** Jarvis repository, independent from the Windows Electron app. This is a first **functional Basic prototype**, not a production release.
 
+## Android 0.1.2 test build — 2026-10-11
+
+The **Android 0.1.2** native prototype now includes:
+
+- Safe status-bar and navigation-bar layout on Android 15/16, system Back navigation to Home, and readable dark-page headings.
+- Encrypted local glucose readings, invoice drafts, and notes using AES-GCM with an Android Keystore key, with one-time migration of earlier local test data.
+- Glucose history, average, min/max, and on-device trend chart (not a medical decision tool).
+- System email compose, maps, calendar event creation, alarms and dialer (each opens the system app for the user's action/confirmation).
+- Local deterministic typed/spoken commands, speech recognition through an available installed Android speech service, and on-device text-to-speech. This is **not** remote LLM chat.
+- Android CI that compiles the APK and runs Kotlin unit tests for offline command classification.
+
+**Deployment truth:** The debug APK is installable, but this is **not a production Basic subscription**. Provider-authenticated live AI, Gmail account reading, compliant tax invoicing, cloud sync, Libre 2 integration, OBD2 and subscription enforcement require dedicated work, external service configuration and device testing. Do not use actual sensitive health/business data in an unverified debug build. The mobile app does not include Windows Self-Repair.
+
+**Debug APK signing:** GitHub-hosted runners can generate different debug signing keys on different runs. An update may not install over an earlier test APK. Back up non-sensitive test data before uninstalling; uninstalling erases local app data. For reliable updates and production distribution, configure a protected persistent release signing key through repository secrets and a release workflow. Never commit the private signing key to this repo.
+
 ## What runs now
 
 - Native dark Jarvis dashboard with navigation.
-- Local blood glucose logging (mmol/L), history and deletion.
+- Android: locally encrypted blood glucose logging (mmol/L), history, chart and deletion; iOS: prototype local logging only.
 - Local invoice **drafts** and native PDF export/share (not UK tax/VAT-compliant invoicing yet).
-- Open the phone's email composer and native maps.
+- Android: open system email, maps, calendar, alarms and dialer; iOS: system email and maps.
 - Local notes.
-- Chat UI clearly marks cloud AI as **not yet connected**; no fake AI replies.
+- Android: voice input, spoken playback and real offline system command routing; cloud AI chat **not yet connected**. iOS: chat placeholder only.
 - Self-Repair **intentionally excluded** from both mobile apps.
 
 Current app data is stored **on-device only**. There is **no account sync, no Libre 2 connection, no OBD2 connectivity, no Gmail OAuth, no live AI, no background speech assistant**, and no validated localisation of 42 languages yet. These require further implementation and tests.
