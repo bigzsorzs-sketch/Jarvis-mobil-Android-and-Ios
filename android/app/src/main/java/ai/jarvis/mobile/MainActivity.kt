@@ -68,16 +68,21 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private val Night = Color(0xFF080E19)
-private val Panel = Color(0xFF182334)
-private val Cyan = Color(0xFF60D5E5)
-private val White = Color(0xFFF1F5FA)
-private val Soft = Color(0xFFB5C3D8)
+private val Night: Color @Composable get() = JarvisPalette.background
+private val Panel: Color @Composable get() = JarvisPalette.panel
+private val Cyan: Color @Composable get() = JarvisPalette.accent
+private val White: Color @Composable get() = JarvisPalette.mainText
+private val Soft: Color @Composable get() = JarvisPalette.subtleText
 
 @Composable
 fun JarvisApp(context: Context) {
     val securePrefs = remember { SecurePrefs(context) }
     val onboardingPrefs = remember { context.getSharedPreferences("jarvis_onboarding_v1", Context.MODE_PRIVATE) }
+    var isDark by remember { mutableStateOf(securePrefs.read("ui_dark_mode", "false") == "true") }
+    val toggleTheme = {
+        isDark = !isDark
+        securePrefs.write("ui_dark_mode", isDark.toString())
+    }
     var page by remember { mutableStateOf(
         if (onboardingPrefs.getBoolean("permissions_reviewed", false)) "Főoldal" else "Engedélyek"
     ) }
@@ -90,7 +95,7 @@ fun JarvisApp(context: Context) {
     }
     SideEffect {
         (context as? Activity)?.window?.let { window ->
-            val light = page == "Főoldal"
+            val light = !isDark
             window.statusBarColor = if (light) android.graphics.Color.WHITE
                 else android.graphics.Color.rgb(8, 14, 25)
             window.navigationBarColor = if (light) android.graphics.Color.rgb(246, 250, 255)
@@ -138,7 +143,8 @@ fun JarvisApp(context: Context) {
     val notes = remember { mutableStateListOf<String>().apply { addAll(readNotes(securePrefs.read("notes", "[]"))) } }
 
     val onHome = page == "Főoldal"
-    MaterialTheme(colorScheme = if (onHome) lightColorScheme(
+    CompositionLocalProvider(LocalJarvisDark provides isDark) {
+    MaterialTheme(colorScheme = if (!isDark) lightColorScheme(
         primary = Color(0xFF075FF1), background = Color.White,
         surface = Color.White, onSurface = Color(0xFF08142E)
     ) else darkColorScheme(
@@ -158,11 +164,13 @@ fun JarvisApp(context: Context) {
                 Modifier.fillMaxSize()
                     .windowInsetsPadding(WindowInsets.safeDrawing)
                     .imePadding()
-                    .background(if (onHome) Color.White else Night)
+                    .background(Night)
             ) {
                 if (onHome) {
                     JarvisHomeScreen(
                         context = context,
+                        isDark = isDark,
+                        onToggleTheme = toggleTheme,
                         onMenu = { drawerScope.launch { drawerState.open() } },
                         onNavigate = { page = it },
                         onCommand = { command ->
@@ -180,6 +188,9 @@ fun JarvisApp(context: Context) {
                         }
                         Text(page, color = White, fontSize = 19.sp,
                             fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                        TextButton(onClick = toggleTheme) {
+                            Text(if (isDark) "☀ Világos" else "☾ Sötét", color = Cyan)
+                        }
                         TextButton(onClick = { page = "Főoldal" }) {
                             Text("Főoldal", color = Cyan)
                         }
@@ -233,6 +244,7 @@ fun JarvisApp(context: Context) {
                 }
             }
         }
+    }
     }
 }
 
@@ -426,6 +438,7 @@ private fun GlucoseScreen(readings: MutableList<Reading>, persist: () -> Unit) {
                 color = Soft, fontSize = 12.sp
             )
             if (values.size >= 2) {
+                val graphColor = Cyan
                 Canvas(Modifier.fillMaxWidth().height(130.dp)) {
                     val ordered = values.reversed()
                     val lower = (ordered.minOrNull() ?: 0.0) - 1.0
@@ -438,9 +451,9 @@ private fun GlucoseScreen(readings: MutableList<Reading>, persist: () -> Unit) {
                         )
                     }
                     for (i in 0 until points.lastIndex) {
-                        drawLine(Cyan, points[i], points[i + 1], strokeWidth = 4.dp.toPx())
+                        drawLine(graphColor, points[i], points[i + 1], strokeWidth = 4.dp.toPx())
                     }
-                    points.forEach { drawCircle(Cyan, 3.dp.toPx(), it) }
+                    points.forEach { drawCircle(graphColor, 3.dp.toPx(), it) }
                 }
             }
             Text("Tájékoztató grafikon. Orvosi döntést nem helyettesít.", color = Soft, fontSize = 11.sp)

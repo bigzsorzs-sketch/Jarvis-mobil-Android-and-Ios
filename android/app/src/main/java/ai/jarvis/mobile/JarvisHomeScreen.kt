@@ -34,12 +34,14 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 
 private val JarvisBlue = Color(0xFF075FF1)
-private val JarvisInk = Color(0xFF08142E)
-private val JarvisMuted = Color(0xFF78859D)
+private val JarvisInk: Color @Composable get() = JarvisPalette.mainText
+private val JarvisMuted: Color @Composable get() = JarvisPalette.subtleText
 
 @Composable
 internal fun JarvisHomeScreen(
     context: Context,
+    isDark: Boolean,
+    onToggleTheme: () -> Unit,
     onMenu: () -> Unit,
     onNavigate: (String) -> Unit,
     onCommand: (String) -> Unit
@@ -91,7 +93,8 @@ internal fun JarvisHomeScreen(
     Column(
         modifier = Modifier.fillMaxSize().background(
             Brush.verticalGradient(
-                listOf(Color(0xFFF7FAFF), Color.White, Color(0xFFF3F8FF))
+                if (isDark) listOf(Color(0xFF080E19), Color(0xFF0B1530), Color(0xFF080E19))
+                else listOf(Color(0xFFF7FAFF), Color.White, Color(0xFFF3F8FF))
             )
         ),
         horizontalAlignment = Alignment.CenterHorizontally
@@ -102,7 +105,7 @@ internal fun JarvisHomeScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Surface(
-                shape = CircleShape, color = Color.White, shadowElevation = 3.dp
+                shape = CircleShape, color = JarvisPalette.panel, shadowElevation = 3.dp
             ) {
                 IconButton(onClick = onMenu) {
                     Column(
@@ -117,12 +120,14 @@ internal fun JarvisHomeScreen(
                 }
             }
             Row(
-                modifier = Modifier.background(Color(0xFFE9EEF6), RoundedCornerShape(36.dp))
+                modifier = Modifier.background(
+                    if (isDark) Color(0xFF202B42) else Color(0xFFE9EEF6),
+                    RoundedCornerShape(36.dp))
                     .padding(4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Surface(
-                    color = Color.White, shape = RoundedCornerShape(30.dp),
+                    color = JarvisPalette.panel, shape = RoundedCornerShape(30.dp),
                     shadowElevation = 1.dp,
                     modifier = Modifier.clickable { onNavigate("Chat") }
                 ) {
@@ -137,8 +142,8 @@ internal fun JarvisHomeScreen(
             Surface(
                 shape = CircleShape, color = Color.White, shadowElevation = 3.dp
             ) {
-                IconButton(onClick = { onNavigate("Rendszerállapot") }) {
-                    Text("◉", fontSize = 24.sp, color = JarvisInk)
+                IconButton(onClick = onToggleTheme) {
+                    Text(if (isDark) "☀" else "☾", fontSize = 26.sp, color = JarvisInk)
                 }
             }
         }
@@ -159,7 +164,8 @@ internal fun JarvisHomeScreen(
             handsFree -> "Figyelek rád..."
             else -> "Készen állok"
         }
-        Surface(color = Color(0xFFE8F2FF), shape = RoundedCornerShape(28.dp)) {
+        Surface(color = if (isDark) Color(0xFF192C4C) else Color(0xFFE8F2FF),
+            shape = RoundedCornerShape(28.dp)) {
             Row(
                 modifier = Modifier.padding(horizontal = 18.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -180,7 +186,7 @@ internal fun JarvisHomeScreen(
             modifier = Modifier.fillMaxWidth()
                 .padding(start = 13.dp, end = 13.dp, bottom = 14.dp)
                 .shadow(9.dp, RoundedCornerShape(36.dp))
-                .background(Color.White, RoundedCornerShape(36.dp))
+                .background(JarvisPalette.panel, RoundedCornerShape(36.dp))
                 .padding(start = 3.dp, end = 5.dp, top = 5.dp, bottom = 5.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {

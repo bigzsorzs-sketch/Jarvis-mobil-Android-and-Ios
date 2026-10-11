@@ -87,11 +87,11 @@ private fun viewSelection(context: Context, uri: Uri): Boolean {
 
 @Composable
 private fun PermissionTile(title: String, description: String, status: String, onClick: () -> Unit) {
-    Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF182334))) {
+    Card(colors = CardDefaults.cardColors(containerColor = JarvisPalette.panel)) {
         Column(Modifier.fillMaxWidth().padding(13.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(title, color = Color.White, fontWeight = FontWeight.Bold)
-            Text(description, color = Color(0xFFB5C3D8), style = MaterialTheme.typography.bodySmall)
-            Text(status, color = Color(0xFF60D5E5), style = MaterialTheme.typography.labelMedium)
+            Text(title, color = JarvisPalette.mainText, fontWeight = FontWeight.Bold)
+            Text(description, color = JarvisPalette.subtleText, style = MaterialTheme.typography.bodySmall)
+            Text(status, color = JarvisPalette.accent, style = MaterialTheme.typography.labelMedium)
             OutlinedButton(onClick = onClick) { Text("Beállítás / megnyitás") }
         }
     }

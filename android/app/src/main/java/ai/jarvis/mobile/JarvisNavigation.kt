@@ -41,15 +41,16 @@ internal object JarvisToolCatalog {
 
 @Composable
 internal fun JarvisDrawer(selected: String, onSelect: (String) -> Unit) {
+    val dark = LocalJarvisDark.current
     ModalDrawerSheet(
         modifier = Modifier.widthIn(max = 320.dp),
-        drawerContainerColor = Color(0xFFF7FAFF)
+        drawerContainerColor = JarvisPalette.background
     ) {
         Column(Modifier.fillMaxWidth().padding(top = 24.dp, start = 22.dp, bottom = 20.dp)) {
-            Text("Jarvis", color = Color(0xFF06112C), fontSize = 31.sp, fontWeight = FontWeight.Bold)
-            Text("Egy agy. Mindenhez.", color = Color(0xFF74849C), fontSize = 14.sp)
+            Text("Jarvis", color = JarvisPalette.mainText, fontSize = 31.sp, fontWeight = FontWeight.Bold)
+            Text("Egy agy. Mindenhez.", color = JarvisPalette.subtleText, fontSize = 14.sp)
         }
-        HorizontalDivider(color = Color(0xFFE7ECF5))
+        HorizontalDivider(color = if (dark) Color(0xFF25344E) else Color(0xFFE7ECF5))
         LazyColumn(
             modifier = Modifier.fillMaxHeight(),
             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
@@ -60,19 +61,19 @@ internal fun JarvisDrawer(selected: String, onSelect: (String) -> Unit) {
                     label = {
                         Text(
                             item.name, fontSize = 15.sp,
-                            color = if (selected == item.route) Color(0xFF0752D7) else Color(0xFF24334F),
+                            color = if (selected == item.route) JarvisPalette.accent else JarvisPalette.mainText,
                             fontWeight = if (selected == item.route) FontWeight.SemiBold else FontWeight.Normal
                         )
                     },
                     icon = {
                         Box(Modifier.width(28.dp), contentAlignment = Alignment.Center) {
                             Text(item.glyph, fontSize = 23.sp,
-                                color = if (selected == item.route) Color(0xFF0752D7) else Color(0xFF263954))
+                                color = if (selected == item.route) JarvisPalette.accent else JarvisPalette.mainText)
                         }
                     },
                     selected = selected == item.route,
                     colors = NavigationDrawerItemDefaults.colors(
-                        selectedContainerColor = Color(0xFFDDEAFF),
+                        selectedContainerColor = if (dark) Color(0xFF172F56) else Color(0xFFDDEAFF),
                         unselectedContainerColor = Color.Transparent
                     ),
                     onClick = { onSelect(item.route) },
@@ -86,12 +87,12 @@ internal fun JarvisDrawer(selected: String, onSelect: (String) -> Unit) {
 @Composable
 internal fun JarvisToolLanding(context: Context, page: String, onOpen: (String) -> Unit) {
     var message by remember(page) { mutableStateOf("") }
-    Text(page, fontSize = 27.sp, fontWeight = FontWeight.Bold, color = Color(0xFFF1F5FA))
+    Text(page, fontSize = 27.sp, fontWeight = FontWeight.Bold, color = JarvisPalette.mainText)
     Spacer(Modifier.height(12.dp))
     when (page) {
         "Munka" -> {
             Text("Munkához tartozó eszközök. Az AI-alapú feladatautomatizálás még nincs bekötve.",
-                color = Color(0xFFB5C3D8))
+                color = JarvisPalette.subtleText)
             Button(onClick = { onOpen("Számlák") }) { Text("Számlázás") }
             OutlinedButton(onClick = { onOpen("Naptár") }) { Text("Naptár") }
             OutlinedButton(onClick = { onOpen("Jegyzetek") }) { Text("Jegyzetek") }
@@ -148,7 +149,7 @@ internal fun JarvisToolLanding(context: Context, page: String, onOpen: (String) 
             Text("Jarvis Mobile – belső Android prototípus. Az AI-agy még nincs élesen bekötve.",
                 color = Color(0xFFB5C3D8))
             Text("Hey Jarvis: " + if (HandsFreeStatus.running) "Aktív" else "Kikapcsolva",
-                color = Color(0xFF60D5E5))
+                color = JarvisPalette.accent)
             Text("A zöld GitHub-build nem helyettesíti a telefonos tesztet.",
                 color = Color(0xFFB5C3D8))
             Button(onClick = { onOpen("Engedélyek") }) { Text("Engedélyek") }
