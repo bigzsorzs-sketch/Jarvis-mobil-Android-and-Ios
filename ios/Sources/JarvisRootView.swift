@@ -305,9 +305,9 @@ struct JarvisRootView: View {
                 .foregroundColor: UIColor.black
             ]
             ("JARVIS - INVOICE DRAFT" as NSString).draw(at: CGPoint(x: 42, y: 54), withAttributes: style)
-            ("Customer: " + String(invoice.client.prefix(50)) as NSString)
+            (("Customer: " + String(invoice.client.prefix(50))) as NSString)
                 .draw(at: CGPoint(x: 42, y: 115), withAttributes: style)
-            ("Amount: GBP " + invoice.amount.formatted(.number.precision(.fractionLength(2))) as NSString)
+            (("Amount: GBP " + invoice.amount.formatted(.number.precision(.fractionLength(2)))) as NSString)
                 .draw(at: CGPoint(x: 42, y: 152), withAttributes: style)
             ("Draft only - verify legal and tax details." as NSString)
                 .draw(at: CGPoint(x: 42, y: 210), withAttributes: style)
