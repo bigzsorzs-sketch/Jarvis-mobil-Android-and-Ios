@@ -239,6 +239,13 @@ class HandsFreeService : Service(), RecognitionListener {
             }
             return
         }
+        val alarmTime = AlarmCommands.parseAlarmTime(command)
+        if (alarmTime != null) {
+            // Android restricts system Activity launches from background microphone services.
+            // We do not claim that the Clock alarm was created while backgrounded.
+            speak("Az ébresztési időpontot felismertem. Az Óra alkalmazásból történő beállításhoz nyisd meg a Jarvist, és add ki a parancsot a Chat oldalon.")
+            return
+        }
         val action = BasicCommandRouter.classify(command)
         when (action) {
             BasicAction.OPEN_GLUCOSE, BasicAction.OPEN_INVOICES,

@@ -208,7 +208,10 @@ private fun ChatScreen(context: Context, onNavigate: (String) -> Unit) {
     fun send() {
         val command = prompt.trim()
         if (command.isBlank()) return
-        val result = performBasicAction(context, BasicCommandRouter.classify(command), onNavigate)
+        val result = if (AlarmCommands.hasUnsupportedDate(command) && BasicCommandRouter.classify(command) == BasicAction.OPEN_ALARMS) {
+            "A holnapra megadott időpontot az alap Óra-API nem támogatja. Nyisd meg az órát, és állítsd be kézzel."
+        } else AlarmCommands.userFacingResult(context, command)
+            ?: performBasicAction(context, BasicCommandRouter.classify(command), onNavigate)
         log.add(command to result)
         prompt = ""
     }
