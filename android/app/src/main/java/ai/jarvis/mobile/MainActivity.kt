@@ -135,6 +135,10 @@ fun JarvisApp(context: Context) {
                 Text("● NATÍV", color = Color(0xFF62E4B8), fontSize = 11.sp)
             }
             HorizontalDivider(color = Color(0xFF243149))
+            if (handoffResult.isNotBlank()) {
+                Text(handoffResult, color = Cyan, fontSize = 12.sp,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
+            }
             Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(16.dp)) {
                 when (page) {
                     "Engedélyek" -> PermissionCenter(

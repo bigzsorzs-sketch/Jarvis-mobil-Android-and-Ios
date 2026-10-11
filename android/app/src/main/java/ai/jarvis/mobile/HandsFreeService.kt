@@ -51,6 +51,9 @@ class HandsFreeService : Service(), RecognitionListener {
     private var proposed: Pair<String, String>? = null
     private var proposedCall: VoiceCalling.Target? = null
     private var proposedCallUntil = 0L
+    private var awaitingExternalDraft: OutgoingMessage? = null
+    private var externalProposal: OutgoingMessage? = null
+    private var externalDeadline = 0L
     private var confirmUntil = 0L
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -190,6 +193,50 @@ class HandsFreeService : Service(), RecognitionListener {
             shutdown("A hangfigyelés leállt.")
             return
         }
+        if (awaitingExternalDraft != null || externalProposal != null) {
+            if (!privateVoiceAllowed()) {
+                awaitingExternalDraft = null
+                externalProposal = null
+                speak("A telefon lezárva. Privát üzenethez oldd fel.")
+                return
+            }
+            if (now > externalDeadline) {
+                awaitingExternalDraft = null
+                externalProposal = null
+                speak("Lejárt az üzenet előkészítési ideje. Semmit nem küldtem.")
+                return
+            }
+            if (VoiceIntentParser.isNo(heard)) {
+                awaitingExternalDraft = null
+                externalProposal = null
+                speak("Rendben, megszakítottam az üzenetet.")
+                return
+            }
+            val proposedMessage = externalProposal
+            if (proposedMessage != null) {
+                if (VoiceIntentParser.isYes(heard)) {
+                    HandsFreeNavigation.external = HandoffTask.Message(proposedMessage)
+                    externalProposal = null
+                    speak("Átadtam az üzenet-előkészítést a telefonodnak. " +
+                        "A tényleges küldést a WhatsAppban vagy Messengerben neked kell jóváhagynod.")
+                } else speak("A címzett és a szöveg ellenőrzéséhez mondd: igen vagy nem.")
+                return
+            }
+            val waiting = awaitingExternalDraft
+            if (waiting != null) {
+                val body = (VoiceIntentParser.afterWakeWord(heard) ?: heard).trim()
+                if (body.length > 1500) {
+                    speak("Túl hosszú a diktált üzenet. Mondj rövidebb szöveget.")
+                    return
+                }
+                awaitingExternalDraft = null
+                externalProposal = waiting.copy(text = body)
+                externalDeadline = now + 40_000L
+                speak(waiting.recipient + " részére ezt írnád: " + body.take(350) +
+                    ". Megnyissam az üzenetalkalmazásban? Igen vagy nem.")
+                return
+            }
+        }
         if (proposedCall != null) {
             if (!privateVoiceAllowed()) {
                 proposedCall = null
@@ -311,9 +358,17 @@ class HandsFreeService : Service(), RecognitionListener {
             if (!privateVoiceAllowed()) {
                 speak("A telefon lezárva. A privát üzenetekhez előbb oldd fel.")
             } else {
-                HandsFreeNavigation.external = HandoffTask.Message(outgoing)
-                speak("Előkészítettem az üzenetalkalmazás megnyitását. " +
-                    "A küldést a WhatsAppban vagy Messengerben kell jóváhagynod.")
+                if (outgoing.text.isBlank()) {
+                    awaitingExternalDraft = outgoing
+                    externalDeadline = now + 45_000L
+                    speak("Kinek írjunk: " + outgoing.recipient + ". Mit írjak neki? " +
+                        "Diktáld a szöveget, vagy mondd: mégse.")
+                } else {
+                    externalProposal = outgoing
+                    externalDeadline = now + 40_000L
+                    speak("Ezt készítem elő " + outgoing.recipient + " részére: " +
+                        outgoing.text.take(350) + ". Megnyissam? Igen vagy nem.")
+                }
             }
             return
         }
@@ -420,6 +475,9 @@ class HandsFreeService : Service(), RecognitionListener {
         clearProposal()
         proposedCall = null
         proposedCallUntil = 0L
+        awaitingExternalDraft = null
+        externalProposal = null
+        externalDeadline = 0L
         awaitingCommand = false
         lastMessageKey = null
         handler.removeCallbacks(restart)

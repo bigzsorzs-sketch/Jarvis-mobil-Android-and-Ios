@@ -8,6 +8,10 @@ import java.util.Locale
 /** Google Maps app when available, otherwise a device-supported maps/browser Intent. */
 internal object VoiceNavigation {
     fun destinationFrom(command: String): String? {
+        val named = Regex(
+            "(?iu)^(?:nyisd\s+meg\s+a\s+térképet\s+és\s+állítsd\s+be\s+(?:a\s+|az\s+)?|navigálj\s+)(.+?)\s+(?:címnek|címére|címéhez)[.!?]?$"
+        ).find(command.trim())
+        if (named != null) return "PERSON:" + named.groupValues[1].trim()
         val match = Regex(
             "^(?:navig[aá]lj|navig[aá]ci[oó]\\s+(?:ide|oda|c[ií]mre)?|[uú]tvonal\\s+(?:ide|oda)?|vigy[eé]l\\s+(?:el\\s+)?(?:ide|oda)?|mutasd\\s+meg)\\s+(.+?)[.!?]?$",
             RegexOption.IGNORE_CASE
@@ -31,6 +35,10 @@ internal object VoiceNavigation {
 
     fun resolve(context: Context, destination: String): String? {
         if (destination == "HOME") return homeAddress(context).takeIf { it.isNotBlank() }
+        if (destination.startsWith("PERSON:")) {
+            return PeopleDirectory.find(context, destination.removePrefix("PERSON:"))
+                ?.address?.takeIf { it.isNotBlank() }
+        }
         val person = PeopleDirectory.find(context, destination)
         return if (person != null) person.address.takeIf { it.isNotBlank() } else destination
     }
