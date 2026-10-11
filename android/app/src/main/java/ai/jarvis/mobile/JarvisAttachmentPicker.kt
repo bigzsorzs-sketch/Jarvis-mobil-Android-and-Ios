@@ -20,6 +20,7 @@ import java.io.File
 import java.util.Locale
 
 /** Android-owned Camera, Photo Picker, and scoped document picker. No broad storage permission. */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun JarvisAttachmentPicker(
     context: Context, dark: Boolean, onStatus: (String) -> Unit
