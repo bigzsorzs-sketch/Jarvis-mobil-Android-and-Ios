@@ -3,6 +3,10 @@ plugins {
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
 }
+// Release credentials are supplied only by protected CI environment variables.
+// Without them developer builds remain unsigned; never generate a new release key.
+val releaseStore = System.getenv("ANDROID_SIGNING_STORE_FILE")?.takeIf { it.isNotBlank() }
+
 android {
     namespace = "ai.jarvis.mobile"
     compileSdk = 36
@@ -13,12 +17,23 @@ android {
         versionCode = 19
         versionName = "0.2.8-dev"
     }
+    signingConfigs {
+        if (releaseStore != null) {
+            create("upload") {
+                storeFile = file(releaseStore)
+                storePassword = System.getenv("ANDROID_SIGNING_STORE_PASSWORD")
+                keyAlias = System.getenv("ANDROID_SIGNING_KEY_ALIAS")
+                keyPassword = System.getenv("ANDROID_SIGNING_KEY_PASSWORD")
+            }
+        }
+    }
     buildTypes {
         debug {
             isMinifyEnabled = false
         }
         release {
             isMinifyEnabled = false
+            if (releaseStore != null) signingConfig = signingConfigs.getByName("upload")
         }
     }
     buildFeatures {
