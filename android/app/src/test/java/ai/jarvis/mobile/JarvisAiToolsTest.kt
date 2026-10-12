@@ -143,9 +143,6 @@ class JarvisAiToolsTest {
             JSONObject().put("name", JarvisAiTools.MESSAGE_FUNCTION)
                 .put("platform", "whatsapp").put("text", "tampered")),
             original).messageDraft)
-        val plain = providerWith().optJSONArray("choices")!!
-            .getJSONObject(0).getJSONObject("message")
-        plain.put("content", "Üzenet elküldve.")
         val response = JarvisAiTools.fromProvider(providerWith().apply {
             getJSONArray("choices").getJSONObject(0)
                 .getJSONObject("message").put("content", "Üzenet elküldve.")
