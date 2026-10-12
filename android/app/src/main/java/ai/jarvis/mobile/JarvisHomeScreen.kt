@@ -141,7 +141,10 @@ internal fun JarvisHomeScreen(
                     text = recognized
                     submit(recognized)
                 },
-                status = { feedback -> issue = feedback }
+                status = { feedback -> issue = feedback },
+                onLanguageDetected = { detected ->
+                    JarvisSpeechLanguageEvents.detected = detected
+                }
             )
         }
     }
