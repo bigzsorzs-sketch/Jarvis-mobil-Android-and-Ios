@@ -14,6 +14,9 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -37,6 +40,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import kotlinx.coroutines.launch
 
 private val JarvisBlue = Color(0xFF075FF1)
 private val JarvisInk: Color @Composable get() = JarvisPalette.mainText
@@ -50,6 +54,9 @@ internal fun JarvisHomeScreen(
     onMenu: () -> Unit,
     onCommand: (String) -> Unit,
     history: List<Pair<String, String>>,
+    hasOlderHistory: Boolean,
+    loadingOlderHistory: Boolean,
+    onLoadOlderHistory: suspend () -> Unit,
     pendingCall: VoiceCalling.Target?,
     pendingMessage: OutgoingMessage?,
     pendingSequence: JarvisSequencePlan?,
@@ -69,6 +76,17 @@ internal fun JarvisHomeScreen(
     var issue by remember { mutableStateOf("") }
     val keyboard = LocalSoftwareKeyboardController.current
     val handsFree = HandsFreeStatus.running
+    val chatListState = rememberLazyListState()
+    val chatScope = rememberCoroutineScope()
+    // New messages and completed AI answers stay at the bottom, like a messenger.
+    // Loading older pages does not jump back to the newest turn.
+    LaunchedEffect(history.lastOrNull()) {
+        if (history.isNotEmpty()) {
+            chatListState.animateScrollToItem(
+                history.lastIndex + if (hasOlderHistory) 1 else 0
+            )
+        }
+    }
     fun submit(value: String) {
         val command = value.trim()
         if (command.isBlank()) return
@@ -112,7 +130,7 @@ internal fun JarvisHomeScreen(
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
     // Reserve room for chat and the composer on compact phones.
-    val orbHeight = (maxHeight * 0.30f).coerceIn(80.dp, 285.dp)
+    val orbHeight = (maxHeight * 0.235f).coerceIn(100.dp, 225.dp)
     Column(
         modifier = Modifier.fillMaxSize().background(
             Brush.verticalGradient(
@@ -123,7 +141,7 @@ internal fun JarvisHomeScreen(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Box(
-            modifier = Modifier.fillMaxWidth().heightIn(min = 60.dp)
+            modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)
                 .padding(start = 16.dp, end = 16.dp, top = 12.dp),
             contentAlignment = Alignment.Center
         ) {
@@ -139,14 +157,14 @@ internal fun JarvisHomeScreen(
         if (!keyboardVisible) {
             // The orb and heading deliberately collapse when the keyboard opens.
             // This reserves a guaranteed bottom area for the text composer.
-            Spacer(Modifier.height(18.dp))
+            Spacer(Modifier.height(0.dp))
             JarvisVoiceOrb(Modifier.height(orbHeight))
             Text("Jarvis", fontSize = 37.sp, fontWeight = FontWeight.Bold,
                 color = JarvisInk,
                 modifier = Modifier.testTag("jarvis-home-drawer-trigger").clickable(
                     onClickLabel = "Menü megnyitása", role = Role.Button, onClick = onMenu
                 ).padding(horizontal = 12.dp, vertical = 4.dp))
-            Spacer(Modifier.height(18.dp))
+            Spacer(Modifier.height(6.dp))
             val spokenStatus = when {
                 HandsFreeStatus.speaking -> "Jarvis beszél..."
                 handsFree -> "Figyelek rád..."
@@ -230,23 +248,57 @@ internal fun JarvisHomeScreen(
                 }
             )
         }
-        Column(
+        LazyColumn(
+            state = chatListState,
             modifier = Modifier.weight(1f).fillMaxWidth()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp, vertical = 10.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+                .testTag("jarvis-home-chat-timeline"),
+            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            history.takeLast(8).asReversed().forEach { (request, answer) ->
-                Surface(
-                    color = if (isDark) Color(0xFF172741) else Color(0xFFF0F4FC),
-                    shape = RoundedCornerShape(17.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(Modifier.padding(12.dp)) {
-                        Text(request, color = JarvisInk, fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold)
-                        Spacer(Modifier.height(4.dp))
-                        Text(answer, color = JarvisMuted, fontSize = 13.sp)
+            if (hasOlderHistory) {
+                item {
+                    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                        OutlinedButton(
+                            enabled = !loadingOlderHistory,
+                            onClick = {
+                                chatScope.launch {
+                                    val oldCount = history.size
+                                    val position = chatListState.firstVisibleItemIndex
+                                    val offset = chatListState.firstVisibleItemScrollOffset
+                                    onLoadOlderHistory()
+                                    val added = (history.size - oldCount).coerceAtLeast(0)
+                                    if (added > 0) {
+                                        chatListState.scrollToItem(position + added, offset)
+                                    }
+                                }
+                            },
+                            modifier = Modifier.testTag("jarvis-chat-older")
+                        ) { Text(if (loadingOlderHistory) "Betöltés…" else "Korábbi üzenetek") }
+                    }
+                }
+            }
+            itemsIndexed(history) { _, turn ->
+                val (request, answer) = turn
+                Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                        Surface(
+                            color = if (isDark) Color(0xFF174892) else Color(0xFFDCEAFF),
+                            shape = RoundedCornerShape(17.dp),
+                            modifier = Modifier.fillMaxWidth(0.86f)
+                        ) {
+                            Text(request, color = JarvisInk, fontSize = 14.sp,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp))
+                        }
+                    }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
+                        Surface(
+                            color = if (isDark) Color(0xFF172741) else Color(0xFFF0F4FC),
+                            shape = RoundedCornerShape(17.dp),
+                            modifier = Modifier.fillMaxWidth(0.90f)
+                        ) {
+                            Text(answer, color = JarvisMuted, fontSize = 14.sp,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp))
+                        }
                     }
                 }
             }
