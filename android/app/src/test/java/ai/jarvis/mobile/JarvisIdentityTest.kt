@@ -15,7 +15,7 @@ class JarvisIdentityTest {
     @Test fun describesActualCapabilitiesAndBoundaries() {
         val prompt = JarvisIdentity.systemPrompt
         assertTrue(prompt.contains("vércukornapló"))
-        assertTrue(prompt.contains("navigáció"))
+        assertTrue(prompt.contains("Navigáció"))
         assertTrue(prompt.contains("nem futtathat automatikusan Android-eszközműveleteket"))
         assertTrue(prompt.contains("mobilos önjavítást"))
         assertFalse(prompt.isBlank())
