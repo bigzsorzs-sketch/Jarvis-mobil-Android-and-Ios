@@ -26,3 +26,11 @@ jobs:
         run: cd server && npm install --no-audit --no-fund
       - name: TypeScript strict type check
         run: cd server && npm run typecheck
+      - name: Validate private HTTPS Docker deployment configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd server
+          cp .env.example .env
+          trap 'rm -f .env' EXIT
+          docker compose config --quiet
