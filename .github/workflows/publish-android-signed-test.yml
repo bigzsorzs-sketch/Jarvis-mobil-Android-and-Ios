@@ -12,6 +12,7 @@ on:
         type: string
 permissions:
   contents: write
+  actions: read
 concurrency:
   group: jarvis-android-signed-test
   cancel-in-progress: false
