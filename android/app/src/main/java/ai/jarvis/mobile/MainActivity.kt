@@ -106,6 +106,12 @@ fun JarvisApp(context: Context) {
         pendingMessage = message
         pendingMessageUntilMs = android.os.SystemClock.elapsedRealtime() + 40_000L
     }
+    var pendingSequence by remember { mutableStateOf<JarvisSequencePlan?>(null) }
+    var pendingSequenceUntilMs by remember { mutableLongStateOf(0L) }
+    fun askSequenceReview(plan: JarvisSequencePlan) {
+        pendingSequence = plan
+        pendingSequenceUntilMs = android.os.SystemClock.elapsedRealtime() + 40_000L
+    }
     fun openTool(destination: String): String {
         if (destination == "Navigáció" || destination == "Térkép") {
             val opened = openMap(context)
@@ -129,6 +135,13 @@ fun JarvisApp(context: Context) {
         if (command.isBlank()) return
         // The same strictly validated local action registry is available from
         // typed commands even when the AI service is offline.
+        val sequence = JarvisSequence.plan(command)
+        if (sequence != null) {
+            askSequenceReview(sequence)
+            conversation.add(command to "Két lépést azonosítottam. Indítás előtt erősítsd meg a műveletsort.")
+            if (conversation.size > 50) conversation.removeAt(0)
+            return
+        }
         val native = JarvisNativeActions.identify(command)
         if (native != null) {
             conversation.add(command to JarvisNativeActions.execute(context, native, command))
@@ -232,6 +245,18 @@ fun JarvisApp(context: Context) {
             }
         }
     }
+    val pendingVoiceSequence = HandsFreeNavigation.sequence
+    LaunchedEffect(pendingVoiceSequence, appIsForeground) {
+        if (pendingVoiceSequence != null && appIsForeground) {
+            HandsFreeNavigation.sequence = null
+            val age = android.os.SystemClock.elapsedRealtime() - pendingVoiceSequence.createdAtMs
+            val outcome = if (age in 0..30_000L)
+                JarvisSequence.execute(context, pendingVoiceSequence.plan)
+            else "A kétlépéses hangparancs lejárt. Semmit nem hajtottam végre."
+            conversation.add("Hangos műveletsor" to outcome)
+            if (conversation.size > 50) conversation.removeAt(0)
+        }
+    }
     val pendingNative = HandsFreeNavigation.nativeAction
     LaunchedEffect(pendingNative, appIsForeground) {
         if (pendingNative != null && appIsForeground) {
@@ -300,6 +325,21 @@ fun JarvisApp(context: Context) {
                             history = conversation,
                             pendingCall = pendingCall,
                             pendingMessage = pendingMessage,
+                            pendingSequence = pendingSequence,
+                            onSequenceConfirm = {
+                                val task = pendingSequence
+                                val fresh = android.os.SystemClock.elapsedRealtime() <= pendingSequenceUntilMs
+                                pendingSequence = null
+                                pendingSequenceUntilMs = 0L
+                                val outcome = if (fresh && task != null)
+                                    JarvisSequence.execute(context, task)
+                                else "Lejárt a műveletsor jóváhagyása. Semmit nem hajtottam végre."
+                                conversation.add("Műveletsor jóváhagyása" to outcome)
+                            },
+                            onSequenceDismiss = {
+                                pendingSequence = null
+                                pendingSequenceUntilMs = 0L
+                            },
                             onMessageConfirm = {
                                 val draft = pendingMessage
                                 val fresh = android.os.SystemClock.elapsedRealtime() <= pendingMessageUntilMs
