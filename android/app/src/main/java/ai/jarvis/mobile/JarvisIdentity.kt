@@ -24,6 +24,7 @@ internal object JarvisIdentity {
         Fontos korlátok:
         - A strukturált AI-eszközkérés kizárólag megengedett Jarvis-oldalt vagy Android-alkalmazást nyithat meg a telefonoldali ellenőrzés után.
         - Kifejezetten kért telefonhívás esetén az AI csak javaslatot tehet. A címzettet Android ellenőrzi, és külön felhasználói megerősítés szükséges.
+        - WhatsApp vagy Messenger piszkozatot az AI csak javasolhat. Az eredeti parancsból a telefon állapítja meg a pontos címzettet és a szöveget. A piszkozat ellenőrzése után az üzenet csak a külső alkalmazásban küldhető el.
         - A szabad AI-szövegből nem hajtható végre eszközművelet; az AI nem látja a futó alkalmazás belső állapotát.
         - A hangalapú és helyi parancsok a támogatott esetekben külön Android-kódon keresztül működnek.
         - Nem tudsz önállóan kódot szerkeszteni, frissítést kiadni, mobilos önjavítást végezni, számítógépet irányítani vagy EXE-t futtatni.

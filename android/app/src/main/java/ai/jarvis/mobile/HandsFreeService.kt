@@ -27,6 +27,7 @@ internal object HandsFreeStatus {
     var outputLevel by mutableFloatStateOf(0f)
 }
 internal data class PendingPhoneApp(val action: String, val createdAtMs: Long)
+internal data class PendingExternalTask(val task: HandoffTask, val createdAtMs: Long)
 
 internal object HandsFreeNavigation {
     var appIsForeground by mutableStateOf(false)
@@ -34,7 +35,7 @@ internal object HandsFreeNavigation {
     var deviceAction by mutableStateOf<PendingPhoneApp?>(null)
     var mapTarget by mutableStateOf<String?>(null)
     var mailDraft by mutableStateOf<EmailDraft?>(null)
-    var external by mutableStateOf<HandoffTask?>(null)
+    var external by mutableStateOf<PendingExternalTask?>(null)
 }
 
 /** User-started, time-limited recognition session. Not a true always-on hotword engine. */
@@ -265,7 +266,8 @@ class HandsFreeService : Service(), RecognitionListener {
             val proposedMessage = externalProposal
             if (proposedMessage != null) {
                 if (VoiceIntentParser.isYes(heard)) {
-                    HandsFreeNavigation.external = HandoffTask.Message(proposedMessage)
+                    HandsFreeNavigation.external = PendingExternalTask(
+                        HandoffTask.Message(proposedMessage), SystemClock.elapsedRealtime())
                     externalProposal = null
                     speak("Átadtam az üzenet-előkészítést a telefonodnak. " +
                         "A tényleges küldést a WhatsAppban vagy Messengerben neked kell jóváhagynod.")
@@ -403,7 +405,22 @@ class HandsFreeService : Service(), RecognitionListener {
             }
             return
         }
-        val outgoing = ExternalTasks.parseMessage(command)
+        val localAiDraft = JarvisMessageIntent.parse(command)
+        if (localAiDraft != null && !JarvisAiGateway.configured(this)) {
+            if (!privateVoiceAllowed()) {
+                speak("A telefon lezárva. Üzenethez előbb oldd fel.")
+            } else {
+                externalProposal = localAiDraft
+                externalDeadline = now + 40_000L
+                speak("Helyben előkészített üzenet " + localAiDraft.recipient +
+                    " részére: " + localAiDraft.text.take(350) +
+                    ". Megnyissam az üzenetalkalmazásban? Igen vagy nem.")
+            }
+            return
+        }
+        // Structured AI draft requests must not be intercepted by legacy local parsing.
+        val outgoing = if (localAiDraft != null) null
+            else ExternalTasks.parseMessage(command)
         if (outgoing != null) {
             if (!privateVoiceAllowed()) {
                 speak("A telefon lezárva. A privát üzenetekhez előbb oldd fel.")
@@ -423,7 +440,8 @@ class HandsFreeService : Service(), RecognitionListener {
             return
         }
         if (ExternalTasks.parseUcJournal(command)) {
-            HandsFreeNavigation.external = HandoffTask.UcJournal
+            HandsFreeNavigation.external = PendingExternalTask(
+                HandoffTask.UcJournal, SystemClock.elapsedRealtime())
             speak("A hivatalos UC oldal megnyitását előkészítettem. " +
                 "Bejelentkezést és Journal-ellenőrzést még nem végzek automatikusan.")
             return
@@ -433,7 +451,8 @@ class HandsFreeService : Service(), RecognitionListener {
             if (!privateVoiceAllowed()) {
                 speak("A Gmail megnyitásához oldd fel a telefont.")
             } else {
-                HandsFreeNavigation.external = HandoffTask.GmailSearch(gmailQuery)
+                HandsFreeNavigation.external = PendingExternalTask(
+                    HandoffTask.GmailSearch(gmailQuery), SystemClock.elapsedRealtime())
                 speak("A Gmail keresést előkészítettem. A levelek tartalmát még nem látom.")
             }
             return
@@ -495,7 +514,8 @@ class HandsFreeService : Service(), RecognitionListener {
             speak("A Jarvis $route oldalát megnyitom, amint az alkalmazás előtérbe kerül.")
             return
         }
-        val action = BasicCommandRouter.classify(command)
+        val action = if (JarvisMessageIntent.parse(command) != null)
+            BasicAction.UNKNOWN else BasicCommandRouter.classify(command)
         when (action) {
             BasicAction.OPEN_GLUCOSE, BasicAction.OPEN_INVOICES,
             BasicAction.OPEN_HOME, BasicAction.OPEN_NOTES, BasicAction.OPEN_PERMISSIONS -> {
@@ -536,6 +556,17 @@ class HandsFreeService : Service(), RecognitionListener {
                                         outcome.deviceAction, SystemClock.elapsedRealtime())
                                     speak("Az Android-alkalmazást csak az előtérbe hozott " +
                                         "Jarvisból indíthatom. A kérés harminc másodpercig érvényes.")
+                                }
+                                outcome.messageDraft != null -> {
+                                    if (!privateVoiceAllowed()) {
+                                        speak("A telefon lezárva. Üzenethez oldd fel.")
+                                    } else {
+                                        externalProposal = outcome.messageDraft
+                                        externalDeadline = SystemClock.elapsedRealtime() + 40_000L
+                                        speak("Üzenetpiszkozat " + outcome.messageDraft.recipient +
+                                            " részére: " + outcome.messageDraft.text.take(350) +
+                                            ". Megnyissam a külső alkalmazásban? Igen vagy nem.")
+                                    }
                                 }
                                 outcome.callTarget != null -> {
                                     if (!privateVoiceAllowed()) {

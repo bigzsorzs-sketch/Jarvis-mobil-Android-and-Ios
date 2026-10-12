@@ -35,7 +35,7 @@ test("multiple calls, malformed JSON and wrong types fail closed", () => {
 
 test("can propose exactly one whitelisted external Android app only", () => {
   assert.deepEqual(PHONE_ACTIONS, ["calendar", "alarms", "email", "maps", "dialer"]);
-  assert.equal(JARVIS_TOOLS.length, 3);
+  assert.equal(JARVIS_TOOLS.length, 4);
   assert.deepEqual(verifiedToolCall([call("open_phone_app", { route: "maps" })]), {
     name: "open_phone_app", route: "maps"
   });
@@ -45,7 +45,7 @@ test("can propose exactly one whitelisted external Android app only", () => {
 });
 
 test("one call can be proposed but neither made nor redirected to another action", () => {
-  assert.equal(JARVIS_TOOLS.length, 3);
+  assert.equal(JARVIS_TOOLS.length, 4);
   assert.deepEqual(verifiedToolCall([call("prepare_phone_call", { target: "Eszter" })]), {
     name: "prepare_phone_call", target: "Eszter"
   });
@@ -55,4 +55,20 @@ test("one call can be proposed but neither made nor redirected to another action
   assert.equal(verifiedToolCall([call("place_call", { target: "Eszter" })]), null);
   assert.equal(verifiedToolCall([call("prepare_phone_call", { target: "Eszter" }),
     call("open_phone_app", { route: "dialer" })]), null);
+});
+
+test("AI may choose only a validated messenger platform, never content", () => {
+  assert.deepEqual(verifiedToolCall([call("prepare_message_draft", { platform: "whatsapp" })]), {
+    name: "prepare_message_draft", platform: "whatsapp"
+  });
+  assert.deepEqual(verifiedToolCall([call("prepare_message_draft", { platform: "messenger" })]), {
+    name: "prepare_message_draft", platform: "messenger"
+  });
+  assert.equal(verifiedToolCall([call("prepare_message_draft",
+    { platform: "whatsapp", recipient: "Attacker", text: "different" })]), null);
+  assert.equal(verifiedToolCall([call("prepare_message_draft", { platform: "sms" })]), null);
+  assert.equal(verifiedToolCall([call("prepare_message_draft", { platform: 1 })]), null);
+  assert.equal(verifiedToolCall([call("send_message", { platform: "whatsapp" })]), null);
+  assert.equal(verifiedToolCall([call("prepare_message_draft", { platform: "whatsapp" }),
+    call("prepare_phone_call", { target: "Someone" })]), null);
 });

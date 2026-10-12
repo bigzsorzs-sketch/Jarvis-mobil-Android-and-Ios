@@ -5,21 +5,23 @@ import org.json.JSONObject
 import java.text.Normalizer
 import java.util.Locale
 
-/** Only navigation to existing Jarvis pages is available to the AI.
- * The AI never receives a general Android command executor, file access,
- * message sender, settings writer or arbitrary Intent.
+/** The AI may propose only vetted UI handoffs, an explicitly requested
+ * call pending confirmation, or a reviewed external message draft.
+ * It never receives arbitrary device execution, file deletion or direct sending.
  */
 internal data class JarvisAiOutcome(
     val message: String,
     val route: String? = null,
     val deviceAction: String? = null,
-    val callTarget: String? = null
+    val callTarget: String? = null,
+    val messageDraft: OutgoingMessage? = null
 )
 
 internal object JarvisAiTools {
     const val FUNCTION_NAME = "open_jarvis_page"
     const val PHONE_FUNCTION = "open_phone_app"
     const val CALL_FUNCTION = "prepare_phone_call"
+    const val MESSAGE_FUNCTION = "prepare_message_draft"
 
     // Use the same menu inventory as the actual UI; no fabricated tools.
     val allowedRoutes: List<String>
@@ -75,6 +77,32 @@ internal object JarvisAiTools {
                     .put("type", "string").put("minLength", 1).put("maxLength", 70)))
                 .put("required", JSONArray().put("target"))
                 .put("additionalProperties", false)))
+
+    /** The model chooses only the app. Recipient and content always come from
+     * the original user command parsed on the device.
+     */
+    fun messageToolDefinition(): JSONObject = JSONObject()
+        .put("type", "function")
+        .put("function", JSONObject()
+            .put("name", MESSAGE_FUNCTION)
+            .put("description", "Prepare one WhatsApp or Messenger message draft ONLY if " +
+                "the user explicitly specifies the application, recipient and full " +
+                "message text. The phone reconstructs recipient and text from the " +
+                "original user command. Never send or claim delivery.")
+            .put("parameters", JSONObject()
+                .put("type", "object")
+                .put("properties", JSONObject().put("platform", JSONObject()
+                    .put("type", "string")
+                    .put("enum", JSONArray(listOf("whatsapp", "messenger")))))
+                .put("required", JSONArray().put("platform"))
+                .put("additionalProperties", false)))
+
+    fun validateMessage(suggestedPlatform: String, originalInput: String): JarvisAiOutcome {
+        val message = JarvisMessageIntent.validateAiProposal(suggestedPlatform, originalInput)
+            ?: return JarvisAiOutcome(
+                "Az AI üzenetkérése nem egyezik a parancsoddal. Nem készítettem piszkozatot.")
+        return JarvisAiOutcome("Az üzenetpiszkozat jóváhagyásra vár.", messageDraft = message)
+    }
 
     fun validateCall(suggested: String, originalInput: String): JarvisAiOutcome {
         val requested = VoiceCalling.extractAiRequest(originalInput)
@@ -172,6 +200,12 @@ internal object JarvisAiTools {
             } catch (_: Exception) {
                 return JarvisAiOutcome("Az AI érvénytelen eszközparamétereket adott.")
             }
+            if (function.optString("name") == MESSAGE_FUNCTION) {
+                if (args.length() != 1 || args.opt("platform") !is String) {
+                    return JarvisAiOutcome("Érvénytelen AI-üzenetparaméterek. Nem történt művelet.")
+                }
+                return validateMessage(args.optString("platform"), originalInput)
+            }
             if (function.optString("name") == CALL_FUNCTION) {
                 if (args.length() != 1 || !args.has("target") || args.opt("target") !is String) {
                     return JarvisAiOutcome("Érvénytelen hívási paraméterek; hívás nem indult.")
@@ -186,6 +220,9 @@ internal object JarvisAiTools {
         if (VoiceCalling.extractAiRequest(originalInput) != null) {
             return JarvisAiOutcome("Az AI nem adott ellenőrzött hívási parancsot. Nem indítottam hívást.")
         }
+        if (JarvisMessageIntent.parse(originalInput) != null) {
+            return JarvisAiOutcome("Az AI nem adott ellenőrzött üzenetpiszkozatot. Nem történt küldés.")
+        }
         return JarvisAiOutcome(message.optString("content", "").trim()
             .ifEmpty { "Az AI üres választ küldött." })
     }
@@ -196,6 +233,12 @@ internal object JarvisAiTools {
         if (action != null) {
             if (action.length() != 2 || action.opt("name") !is String) {
                 return JarvisAiOutcome("Érvénytelen szerveres eszközkérés; semmit sem hajtottam végre.")
+            }
+            if (action.optString("name") == MESSAGE_FUNCTION) {
+                if (action.opt("platform") !is String) {
+                    return JarvisAiOutcome("Érvénytelen szerveres üzenetparaméterek.")
+                }
+                return validateMessage(action.optString("platform"), originalInput)
             }
             if (action.optString("name") == CALL_FUNCTION) {
                 if (action.opt("target") !is String) {
@@ -212,6 +255,9 @@ internal object JarvisAiTools {
         if (body.has("action")) return JarvisAiOutcome("Hibás szerveres eszközkérés.")
         if (VoiceCalling.extractAiRequest(originalInput) != null) {
             return JarvisAiOutcome("A szerver nem adott ellenőrzött hívási parancsot. Nem indítottam hívást.")
+        }
+        if (JarvisMessageIntent.parse(originalInput) != null) {
+            return JarvisAiOutcome("A szerver nem adott ellenőrzött üzenetpiszkozatot. Nem történt küldés.")
         }
         return JarvisAiOutcome(body.optString("reply", "").trim()
             .ifEmpty { "Az AI üres választ küldött." })

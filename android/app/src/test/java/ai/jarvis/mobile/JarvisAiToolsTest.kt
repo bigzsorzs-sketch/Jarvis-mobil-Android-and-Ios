@@ -111,6 +111,49 @@ class JarvisAiToolsTest {
         assertTrue(server.message.contains("Nem indítottam hívást"))
     }
 
+    @Test fun modelCanOnlyProposeCheckedMessageDraft() {
+        val args = JSONObject().put("platform", "whatsapp")
+        val draftCall = toolCall(JarvisAiTools.MESSAGE_FUNCTION, args)
+        val original = "Írj WhatsAppon Eszternek hogy Szia, érkezem!"
+        val result = JarvisAiTools.fromProvider(providerWith(draftCall), original)
+        assertEquals(OutgoingMessage(MessengerPlatform.WHATSAPP, "Eszternek",
+            "Szia, érkezem!"), result.messageDraft)
+        assertNull(result.route)
+        assertNull(result.callTarget)
+        assertNull(JarvisAiTools.fromProvider(providerWith(draftCall),
+            "Írj Messengeren Eszternek hogy Szia, érkezem!").messageDraft)
+        assertNull(JarvisAiTools.fromProvider(providerWith(draftCall),
+            "Ne írj Eszternek semmit").messageDraft)
+        assertNull(JarvisAiTools.fromProvider(providerWith(draftCall, draftCall),
+            original).messageDraft)
+        val extra = toolCall(JarvisAiTools.MESSAGE_FUNCTION,
+            JSONObject().put("platform", "whatsapp").put("recipient", "MÁS"))
+        assertNull(JarvisAiTools.fromProvider(providerWith(extra), original).messageDraft)
+    }
+
+    @Test fun serverMustNotOverrideRecipientOrBodyOrPretendItSent() {
+        val original = "Send WhatsApp message to Eszter saying Good morning"
+        val request = JSONObject().put("action", JSONObject()
+            .put("name", JarvisAiTools.MESSAGE_FUNCTION).put("platform", "whatsapp"))
+        assertEquals(OutgoingMessage(MessengerPlatform.WHATSAPP, "Eszter", "Good morning"),
+            JarvisAiTools.fromServer(request, original).messageDraft)
+        assertNull(JarvisAiTools.fromServer(request,
+            "Send Messenger message to Eszter saying Good morning").messageDraft)
+        assertNull(JarvisAiTools.fromServer(JSONObject().put("action",
+            JSONObject().put("name", JarvisAiTools.MESSAGE_FUNCTION)
+                .put("platform", "whatsapp").put("text", "tampered")),
+            original).messageDraft)
+        val response = JarvisAiTools.fromProvider(providerWith().apply {
+            getJSONArray("choices").getJSONObject(0)
+                .getJSONObject("message").put("content", "Üzenet elküldve.")
+        }, original)
+        assertNull(response.messageDraft)
+        assertTrue(response.message.contains("Nem történt küldés"))
+        val serverPlain = JarvisAiTools.fromServer(
+            JSONObject().put("reply", "Üzenet elküldve."), original)
+        assertTrue(serverPlain.message.contains("Nem történt küldés"))
+    }
+
     @Test fun serverCallProposalRequiresExactUserRequest() {
         val proposal = JSONObject().put("action", JSONObject()
             .put("name", JarvisAiTools.CALL_FUNCTION).put("target", "+441234567890"))

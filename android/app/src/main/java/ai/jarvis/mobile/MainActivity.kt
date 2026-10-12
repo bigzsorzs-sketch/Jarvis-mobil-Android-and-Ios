@@ -100,6 +100,12 @@ fun JarvisApp(context: Context) {
         pendingCall = person
         pendingCallUntilMs = android.os.SystemClock.elapsedRealtime() + 30_000L
     }
+    var pendingMessage by remember { mutableStateOf<OutgoingMessage?>(null) }
+    var pendingMessageUntilMs by remember { mutableLongStateOf(0L) }
+    fun prepareMessageReview(message: OutgoingMessage) {
+        pendingMessage = message
+        pendingMessageUntilMs = android.os.SystemClock.elapsedRealtime() + 40_000L
+    }
     fun openTool(destination: String): String {
         if (destination == "Navigáció" || destination == "Térkép") {
             val opened = openMap(context)
@@ -121,6 +127,14 @@ fun JarvisApp(context: Context) {
     }
     fun executeHome(command: String) {
         if (command.isBlank()) return
+        val localDraft = JarvisMessageIntent.parse(command)
+        if (localDraft != null && !JarvisAiGateway.configured(context)) {
+            prepareMessageReview(localDraft)
+            conversation.add(command to
+                "Helyben előkészítettem a piszkozatot. Ellenőrizd a címzettet és az üzenetet.")
+            if (conversation.size > 50) conversation.removeAt(0)
+            return
+        }
         if (JarvisAiRouting.shouldAskAi(command)) {
             val pending = command to "AI-válaszra várok…"
             conversation.add(pending)
@@ -130,6 +144,10 @@ fun JarvisApp(context: Context) {
                 val answer = when {
                     outcome.route != null -> openTool(outcome.route)
                     outcome.deviceAction != null -> JarvisPhoneActions.execute(context, outcome.deviceAction)
+                    outcome.messageDraft != null -> {
+                        prepareMessageReview(outcome.messageDraft)
+                        "A címzett és az üzenet ellenőrzésre vár. Semmit nem küldtem el."
+                    }
                     outcome.callTarget != null -> {
                         when (val match = VoiceCalling.lookup(context, outcome.callTarget)) {
                             is VoiceCalling.Lookup.Found -> {
@@ -180,8 +198,12 @@ fun JarvisApp(context: Context) {
     var handoffResult by remember { mutableStateOf("") }
     LaunchedEffect(externalRequest, appIsForeground) {
         if (externalRequest != null && appIsForeground) {
-            handoffResult = ExternalTasks.dispatch(context, externalRequest)
+            // A queued voice handoff cannot silently execute after a long delay.
             HandsFreeNavigation.external = null
+            val ageMs = android.os.SystemClock.elapsedRealtime() - externalRequest.createdAtMs
+            handoffResult = if (ageMs in 0..30_000L)
+                ExternalTasks.dispatch(context, externalRequest.task)
+            else "A korábbi hangos kérés lejárt. Nem indítottam műveletet."
         }
     }
     val requestedEmail = HandsFreeNavigation.mailDraft
@@ -255,6 +277,21 @@ fun JarvisApp(context: Context) {
                             onCommand = { command -> executeHome(command) },
                             history = conversation,
                             pendingCall = pendingCall,
+                            pendingMessage = pendingMessage,
+                            onMessageConfirm = {
+                                val draft = pendingMessage
+                                val fresh = android.os.SystemClock.elapsedRealtime() <= pendingMessageUntilMs
+                                pendingMessage = null
+                                pendingMessageUntilMs = 0L
+                                val answer = if (!fresh || draft == null)
+                                    "Lejárt az üzenet jóváhagyása. Nem történt művelet."
+                                else ExternalTasks.dispatch(context, HandoffTask.Message(draft))
+                                conversation.add("Üzenet ellenőrzése" to answer)
+                            },
+                            onMessageDismiss = {
+                                pendingMessage = null
+                                pendingMessageUntilMs = 0L
+                            },
                             onCallConfirm = {
                                 val person = pendingCall
                                 val fresh = android.os.SystemClock.elapsedRealtime() <= pendingCallUntilMs

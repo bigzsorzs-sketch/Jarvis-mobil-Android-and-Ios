@@ -55,6 +55,9 @@ internal fun JarvisHomeScreen(
     onCommand: (String) -> Unit,
     history: List<Pair<String, String>>,
     pendingCall: VoiceCalling.Target?,
+    pendingMessage: OutgoingMessage?,
+    onMessageConfirm: () -> Unit,
+    onMessageDismiss: () -> Unit,
     onCallConfirm: () -> Unit,
     onCallDismiss: () -> Unit
 ) {
@@ -196,6 +199,28 @@ internal fun JarvisHomeScreen(
             Spacer(Modifier.height(12.dp))
             Text(issue, color = Color(0xFFAA2732), fontSize = 12.sp,
                 modifier = Modifier.padding(horizontal = 16.dp))
+        }
+        if (pendingMessage != null) {
+            AlertDialog(
+                onDismissRequest = onMessageDismiss,
+                title = { Text("Üzenetpiszkozat ellenőrzése") },
+                text = {
+                    Column(Modifier.heightIn(max = 250.dp).verticalScroll(rememberScrollState())) {
+                        Text(
+                            "Alkalmazás: " + pendingMessage.platform.name +
+                            "\nCímzett: " + pendingMessage.recipient +
+                            "\nSzöveg: " + pendingMessage.text +
+                            "\n\nA küldés csak a külső alkalmazásban történhet meg."
+                        )
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = onMessageConfirm) { Text("Piszkozat megnyitása") }
+                },
+                dismissButton = {
+                    TextButton(onClick = onMessageDismiss) { Text("Mégse") }
+                }
+            )
         }
         if (pendingCall != null) {
             AlertDialog(
