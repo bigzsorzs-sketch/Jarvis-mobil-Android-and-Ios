@@ -159,6 +159,18 @@ fun JarvisApp(context: Context) {
             if (conversation.size > 50) conversation.removeAt(0)
             return
         }
+        // A named installed app opens through a user-originated, exact-label
+        // request, never an AI-chosen package/activity name.
+        val appSelection = JarvisInstalledApps.choose(command, JarvisInstalledApps.list(context))
+        if (appSelection is AppSelection.Found ||
+            appSelection is AppSelection.Ambiguous ||
+            (appSelection is AppSelection.Missing &&
+                BasicCommandRouter.classify(command) == BasicAction.UNKNOWN &&
+                JarvisCapabilities.localPageToOpen(command) == null)) {
+            conversation.add(command to JarvisInstalledApps.openRequested(context, command))
+            if (conversation.size > 50) conversation.removeAt(0)
+            return
+        }
         val localDraft = JarvisMessageIntent.parse(command)
         if (localDraft != null && !JarvisAiGateway.configured(context)) {
             prepareMessageReview(localDraft)
@@ -429,6 +441,7 @@ fun JarvisApp(context: Context) {
                                         page = "Főoldal"
                                     }
                                 )
+                                "Alkalmazások" -> JarvisInstalledAppsScreen(context)
                                 "Üzenetek" -> MessageInboxScreen(context, onPermissions = {
                                     page = "Engedélyek"
                                 })
