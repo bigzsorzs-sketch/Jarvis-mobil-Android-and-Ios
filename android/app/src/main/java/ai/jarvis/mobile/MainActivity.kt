@@ -113,12 +113,23 @@ fun JarvisApp(context: Context) {
     }
     fun executeHome(command: String) {
         if (command.isBlank()) return
-        val answer = JarvisCommandExecutor.run(
-            context, command, { destination -> openTool(destination) },
-            { contact -> pendingCall = contact }
-        )
-        conversation.add(command to answer)
-        if (conversation.size > 50) conversation.removeAt(0)
+        if (JarvisAiRouting.shouldAskAi(command)) {
+            val pending = command to "AI-válaszra várok…"
+            conversation.add(pending)
+            if (conversation.size > 50) conversation.removeAt(0)
+            drawerScope.launch {
+                val answer = JarvisAiGateway.ask(context, command)
+                val index = conversation.indexOf(pending)
+                if (index >= 0) conversation[index] = command to answer
+            }
+        } else {
+            val answer = JarvisCommandExecutor.run(
+                context, command, { destination -> openTool(destination) },
+                { contact -> pendingCall = contact }
+            )
+            conversation.add(command to answer)
+            if (conversation.size > 50) conversation.removeAt(0)
+        }
     }
     BackHandler(enabled = drawerState.isOpen || page != "Főoldal") {
         if (drawerState.isOpen) drawerScope.launch { drawerState.close() }
@@ -244,9 +255,11 @@ fun JarvisApp(context: Context) {
                             when (page) {
                                 "Beállítások" -> JarvisSettingsScreen(
                                     context, isDark, toggleTheme,
-                                    onVoice = { page = "Hangbeállítások" }
+                                    onVoice = { page = "Hangbeállítások" },
+                                    onAi = { page = "AI-agy" }
                                 )
                                 "Hangbeállítások" -> HandsFreePanel(context)
+                                "AI-agy" -> JarvisAiSettings(context)
                                 "Engedélyek" -> PermissionCenter(
                                     context,
                                     onDone = {

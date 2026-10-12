@@ -57,7 +57,8 @@ internal fun JarvisSettingsRow(icon: String, title: String, detail: String, onCl
 
 @Composable
 internal fun JarvisSettingsScreen(
-    context: Context, isDark: Boolean, onToggleTheme: () -> Unit, onVoice: () -> Unit
+    context: Context, isDark: Boolean, onToggleTheme: () -> Unit, onVoice: () -> Unit,
+    onAi: () -> Unit
 ) {
     SettingsSectionTitle("Általános")
     JarvisSettingsGroup {
@@ -66,6 +67,12 @@ internal fun JarvisSettingsScreen(
         SettingsDivider()
         JarvisSettingsRow("≋", "Hangvezérlés",
             if (HandsFreeStatus.running) "Aktív" else "Kikapcsolva", onVoice)
+    }
+    Spacer(Modifier.height(16.dp))
+    SettingsSectionTitle("AI-kapcsolat")
+    JarvisSettingsGroup {
+        JarvisSettingsRow("✧", "AI-agy",
+            if (JarvisAiGateway.configured(context)) "Tesztelői hozzáférés mentve" else "Csatlakoztatás szükséges", onAi)
     }
     Spacer(Modifier.height(20.dp))
     SettingsSectionTitle("Telefon-hozzáférés")

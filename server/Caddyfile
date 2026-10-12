@@ -1,0 +1,5 @@
+# Caddy automatically requests/renews TLS when DNS and ports are correct.
+{$JARVIS_DOMAIN} {
+    encode zstd gzip
+    reverse_proxy gateway:8080
+}

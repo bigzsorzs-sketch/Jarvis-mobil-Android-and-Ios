@@ -11,6 +11,10 @@ import android.speech.tts.*
 import androidx.compose.runtime.*
 import androidx.core.content.ContextCompat
 import java.util.Locale
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 
 internal object HandsFreeStatus {
     var running by mutableStateOf(false)
@@ -59,6 +63,7 @@ class HandsFreeService : Service(), RecognitionListener {
     private var externalProposal: OutgoingMessage? = null
     private var externalDeadline = 0L
     private var confirmUntil = 0L
+    private var aiJob: Job? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -492,7 +497,27 @@ class HandsFreeService : Service(), RecognitionListener {
                 speak("Előkészítettem a kért oldalt a Jarvisban.")
             }
             BasicAction.OPEN_MESSAGES -> speak("Mondd: olvasd fel az utolsó WhatsApp vagy Messenger üzenetemet.")
-            BasicAction.UNKNOWN -> speak("Ezt a parancsot még nem támogatom.")
+            BasicAction.UNKNOWN -> {
+                if (!JarvisAiRouting.shouldAskAi(command)) {
+                    speak("Ezt a parancsot még nem tudom végrehajtani.")
+                } else if (!privateVoiceAllowed()) {
+                    speak("A telefon lezárva. Az AI-kérdéshez előbb oldd fel.")
+                } else {
+                    // Suspend microphone recognition until the answer arrives.
+                    // Cloud output may answer questions, but never calls Android tools.
+                    handler.removeCallbacks(restart)
+                    speaking = true
+                    HandsFreeStatus.status = "AI-válaszra várok"
+                    aiJob?.cancel()
+                    aiJob = CoroutineScope(Dispatchers.Main.immediate).launch {
+                        val answer = JarvisAiGateway.ask(applicationContext, command)
+                        if (running) {
+                            speaking = false
+                            speak(answer)
+                        }
+                    }
+                }
+            }
             else -> speak("A rendszeralkalmazás megnyitásához nyisd meg Jarvist. Android háttérből nem mindig engedi.")
         }
     }
@@ -550,6 +575,8 @@ class HandsFreeService : Service(), RecognitionListener {
         lastMessageKey = null
         handler.removeCallbacks(restart)
         handler.removeCallbacks(timeout)
+        aiJob?.cancel()
+        aiJob = null
         recognizer?.cancel()
         recognizer?.destroy()
         recognizer = null

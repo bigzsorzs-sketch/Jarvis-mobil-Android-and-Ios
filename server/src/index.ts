@@ -1,4 +1,5 @@
 import http, { type IncomingMessage, type ServerResponse } from "node:http";
+import { createHash, timingSafeEqual } from "node:crypto";
 import { createRemoteJWKSet, jwtVerify } from "jose";
 import { createClient } from "redis";
 
@@ -12,9 +13,40 @@ function required(name: string): string {
 
 const secret = required("OPENROUTER_API_KEY");
 const model = required("OPENROUTER_MODEL");
-const issuer = required("OIDC_ISSUER");
-const audience = required("OIDC_AUDIENCE");
-const jwks = createRemoteJWKSet(new URL(required("OIDC_JWKS_URL")));
+// Production OIDC is optional in the small private tester deployment. Either
+// a complete OIDC setup or explicitly provisioned random tester tokens is required.
+const oidcNames = ["OIDC_ISSUER", "OIDC_AUDIENCE", "OIDC_JWKS_URL"];
+const oidcParts = oidcNames.map((name) => process.env[name]?.trim() || "");
+if (oidcParts.some(Boolean) && !oidcParts.every(Boolean)) {
+  throw new Error("Incomplete OIDC configuration");
+}
+const issuer = oidcParts[0];
+const audience = oidcParts[1];
+const jwks = oidcParts.every(Boolean) ? createRemoteJWKSet(new URL(oidcParts[2]!)) : null;
+
+// SHA-256 hashes of independent 256-bit random bearer tokens; NEVER raw tokens.
+// JSON format: {"george":"<64 hex chars>","tester2":"<64 hex chars>"}.
+// These are for a small, controlled test only, not a public account system.
+const rawTesters = JSON.parse(process.env.TESTER_TOKEN_SHA256_JSON || "{}") as unknown;
+if (!rawTesters || typeof rawTesters !== "object" || Array.isArray(rawTesters)) {
+  throw new Error("Invalid tester token configuration");
+}
+const testerRecords = Object.entries(rawTesters).map(([id, hash]) => {
+  if (!/^[A-Za-z0-9_-]{1,40}$/.test(id) || typeof hash !== "string" ||
+      !/^[a-fA-F0-9]{64}$/.test(hash)) throw new Error("Invalid tester token hash");
+  return { id, digest: Buffer.from(hash, "hex") };
+});
+if (testerRecords.length > 10 || (!jwks && testerRecords.length === 0)) {
+  throw new Error("Configure OIDC or 1–10 tester tokens");
+}
+function findTester(token: string): string | null {
+  if (token.length !== 64 || !/^[a-fA-F0-9]{64}$/.test(token)) return null;
+  const digest = createHash("sha256").update(token, "utf8").digest();
+  for (const tester of testerRecords) {
+    if (timingSafeEqual(digest, tester.digest)) return "tester:" + tester.id;
+  }
+  return null;
+}
 const redis = createClient({ url: required("REDIS_URL") });
 redis.on("error", () => { /* Fail requests closed; never log private content */ });
 
@@ -70,13 +102,22 @@ const server = http.createServer(async (req, res) => {
   try {
     const match = /^Bearer\s+(.+)$/i.exec(req.headers.authorization ?? "");
     if (!match?.[1]) return reply(res, 401, { error: "AUTH_REQUIRED" });
-    const verified = await jwtVerify(match[1], jwks, { issuer, audience });
-    const subject = verified.payload.sub;
+    let subject = findTester(match[1]);
+    const tester = subject !== null;
+    if (!subject && jwks) {
+      try {
+        const verified = await jwtVerify(match[1], jwks, { issuer, audience });
+        subject = verified.payload.sub ?? null;
+      } catch {
+        return reply(res, 401, { error: "INVALID_TOKEN" });
+      }
+    }
     if (!subject || !/^[A-Za-z0-9._:@-]{1,160}$/.test(subject)) {
       return reply(res, 401, { error: "INVALID_USER" });
     }
-    // Subscription is assigned only by a trusted billing service, never the app.
-    if (await redis.get("subscription:" + subject) !== "active") {
+    // Test accounts are explicitly enrolled by the server administrator.
+    // Normal paid accounts still require server-verified billing state.
+    if (!tester && await redis.get("subscription:" + subject) !== "active") {
       return reply(res, 403, { error: "SUBSCRIPTION_REQUIRED" });
     }
     let data: unknown;
