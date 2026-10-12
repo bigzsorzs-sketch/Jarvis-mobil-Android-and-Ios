@@ -1,0 +1,101 @@
+name: Publish Jarvis Android glucose test APK
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/publish-android-glucose-test.yml"
+permissions:
+  contents: write
+  actions: read
+jobs:
+  verified-glucose-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: Resolve the last fully-tested Android source commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          source_sha="$(git rev-parse HEAD^)"
+          mapfile -t changed < <(git diff --name-only "$source_sha" "$GITHUB_SHA")
+          test "${#changed[@]}" -eq 1
+          test "${changed[0]}" = ".github/workflows/publish-android-glucose-test.yml"
+          echo "SOURCE_SHA=$source_sha" >> "$GITHUB_ENV"
+      - name: Require successful exact-commit Android build and emulator tests
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 90); do
+            builds="$(gh api "/repos/$GITHUB_REPOSITORY/actions/workflows/android-debug.yml/runs?head_sha=$SOURCE_SHA&event=push&per_page=20")"
+            emulators="$(gh api "/repos/$GITHUB_REPOSITORY/actions/workflows/android-ui-emulator.yml/runs?head_sha=$SOURCE_SHA&event=push&per_page=20")"
+            build_status="$(jq -r --arg sha "$SOURCE_SHA" '[.workflow_runs[] | select(.head_sha == $sha)][0].conclusion // ""' <<<"$builds")"
+            ui_status="$(jq -r --arg sha "$SOURCE_SHA" '[.workflow_runs[] | select(.head_sha == $sha)][0].conclusion // ""' <<<"$emulators")"
+            build_id="$(jq -r --arg sha "$SOURCE_SHA" '[.workflow_runs[] | select(.head_sha == $sha)][0].id // ""' <<<"$builds")"
+            if [[ "$build_status" == "success" && "$ui_status" == "success" && -n "$build_id" ]]; then
+              echo "BUILD_RUN_ID=$build_id" >> "$GITHUB_ENV"
+              exit 0
+            fi
+            if [[ "$build_status" =~ ^(failure|cancelled|timed_out|action_required)$ ||
+                  "$ui_status" =~ ^(failure|cancelled|timed_out|action_required)$ ]]; then
+              echo "Failed or cancelled validation: build=$build_status emulator=$ui_status"
+              exit 1
+            fi
+            sleep 10
+          done
+          echo "No successful exact-commit Android validation found"
+          exit 1
+      - name: Check main still points to the publishing workflow commit
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          latest="$(gh api "/repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')"
+          test "$latest" = "$GITHUB_SHA"
+      - name: Download verified debug APK
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          gh run download "$BUILD_RUN_ID" --repo "$GITHUB_REPOSITORY" --name Jarvis-Android-Debug-APK --dir dist
+          test -s dist/app-debug.apk
+          unzip -t dist/app-debug.apk >/dev/null
+          mv dist/app-debug.apk dist/Jarvis-Mobile-Android-0.2.14-glucose-test.apk
+          (cd dist && sha256sum Jarvis-Mobile-Android-0.2.14-glucose-test.apk > SHA256SUMS.txt)
+      - name: Publish uniquely tagged test prerelease
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          latest="$(gh api "/repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')"
+          test "$latest" = "$GITHUB_SHA"
+          tag="v0.2.14-glucose-test.1"
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release tag already exists; refusing to replace files"
+            exit 1
+          fi
+          cat > /tmp/glucose-preview.md <<'EOF'
+          # Jarvis Mobile Android — Glucose module test
+          Built from the exact main commit that passed Kotlin tests, Android lint,
+          debug/release compilation and Android UI emulator tests.
+          
+          - Seven-language glucose dashboard, historical reports, encrypted local history and LibreView CSV import.
+          - Optional user-authorized Health Connect glucose lookup and source/timestamp-aware voice response.
+          - NFC status/settings and handoff to the official Abbott LibreLink app.
+          - **No verified live Libre 2 Plus sensor connection inside Jarvis.** Do not use Jarvis as a medical alarm.
+          - Debug-signed test only. Back up local data; a different signing key may prevent upgrade over another APK.
+          EOF
+          gh release create "$tag" \
+            "dist/Jarvis-Mobile-Android-0.2.14-glucose-test.apk" \
+            "dist/SHA256SUMS.txt" \
+            --repo "$GITHUB_REPOSITORY" --target "$SOURCE_SHA" \
+            --title "Jarvis Mobile Android 0.2.14 Glucose – TESZT" \
+            --notes-file /tmp/glucose-preview.md --prerelease --latest=false
