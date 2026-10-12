@@ -35,6 +35,33 @@ internal object VoiceCalling {
         return matched.groupValues[1].trim().takeIf { it.isNotBlank() }
     }
 
+    /**
+     * Additional explicit natural-language call requests for AI proposals.
+     * Return the target FROM THE USER, not a potentially hallucinated model target.
+     */
+    fun extractAiRequest(input: String): String? {
+        val withoutWake = input.trim()
+            .replace(Regex("""(?iu)^(?:(?:hey|hej|szia|ok)\\s+)?jarvis\\s*[,!:]?\\s*"""), "")
+            .replace(Regex("""(?iu)^k[eé]rlek\\s+"""), "")
+        val match = Regex(
+            """(?iu)^(?:h[ií]vd\\s+fel|t[aá]rcs[aá]zd|telefon[aá]lj|call|fel\\s+tudn[aá]d\\s+h[ií]vni|felh[ií]vn[aá]d|szeretn[eé]m\\s+ha\\s+felh[ií]vn[aá]d)\\s+(?:(?:a|az)\\s+)?(.+?)\\s*[.!?]?$"""
+        ).matchEntire(withoutWake) ?: return null
+        val target = match.groupValues[1].trim()
+        if (target.isBlank() || target.length > 70 ||
+            Regex("""(?iu)\\b(?:és|and|majd|aztán|then)\\b""").containsMatchIn(target)) return null
+        return target
+    }
+
+    /** Model must not substitute a different contact or phone number. */
+    fun matchesAiTarget(originalTarget: String?, suggested: String): Boolean {
+        if (originalTarget == null || suggested.isBlank() || suggested.length > 70) return false
+        val fromUser = normalize(originalTarget)
+        val fromModel = normalize(suggested)
+        if (fromModel.isBlank()) return false
+        return fromUser == fromModel ||
+            (fromUser.length > 4 && fromUser.endsWith("t") && fromUser.dropLast(1) == fromModel)
+    }
+
     fun lookup(context: Context, spoken: String): Lookup {
         val trusted = PeopleDirectory.find(context, spoken)
         if (trusted != null) return Lookup.Found(Target(trusted.nickname, trusted.phone))
