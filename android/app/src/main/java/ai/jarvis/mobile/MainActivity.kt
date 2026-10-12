@@ -228,6 +228,14 @@ fun JarvisApp(context: Context) {
         pendingMessageUntilMs = 0L
         pendingSequence = null
         pendingSequenceUntilMs = 0L
+        // Private, on-device data query: never send a glucose request to the LLM.
+        if (JarvisGlucoseVoice.isQuery(command)) {
+            drawerScope.launch {
+                val result = JarvisGlucoseVoice.reply(context, language)
+                if (requestRevision == commandRevision) addHistory(command to result)
+            }
+            return
+        }
         JarvisCapabilities.localPageToOpen(command)?.let { route ->
             addHistory(command to openTool(route, asPage = true))
             return
