@@ -45,7 +45,7 @@ test("can propose exactly one whitelisted external Android app only", () => {
 });
 
 test("one call can be proposed but neither made nor redirected to another action", () => {
-  assert.equal(JARVIS_TOOLS.length, 3);
+  assert.equal(JARVIS_TOOLS.length, 4);
   assert.deepEqual(verifiedToolCall([call("prepare_phone_call", { target: "Eszter" })]), {
     name: "prepare_phone_call", target: "Eszter"
   });
