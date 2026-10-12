@@ -441,6 +441,19 @@ class HandsFreeService : Service(), RecognitionListener {
             }
             return
         }
+        val firstSequence = JarvisSequence.plan(command)
+        if (firstSequence != null) {
+            if (!privateVoiceAllowed()) {
+                speak("A telefon lezárva. Két művelethez előbb oldd fel.")
+            } else {
+                proposedSequence = firstSequence
+                proposedSequenceUntil = now + 40_000L
+                speak("Két lépés: ébresztő " + firstSequence.alarm.hour +
+                    " óra " + firstSequence.alarm.minute + " perc, majd " +
+                    firstSequence.app + " alkalmazás. Jóváhagyod? Igen vagy nem.")
+            }
+            return
+        }
         if (command.contains("töröld", ignoreCase = true) && command.contains("ébreszt", ignoreCase = true)) {
             speak(if (JarvisAlarms.cancel(this)) "Töröltem a Jarvis-ébresztőt."
                 else "Nem találtam törölhető Jarvis-ébresztőt.")
@@ -713,6 +726,8 @@ class HandsFreeService : Service(), RecognitionListener {
         clearProposal()
         proposedCall = null
         proposedCallUntil = 0L
+        proposedSequence = null
+        proposedSequenceUntil = 0L
         awaitingExternalDraft = null
         externalProposal = null
         externalDeadline = 0L
