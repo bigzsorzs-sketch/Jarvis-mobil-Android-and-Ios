@@ -127,6 +127,14 @@ fun JarvisApp(context: Context) {
     }
     fun executeHome(command: String) {
         if (command.isBlank()) return
+        val localDraft = JarvisMessageIntent.parse(command)
+        if (localDraft != null && !JarvisAiGateway.configured(context)) {
+            prepareMessageReview(localDraft)
+            conversation.add(command to
+                "Helyben előkészítettem a piszkozatot. Ellenőrizd a címzettet és az üzenetet.")
+            if (conversation.size > 50) conversation.removeAt(0)
+            return
+        }
         if (JarvisAiRouting.shouldAskAi(command)) {
             val pending = command to "AI-válaszra várok…"
             conversation.add(pending)
