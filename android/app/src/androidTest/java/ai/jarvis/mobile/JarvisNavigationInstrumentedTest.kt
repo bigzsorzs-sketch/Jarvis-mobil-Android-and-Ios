@@ -22,7 +22,7 @@ class JarvisNavigationInstrumentedTest {
         if (!prefs.getBoolean("permissions_reviewed", false)) {
             composeRule.onNodeWithText("Folytatás").performScrollTo().performClick()
         }
-        composeRule.onNodeWithText("Jarvis").assertExists().performClick()
+        composeRule.onNodeWithTag("jarvis-home-drawer-trigger").assertExists().performClick()
         composeRule.onNodeWithText("Alkalmazások").assertExists().performClick()
         composeRule.onNodeWithText("Telepített alkalmazások").assertExists()
         // Header opens the same drawer without a duplicate floating hamburger.
