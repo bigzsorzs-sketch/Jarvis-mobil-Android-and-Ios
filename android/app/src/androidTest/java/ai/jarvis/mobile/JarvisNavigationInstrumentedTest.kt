@@ -19,6 +19,9 @@ import org.junit.runner.RunWith
 class JarvisNavigationInstrumentedTest {
     @get:Rule val composeRule = createAndroidComposeRule<MainActivity>()
 
+    private fun displayedRoute(route: String): String =
+        JarvisTranslations.text(route, JarvisLanguageSettings.load(composeRule.activity))
+
     private fun finishOnboarding() {
         val prefs = composeRule.activity.getSharedPreferences(
             "jarvis_onboarding_v1", android.content.Context.MODE_PRIVATE)
@@ -35,7 +38,7 @@ class JarvisNavigationInstrumentedTest {
             composeRule.onNodeWithTag("jarvis-home-input")
                 .performTextInput("Nyisd meg a " + tool.name + " oldalt")
             composeRule.onNodeWithTag("jarvis-home-send").performClick()
-            composeRule.onNodeWithTag("jarvis-subpage-header").assert(hasText(tool.route))
+            composeRule.onNodeWithTag("jarvis-subpage-header").assert(hasText(displayedRoute(tool.route)))
             composeRule.onNodeWithTag("jarvis-subpage-input").assertDoesNotExist()
             composeRule.onNodeWithTag("jarvis-subpage-send").assertDoesNotExist()
             composeRule.onNodeWithText("Kérdezd meg Jarvist").assertDoesNotExist()
@@ -53,7 +56,7 @@ class JarvisNavigationInstrumentedTest {
             composeRule.runOnIdle { HandsFreeNavigation.destination = destination }
             if (destination == "Főoldal")
                 composeRule.onNodeWithTag("jarvis-home-input").assertExists()
-            else composeRule.onNodeWithTag("jarvis-subpage-header").assert(hasText(destination))
+            else composeRule.onNodeWithTag("jarvis-subpage-header").assert(hasText(displayedRoute(destination)))
         }
     }
 
