@@ -21,7 +21,7 @@ internal data class BillingInvoice(
     val netPence: Long, val vatPercent: Int, val issueDate: String, val dueDate: String,
     val kind: String = "invoice", val status: String = "draft", val sentAt: String = ""
 ) {
-    val vatPence: Long get() = netPence * vatPercent / 100
+    val vatPence: Long get() = (netPence * vatPercent + 50) / 100
     val totalPence: Long get() = netPence + vatPence
 }
 internal data class BillingState(val clients: List<BillingClient> = emptyList(),
