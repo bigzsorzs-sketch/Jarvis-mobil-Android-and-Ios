@@ -26,6 +26,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -36,6 +37,8 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
 import androidx.core.view.WindowInsetsControllerCompat
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -91,10 +94,43 @@ fun JarvisApp(context: Context) {
     var page by remember { mutableStateOf(
         if (onboardingPrefs.getBoolean("permissions_reviewed", false)) "Főoldal" else "Engedélyek"
     ) }
-    val conversation = remember { mutableStateListOf<Pair<String, String>>() }
+    val chatStore = remember(context) { JarvisChatStore(context) }
+    val conversation = remember(chatStore) { mutableStateListOf<Pair<String, String>>() }
+    var chatStorageWarning by remember { mutableStateOf("") }
+    // Keystore + database access must never block the first Compose frame.
+    // Preserve messages submitted while the earlier history is loading.
+    LaunchedEffect(chatStore) {
+        val loaded = withContext(Dispatchers.IO) { runCatching { chatStore.recent(50) } }
+        if (loaded.isSuccess) {
+            val newest = conversation.toList()
+            conversation.clear()
+            conversation.addAll(loaded.getOrDefault(emptyList()).map { it.request to it.answer })
+            newest.forEach { turn -> if (turn !in conversation) conversation.add(turn) }
+            while (conversation.size > 50) conversation.removeAt(0)
+        } else {
+            chatStorageWarning =
+                "Nem tudtam betölteni a helyi beszélgetésnaplót; az adatokat nem töröltem."
+        }
+    }
     var commandRevision by remember { mutableIntStateOf(0) }
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val drawerScope = rememberCoroutineScope()
+    fun saveChatTurn(turn: Pair<String, String>) {
+        drawerScope.launch(Dispatchers.IO) {
+            try {
+                chatStore.append(turn.first, turn.second)
+            } catch (_: Exception) {
+                withContext(Dispatchers.Main) {
+                    chatStorageWarning = "Hiba: egy beszélgetési bejegyzést nem sikerült titkosítva menteni."
+                }
+            }
+        }
+    }
+    fun addHistory(turn: Pair<String, String>) {
+        conversation.add(turn)
+        if (conversation.size > 50) conversation.removeAt(0)
+        saveChatTurn(turn)
+    }
     var pendingCall by remember { mutableStateOf<VoiceCalling.Target?>(null) }
     var pendingCallUntilMs by remember { mutableLongStateOf(0L) }
     fun prepareCallConfirmation(person: VoiceCalling.Target) {
@@ -149,20 +185,39 @@ fun JarvisApp(context: Context) {
         val sequence = JarvisSequence.plan(command)
         if (sequence != null) {
             askSequenceReview(sequence)
-            conversation.add(command to "Két lépést azonosítottam. Indítás előtt erősítsd meg a műveletsort.")
+            addHistory(command to "Két lépést azonosítottam. Indítás előtt erősítsd meg a műveletsort.")
             if (conversation.size > 50) conversation.removeAt(0)
             return
         }
         val native = JarvisNativeActions.identify(command)
         if (native != null) {
-            conversation.add(command to JarvisNativeActions.execute(context, native, command))
+            addHistory(command to JarvisNativeActions.execute(context, native, command))
+            if (conversation.size > 50) conversation.removeAt(0)
+            return
+        }
+        val systemPanel = JarvisSystemPanels.identify(command)
+        if (systemPanel != null) {
+            addHistory(command to JarvisSystemPanels.open(context, systemPanel, command))
+            return
+        }
+        // A named installed app opens through a user-originated, exact-label
+        // request, never an AI-chosen package/activity name.
+        val appSelection = if (JarvisInstalledApps.requestedLabel(command) != null)
+            JarvisInstalledApps.choose(command, JarvisInstalledApps.list(context))
+        else AppSelection.NotARequest
+        if (appSelection is AppSelection.Found ||
+            appSelection is AppSelection.Ambiguous ||
+            (appSelection is AppSelection.Missing &&
+                BasicCommandRouter.classify(command) == BasicAction.UNKNOWN &&
+                JarvisCapabilities.localPageToOpen(command) == null)) {
+            addHistory(command to JarvisInstalledApps.openRequested(context, command))
             if (conversation.size > 50) conversation.removeAt(0)
             return
         }
         val localDraft = JarvisMessageIntent.parse(command)
         if (localDraft != null && !JarvisAiGateway.configured(context)) {
             prepareMessageReview(localDraft)
-            conversation.add(command to
+            addHistory(command to
                 "Helyben előkészítettem a piszkozatot. Ellenőrizd a címzettet és az üzenetet.")
             if (conversation.size > 50) conversation.removeAt(0)
             return
@@ -205,14 +260,17 @@ fun JarvisApp(context: Context) {
                     else -> outcome.message
                 }
                 val index = conversation.indexOf(pending)
-                if (index >= 0) conversation[index] = command to answer
+                if (index >= 0) {
+                    conversation[index] = command to answer
+                    saveChatTurn(command to answer)
+                }
             }
         } else {
             val answer = JarvisCommandExecutor.run(
                 context, command, { destination -> openTool(destination) },
                 { contact -> prepareCallConfirmation(contact) }
             )
-            conversation.add(command to answer)
+            addHistory(command to answer)
             if (conversation.size > 50) conversation.removeAt(0)
         }
     }
@@ -270,7 +328,30 @@ fun JarvisApp(context: Context) {
             val outcome = if (age in 0..30_000L)
                 JarvisSequence.execute(context, pendingVoiceSequence.plan)
             else "A kétlépéses hangparancs lejárt. Semmit nem hajtottam végre."
-            conversation.add("Hangos műveletsor" to outcome)
+            addHistory("Hangos műveletsor" to outcome)
+            if (conversation.size > 50) conversation.removeAt(0)
+        }
+    }
+    val pendingPanel = HandsFreeNavigation.systemPanel
+    LaunchedEffect(pendingPanel, appIsForeground) {
+        if (pendingPanel != null && appIsForeground) {
+            HandsFreeNavigation.systemPanel = null
+            val age = android.os.SystemClock.elapsedRealtime() - pendingPanel.createdAtMs
+            val response = if (age in 0..30_000L)
+                JarvisSystemPanels.open(context, pendingPanel.kind, pendingPanel.original)
+            else "Lejárt a rendszerbeállítás kérés. Semmi nem történt."
+            addHistory("Hangos beállítások" to response)
+        }
+    }
+    val pendingInstalled = HandsFreeNavigation.installedApp
+    LaunchedEffect(pendingInstalled, appIsForeground) {
+        if (pendingInstalled != null && appIsForeground) {
+            HandsFreeNavigation.installedApp = null
+            val age = android.os.SystemClock.elapsedRealtime() - pendingInstalled.createdAtMs
+            val response = if (age in 0..30_000L)
+                JarvisInstalledApps.openRequested(context, pendingInstalled.original)
+            else "Lejárt a korábbi alkalmazásmegnyitási kérés. Nem történt indítás."
+            addHistory("Hangos alkalmazásmegnyitás" to response)
             if (conversation.size > 50) conversation.removeAt(0)
         }
     }
@@ -282,7 +363,7 @@ fun JarvisApp(context: Context) {
             val answer = if (age in 0..30_000L)
                 JarvisNativeActions.execute(context, pendingNative.action, pendingNative.original)
             else "Lejárt a korábbi Android-művelet. Nem indítottam el semmit."
-            conversation.add("Hangos Android-művelet" to answer)
+            addHistory("Hangos Android-művelet" to answer)
             if (conversation.size > 50) conversation.removeAt(0)
         }
     }
@@ -294,7 +375,7 @@ fun JarvisApp(context: Context) {
             val fresh = android.os.SystemClock.elapsedRealtime() - requestedPhoneApp.createdAtMs < 30_000
             val answer = if (fresh) JarvisPhoneActions.execute(context, requestedPhoneApp.action)
                 else "A korábbi hangparancs lejárt. Nem indítottam el alkalmazást."
-            conversation.add("Jarvis művelet" to answer)
+            addHistory("Jarvis művelet" to answer)
         }
     }
     val voiceDestination = HandsFreeNavigation.destination
@@ -332,6 +413,10 @@ fun JarvisApp(context: Context) {
                         .imePadding()
                         .background(Night)
                 ) {
+                    if (chatStorageWarning.isNotBlank()) {
+                        Text(chatStorageWarning, color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.fillMaxWidth().padding(8.dp))
+                    }
                     if (onHome) {
                         JarvisHomeScreen(
                             context = context,
@@ -351,7 +436,7 @@ fun JarvisApp(context: Context) {
                                 val outcome = if (fresh && task != null)
                                     JarvisSequence.execute(context, task)
                                 else "Lejárt a műveletsor jóváhagyása. Semmit nem hajtottam végre."
-                                conversation.add("Műveletsor jóváhagyása" to outcome)
+                                addHistory("Műveletsor jóváhagyása" to outcome)
                             },
                             onSequenceDismiss = {
                                 pendingSequence = null
@@ -365,7 +450,7 @@ fun JarvisApp(context: Context) {
                                 val answer = if (!fresh || draft == null)
                                     "Lejárt az üzenet jóváhagyása. Nem történt művelet."
                                 else ExternalTasks.dispatch(context, HandoffTask.Message(draft))
-                                conversation.add("Üzenet ellenőrzése" to answer)
+                                addHistory("Üzenet ellenőrzése" to answer)
                             },
                             onMessageDismiss = {
                                 pendingMessage = null
@@ -381,7 +466,7 @@ fun JarvisApp(context: Context) {
                                 else if (VoiceCalling.place(context, person))
                                     "A híváskérést átadtam az Androidnak."
                                 else "A hívást nem sikerült elindítani. Ellenőrizd a telefonengedélyt."
-                                conversation.add("Hívás megerősítve" to answer)
+                                addHistory("Hívás megerősítve" to answer)
                             },
                             onCallDismiss = {
                                 pendingCall = null
@@ -394,7 +479,7 @@ fun JarvisApp(context: Context) {
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(page, color = White, fontSize = 19.sp,
-                                fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f)
+                                fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f).testTag("jarvis-subpage-header")
                                     .clickable { drawerScope.launch { drawerState.open() } })
                             TextButton(onClick = toggleTheme) {
                                 Text(if (isDark) "☀ Világos" else "☾ Sötét", color = Cyan)
@@ -429,6 +514,8 @@ fun JarvisApp(context: Context) {
                                         page = "Főoldal"
                                     }
                                 )
+                                "Alkalmazások" -> JarvisInstalledAppsScreen(context)
+                                "Előzmények" -> JarvisChatHistoryScreen(context)
                                 "Üzenetek" -> MessageInboxScreen(context, onPermissions = {
                                     page = "Engedélyek"
                                 })

@@ -19,6 +19,8 @@ internal object JarvisIdentity {
         - Navigáció átadása telepített térképalkalmazásnak; névjegyek és telefonhívás előkészítése szükséges jogosultságokkal és jóváhagyással.
         - Értesítés-hozzáféréssel üzenetelőnézetek és támogatott gyorsválasz; WhatsApp/Messenger üzenet előkészítése külső alkalmazásban.
         - Helyi vércukornapló, számlatervezetek és PDF-megosztás, jegyzetalkalmazás megnyitása, kísérleti ébresztő, világos/sötét megjelenés, fájlválasztás.
+        - A Jarvis saját csevegési előzményeit titkosítva, kizárólag a telefonon tárolja; a helyi Előzmények oldalon internet nélkül kereshetőek. A régebbi, korábban nem mentett beszélgetések utólag nem állíthatók vissza.
+        - A felhasználó által pontosan megnevezett, telepített és indítható Android-alkalmazások megnyithatók (a hangos kérés csak előtérben indul). Az app belső állapotát nem irányítod, és nincs általános képernyőautomatizálás.
         - Gmail-keresés vagy UC bejelentkezési oldal megnyitása, de nincs közvetlen fiók- vagy levéltartalom-olvasás.
 
         Fontos korlátok:

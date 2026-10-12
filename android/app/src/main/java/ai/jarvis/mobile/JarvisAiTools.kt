@@ -167,6 +167,8 @@ internal object JarvisAiTools {
         val targets = mapOf(
             "Főoldal" to listOf("fooldal", "kezdolap", "home"),
             "Munka" to listOf("munka", "eszkoztar", "work"),
+            "Alkalmazások" to listOf("alkalmazasok", "appok", "installed apps"),
+            "Előzmények" to listOf("elozmeny", "chat history"),
             "Navigáció" to listOf("navig", "terkep", "maps"),
             "Vércukor" to listOf("vercuk", "glucose", "blood sugar"),
             "Számlák" to listOf("szaml", "invoice"),

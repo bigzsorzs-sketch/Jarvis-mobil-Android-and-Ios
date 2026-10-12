@@ -33,6 +33,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.text.TextStyle
@@ -174,7 +175,7 @@ internal fun JarvisHomeScreen(
             JarvisVoiceOrb()
             Text("Jarvis", fontSize = 37.sp, fontWeight = FontWeight.Bold,
                 color = JarvisInk,
-                modifier = Modifier.clickable(
+                modifier = Modifier.testTag("jarvis-home-drawer-trigger").clickable(
                     onClickLabel = "Menü megnyitása", role = Role.Button, onClick = onMenu
                 ).padding(horizontal = 12.dp, vertical = 4.dp))
             Spacer(Modifier.height(18.dp))

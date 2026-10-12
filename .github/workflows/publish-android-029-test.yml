@@ -1,0 +1,76 @@
+name: Publish Jarvis Android 0.2.9 test APK
+on:
+  workflow_run:
+    workflows: ["Build Android APK"]
+    types: [completed]
+    branches: [main]
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  publish-tested-apk:
+    if: >-
+      ${{ github.event.workflow_run.conclusion == 'success' &&
+          github.event.workflow_run.event == 'push' &&
+          github.event.workflow_run.head_branch == 'main' &&
+          github.event.workflow_run.head_repository.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Confirm build commit is still main HEAD
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_SHA: ${{ github.event.workflow_run.head_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          main_sha="$(gh api "repos/${{ github.repository }}/git/ref/heads/main" --jq '.object.sha')"
+          test "$main_sha" = "$RUN_SHA"
+      - name: Download exact successful Android build artifact
+        uses: actions/download-artifact@v4
+        with:
+          run-id: ${{ github.event.workflow_run.id }}
+          name: Jarvis-Android-Debug-APK
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: dist
+      - name: Verify APK and checksum
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s dist/app-debug.apk
+          unzip -t dist/app-debug.apk >/dev/null
+          mv dist/app-debug.apk dist/Jarvis-Mobile-Android-0.2.9-test.apk
+          sha256sum dist/Jarvis-Mobile-Android-0.2.9-test.apk > dist/SHA256SUMS.txt
+      - name: Publish test-only GitHub prerelease
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          tag="v0.2.9-dev-test.1"
+          if gh release view "$tag" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            echo "Existing release kept intact."
+            exit 0
+          fi
+          cat > /tmp/JARVIS_TEST_NOTES.md <<'EOF'
+          ## Jarvis Mobile Android 0.2.9 – TESZT (nem Play Store)
+
+          Ez az APK a sikeres Android egységteszt, Android Lint és debug-fordítás eredményéből származik.
+
+          - Android 16 / API 36, sötét-világos kezelőfelület, menük és kereshető Alkalmazások oldal.
+          - „Nyisd meg a YouTube-ot” és hasonló, pontos nevű parancsokra Jarvis egyértelmű telepített Android-alkalmazást tud elindítani. A nevét Androidból ellenőrzi; névütközéskor nem találgat.
+          - A telepített alkalmazások listája kizárólag a telefonon áll rendelkezésre; nem kerül az AI-szerverre. Nem használ QUERY_ALL_PACKAGES vagy AccessibilityService hozzáférést.
+          - Hangos alkalmazásmegnyitás csak feloldott telefonon, Jarvis előtérbe helyezése után, 30 másodpercen belül indulhat.
+          - A Jarvis beszélgetésfordulóit az új verzió helyi, titkosított SQLite naplóba menti. Az Előzmények menüben offline kereshetsz, nem küld keresett beszélgetést a felhőbe.
+          - A korábbi 0.2.8-ból elveszett, nem tárolt beszélgetéseket nem tudja utólag visszahozni. A helyi titkosítás eszközhöz kötött: új telefonos helyreállítás és Drive/OneDrive mentés MÉG NINCS.
+          - Ez nem korlátlan harmadik fél alkalmazásvezérlés: külső appon belüli gombnyomás, bejelentkezés, posztolás, pénzküldés, üzenetküldés vagy állapotellenőrzés NEM támogatott.
+          - Külső hívás és üzenet csak a meglévő külön ellenőrzött folyamatban használható; soha nincs automatikus elküldés vagy fizetés.
+          - A fizikai telefonos UX, hangfelismerés, Android háttértiltások és gyártói kompatibilitás továbbra is helyszíni tesztet igényel.
+          - **Belső debug tesztkiadás; nincs 100% UI vagy 95% tetszőleges appvezérlés hitelesítve.** Debug-aláírókulcs eltérése esetén frissítéshez eltávolítás válhat szükségessé, ami a helyi adatokat is törölheti.
+          - Semelyik AI-kulcs nincs az APK-ba beégetve; közvetlen OpenRouter teszteléshez saját korlátozott kulcs és külön hozzájárulás szükséges.
+
+          Részletes képesség- és tesztmátrix: docs/ANDROID_CONTROL_029.md
+          EOF
+          gh release create "$tag"             "dist/Jarvis-Mobile-Android-0.2.9-test.apk"             "dist/SHA256SUMS.txt"             --repo "${{ github.repository }}"             --target "$RUN_SHA"             --title "Jarvis Mobile Android 0.2.9 – TESZT"             --notes-file /tmp/JARVIS_TEST_NOTES.md             --prerelease             --latest=false
