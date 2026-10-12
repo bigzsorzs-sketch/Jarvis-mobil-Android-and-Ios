@@ -135,9 +135,10 @@ internal object JarvisAiGateway {
 
             val payload = if (direct) JSONObject().apply {
                 put("model", TEST_MODEL)
-                put("messages", org.json.JSONArray().put(
-                    JSONObject().put("role", "user").put("content", question)
-                ))
+                put("messages", org.json.JSONArray()
+                    .put(JSONObject().put("role", "system")
+                        .put("content", JarvisIdentity.systemPrompt))
+                    .put(JSONObject().put("role", "user").put("content", question)))
                 put("max_tokens", 800)
                 put("stream", false)
             } else JSONObject().put("message", question)
