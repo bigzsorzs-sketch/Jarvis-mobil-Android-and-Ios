@@ -560,9 +560,6 @@ fun JarvisApp(context: Context) {
                                 "Névjegyek" -> ContactsScreen(context, onPermissions = {
                                     page = "Engedélyek"
                                 })
-                                "Ismerősök" -> PeopleDirectoryScreen(context, onPermissions = {
-                                    page = "Engedélyek"
-                                })
                                 "Vércukor" -> GlucoseScreen(readings) {
                                     securePrefs.write("readings", writeReadings(readings))
                                 }
@@ -808,7 +805,6 @@ private fun MoreScreen(context: Context, notes: MutableList<String>, persist: ()
         Button(onClick = { onGo("Engedélyek") }) { Text("Engedélyközpont megnyitása") }
         OutlinedButton(onClick = { onGo("Üzenetek") }) { Text("WhatsApp / Messenger / üzenetek") }
         OutlinedButton(onClick = { onGo("Névjegyek") }) { Text("Névjegyek megtekintése") }
-        Button(onClick = { onGo("Ismerősök") }) { Text("Ismerősök, becenevek és címek") }
     }
     Spacer(Modifier.height(12.dp))
     SurfaceCard {
