@@ -125,6 +125,20 @@ fun JarvisApp(context: Context) {
                 val answer = when {
                     outcome.route != null -> openTool(outcome.route)
                     outcome.deviceAction != null -> JarvisPhoneActions.execute(context, outcome.deviceAction)
+                    outcome.callTarget != null -> {
+                        when (val match = VoiceCalling.lookup(context, outcome.callTarget)) {
+                            is VoiceCalling.Lookup.Found -> {
+                                pendingCall = match.target
+                                "A hívás még nem indult el. Ellenőrizd a címzettet és erősítsd meg."
+                            }
+                            VoiceCalling.Lookup.NoContactsAccess ->
+                                "A névjegyek kereséséhez engedélyezd a Névjegyek hozzáférést."
+                            VoiceCalling.Lookup.Ambiguous ->
+                                "Több azonos névjegyet találtam. Pontosítsd a nevet."
+                            VoiceCalling.Lookup.NotFound ->
+                                "Nem találtam a címzettet; nem indítottam hívást."
+                        }
+                    }
                     else -> outcome.message
                 }
                 val index = conversation.indexOf(pending)
