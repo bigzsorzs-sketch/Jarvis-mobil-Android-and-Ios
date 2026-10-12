@@ -4,6 +4,25 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class JarvisCapabilitiesTest {
+    @Test fun everyMenuAndNestedSettingsPageIsAvailableWithoutAi() {
+        for (tool in JarvisToolCatalog.all + JarvisToolCatalog.subpages) {
+            val request = "Nyisd meg a " + tool.name + " oldalt"
+            assertEquals(request, tool.route, JarvisCapabilities.localPageToOpen(request))
+            assertFalse(request, JarvisAiRouting.shouldAskAi(request))
+        }
+        assertEquals("AI-agy", JarvisCapabilities.localPageToOpen("Nyisd meg a beállítások AI-agy oldalát"))
+        assertEquals("Hangbeállítások", JarvisCapabilities.localPageToOpen("Nyisd meg a hangvezérlést"))
+        assertEquals("Továbbiak", JarvisCapabilities.localPageToOpen("Nyisd meg az otthoni cím beállítását"))
+    }
+
+    @Test fun pageRoutingNeverExecutesNegatedOrMultipleRequests() {
+        assertNull(JarvisCapabilities.localPageToOpen("Ne nyisd meg az ismerősöket"))
+        assertNull(JarvisCapabilities.localPageToOpen("Nyisd meg a munkát és az ismerősöket"))
+        assertNull(JarvisCapabilities.localPageToOpen("Nyisd meg a naptárat és az emailt"))
+        assertNull(JarvisCapabilities.localPageToOpen("Nyisd meg a naptárat"))
+        assertNull(JarvisCapabilities.localPageToOpen("Nyisd meg az emailt"))
+    }
+
     @Test fun introducesJarvisWithoutInventingAbilities() {
         val answer = JarvisCapabilities.replyIfAsked("Mondj magadról, mire vagy képes")!!
         assertTrue(answer.startsWith("Jarvis vagyok"))
@@ -45,3 +64,4 @@ class JarvisCapabilitiesTest {
         assertNull(JarvisCapabilities.localPageToOpen("Listázd az összes eszközöd"))
     }
 }
+

@@ -5,6 +5,22 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class RuntimePermissionPolicyTest {
+    @Test fun notificationOnlyResultDoesNotBlockAnAlreadyGrantedMicrophone() {
+        assertTrue(RuntimePermissionPolicy.mayStartVoice(true,
+            mapOf(Manifest.permission.POST_NOTIFICATIONS to true)))
+        assertTrue(RuntimePermissionPolicy.mayStartVoice(true,
+            mapOf(Manifest.permission.POST_NOTIFICATIONS to false)))
+        assertFalse(RuntimePermissionPolicy.mayStartVoice(false,
+            mapOf(Manifest.permission.POST_NOTIFICATIONS to true)))
+    }
+
+    @Test fun explicitMicrophoneResultControlsVoiceStart() {
+        assertTrue(RuntimePermissionPolicy.mayStartVoice(false,
+            mapOf(Manifest.permission.RECORD_AUDIO to true)))
+        assertFalse(RuntimePermissionPolicy.mayStartVoice(true,
+            mapOf(Manifest.permission.RECORD_AUDIO to false)))
+    }
+
     @Test fun approximateToPreciseUpgradeKeepsBothLocationPermissions() {
         val requested = listOf(Manifest.permission.ACCESS_COARSE_LOCATION,
             Manifest.permission.ACCESS_FINE_LOCATION)
@@ -22,3 +38,4 @@ class RuntimePermissionPolicyTest {
         assertTrue(RuntimePermissionPolicy.missing(requested, requested.toSet()).isEmpty())
     }
 }
+

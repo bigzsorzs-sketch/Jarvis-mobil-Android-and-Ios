@@ -11,6 +11,8 @@ internal object JarvisAiRouting {
         // The dedicated message grammar must reach structured AI tool calling,
         // rather than being mistaken for an 'open messages' menu request.
         if (JarvisMessageIntent.parse(command) != null) return true
+        if (JarvisPhoneActions.requestedAction(command) != null ||
+            JarvisSystemPanels.identify(command) != null) return false
         if (BasicCommandRouter.classify(command) != BasicAction.UNKNOWN) return false
         return ExternalTasks.parseMessage(command) == null &&
             !ExternalTasks.parseUcJournal(command) &&
@@ -22,3 +24,4 @@ internal object JarvisAiRouting {
             AlarmCommands.parseAlarmTime(command) == null
     }
 }
+

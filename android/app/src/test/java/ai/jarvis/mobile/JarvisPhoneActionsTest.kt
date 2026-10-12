@@ -6,6 +6,17 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class JarvisPhoneActionsTest {
+    @Test fun ordinarySpokenSystemAppCommandsNeedNoAi() {
+        assertEquals("calendar", JarvisPhoneActions.requestedAction("Nyisd meg a naptárat"))
+        assertEquals("maps", JarvisPhoneActions.requestedAction("Nyisd meg a térképet"))
+        assertEquals("alarms", JarvisPhoneActions.requestedAction("Nyisd meg az ébresztőket"))
+        assertEquals("email", JarvisPhoneActions.requestedAction("Nyisd meg az emailt"))
+        assertEquals("dialer", JarvisPhoneActions.requestedAction("Nyisd meg a tárcsázót"))
+        assertNull(JarvisPhoneActions.requestedAction("Ne nyisd meg a naptárat"))
+        assertNull(JarvisPhoneActions.requestedAction("Mit tudsz a naptárról?"))
+        assertNull(JarvisPhoneActions.requestedAction("Nyisd meg a térképet és a naptárat"))
+    }
+
     @Test fun opensOnlyExplicitlyNamedAppAndChecksOriginalUserMessage() {
         assertTrue(JarvisPhoneActions.authorized("calendar", "Nyisd meg a naptárat"))
         assertTrue(JarvisPhoneActions.authorized("maps", "Jarvis, kérlek nyisd meg a térképet"))
@@ -47,3 +58,4 @@ class JarvisPhoneActionsTest {
             .put("name", "run_shell").put("route", "maps")), "Nyisd meg a térképet").deviceAction)
     }
 }
+

@@ -8,6 +8,11 @@ class VoiceIntentParserTest {
         assertNull(VoiceIntentParser.afterWakeWord("Csak beszélgetünk Jarvisról"))
         assertEquals("", VoiceIntentParser.afterWakeWord("Hey Jarvis"))
         assertEquals("nyisd meg a térképet", VoiceIntentParser.afterWakeWord("Hé Jarvis, nyisd meg a térképet"))
+        assertEquals("nyisd meg a naptárat", VoiceIntentParser.afterWakeWord("Jarvis, nyisd meg a naptárat"))
+        assertEquals("nyisd meg a térképet", VoiceIntentParser.afterWakeWord("Hé, Jarvis! nyisd meg a térképet"))
+        assertEquals("", VoiceIntentParser.afterWakeWord("Jarvis"))
+        assertNull(VoiceIntentParser.afterWakeWord("Beszéljünk a Jarvis alkalmazásról"))
+        assertNull(VoiceIntentParser.afterWakeWord("Hey Jarvisnak mondtam"))
     }
 
     @Test fun confirmRequiresExplicitWord() {
@@ -43,3 +48,4 @@ class VoiceIntentParserTest {
     }
 
 }
+

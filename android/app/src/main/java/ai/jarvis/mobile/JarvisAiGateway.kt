@@ -82,7 +82,11 @@ internal object JarvisAiGateway {
     }
 
     fun configured(context: Context): Boolean {
-        if (!cloudConsent(context)) return false
+        return cloudConsent(context) && hasSavedConnection(context)
+    }
+
+    /** A saved key and cloud permission are independent, including after updates. */
+    fun hasSavedConnection(context: Context): Boolean {
         val prefs = SecurePrefs(context)
         return if (mode(context) == DIRECT_TEST) {
             isValidOpenRouterKey(prefs.read(KEY_DIRECT, ""))
@@ -96,11 +100,13 @@ internal object JarvisAiGateway {
 
     fun saveDirect(context: Context, key: String): String? {
         if (!BuildConfig.DEBUG) return "Közvetlen OpenRouter-kulcs csak belső tesztalkalmazásban használható."
-        val clean = key.trim()
+        val prefs = SecurePrefs(context)
+        val clean = key.trim().ifEmpty {
+            if (mode(context) == DIRECT_TEST) prefs.read(KEY_DIRECT, "") else ""
+        }
         if (!isValidOpenRouterKey(clean)) {
             return "Érvénytelen OpenRouter-kulcs formátum. Ellenőrizd, hogy a kulcs teljes-e."
         }
-        val prefs = SecurePrefs(context)
         prefs.write(KEY_DIRECT, clean)
         prefs.write(KEY_MODE, DIRECT_TEST)
         // Switching off backend also removes stored family/tester credentials.
@@ -111,12 +117,16 @@ internal object JarvisAiGateway {
     fun save(context: Context, url: String, token: String): String? {
         val base = normalizedBaseUrl(url)
             ?: return "Adj meg egy HTTPS-címet, például https://ai.sajatdomain.hu"
-        if (!isValidTesterToken(token.trim())) {
+        val prefs = SecurePrefs(context)
+        val clean = token.trim().ifEmpty {
+            if (mode(context) == SERVER && base == normalizedBaseUrl(prefs.read(KEY_URL, "")))
+                prefs.read(KEY_TOKEN, "") else ""
+        }
+        if (!isValidTesterToken(clean)) {
             return "Érvénytelen tesztelői kód (64 hexadecimális karakter)."
         }
-        val prefs = SecurePrefs(context)
         prefs.write(KEY_URL, base)
-        prefs.write(KEY_TOKEN, token.trim())
+        prefs.write(KEY_TOKEN, clean)
         prefs.write(KEY_MODE, SERVER)
         prefs.write(KEY_DIRECT, "")
         return null
@@ -217,3 +227,4 @@ internal object JarvisAiGateway {
         }
     }
 }
+

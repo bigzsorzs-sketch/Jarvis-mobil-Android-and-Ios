@@ -149,14 +149,14 @@ fun JarvisApp(context: Context) {
         pendingSequence = plan
         pendingSequenceUntilMs = android.os.SystemClock.elapsedRealtime() + 40_000L
     }
-    fun openTool(destination: String): String {
-        if (destination == "Navigáció" || destination == "Térkép") {
+    fun openTool(destination: String, asPage: Boolean = false): String {
+        if (!asPage && (destination == "Navigáció" || destination == "Térkép")) {
             val opened = openMap(context)
             if (!opened) page = "Főoldal"
             return if (opened) "A térképkérést átadtam az Androidnak."
                 else "Nem találok telepített térképalkalmazást."
         }
-        if (destination == "Jegyzetek") {
+        if (!asPage && destination == "Jegyzetek") {
             val result = JarvisExternalApps.openNotes(context)
             if (result != AppHandoffResult.OPENED) page = "Főoldal"
             return when (result) {
@@ -180,6 +180,10 @@ fun JarvisApp(context: Context) {
         pendingMessageUntilMs = 0L
         pendingSequence = null
         pendingSequenceUntilMs = 0L
+        JarvisCapabilities.localPageToOpen(command)?.let { route ->
+            addHistory(command to openTool(route, asPage = true))
+            return
+        }
         // The same strictly validated local action registry is available from
         // typed commands even when the AI service is offline.
         val sequence = JarvisSequence.plan(command)
@@ -202,16 +206,22 @@ fun JarvisApp(context: Context) {
         }
         // A named installed app opens through a user-originated, exact-label
         // request, never an AI-chosen package/activity name.
+        val phoneAction = JarvisPhoneActions.requestedAction(command)
         val appSelection = if (JarvisInstalledApps.requestedLabel(command) != null)
             JarvisInstalledApps.choose(command, JarvisInstalledApps.list(context))
         else AppSelection.NotARequest
         if (appSelection is AppSelection.Found ||
             appSelection is AppSelection.Ambiguous ||
             (appSelection is AppSelection.Missing &&
+                phoneAction == null &&
                 BasicCommandRouter.classify(command) == BasicAction.UNKNOWN &&
                 JarvisCapabilities.localPageToOpen(command) == null)) {
             addHistory(command to JarvisInstalledApps.openRequested(context, command))
             if (conversation.size > 50) conversation.removeAt(0)
+            return
+        }
+        if (phoneAction != null) {
+            addHistory(command to JarvisPhoneActions.execute(context, phoneAction))
             return
         }
         val localDraft = JarvisMessageIntent.parse(command)
@@ -381,7 +391,7 @@ fun JarvisApp(context: Context) {
     val voiceDestination = HandsFreeNavigation.destination
     LaunchedEffect(voiceDestination, appIsForeground) {
         if (voiceDestination != null && appIsForeground) {
-            openTool(voiceDestination)
+            openTool(voiceDestination, asPage = true)
             HandsFreeNavigation.destination = null
         }
     }
@@ -531,12 +541,23 @@ fun JarvisApp(context: Context) {
                                 "Számlák" -> InvoiceScreen(context, invoices) {
                                     securePrefs.write("invoices", writeInvoices(invoices))
                                 }
+                                "Jegyzetek" -> LocalNotesScreen(notes) {
+                                    securePrefs.write("notes", JSONArray(notes).toString())
+                                }
                                 "Továbbiak" -> MoreScreen(context, notes, {
                                     securePrefs.write("notes", JSONArray(notes).toString())
                                 }, { page = it })
                                 else -> JarvisToolLanding(context, page, onOpen = { openTool(it) })
                             }
                         }
+                    }
+                    if (!onHome) {
+                        conversation.lastOrNull()?.let { turn ->
+                            Text(turn.second, color = Soft, fontSize = 12.sp,
+                                maxLines = 3,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
+                        }
+                        JarvisCommandBar(context, onCommand = { executeHome(it) })
                     }
                 }
             }
@@ -664,8 +685,26 @@ private fun InvoiceScreen(context: Context, invoices: MutableList<Invoice>, pers
 }
 
 @Composable
-private fun MoreScreen(context: Context, notes: MutableList<String>, persist: () -> Unit, onGo: (String) -> Unit) {
+private fun LocalNotesScreen(notes: MutableList<String>, persist: () -> Unit) {
     var note by remember { mutableStateOf("") }
+    SurfaceCard {
+        Text("🧠 Titkosítva tárolt jegyzetek", color = White, fontWeight = FontWeight.Bold)
+        OutlinedTextField(value = note, onValueChange = { note = it },
+            label = { Text("Új jegyzet") }, modifier = Modifier.fillMaxWidth())
+        Button(onClick = {
+            if (note.isNotBlank()) { notes.add(0, note.trim()); persist(); note = "" }
+        }) { Text("Mentés") }
+        notes.forEachIndexed { index, text ->
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(text, Modifier.weight(1f), color = White)
+                TextButton(onClick = { notes.removeAt(index); persist() }) { Text("Törlés") }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MoreScreen(context: Context, notes: MutableList<String>, persist: () -> Unit, onGo: (String) -> Unit) {
     var eventName by remember { mutableStateOf("") }
     var homeAddress by remember(context) { mutableStateOf(VoiceNavigation.homeAddress(context)) }
     var result by remember { mutableStateOf("") }
@@ -736,17 +775,7 @@ private fun MoreScreen(context: Context, notes: MutableList<String>, persist: ()
         OutlinedButton(onClick = { result = if (openDialer(context)) "Tárcsázó megnyitva." else "Nincs tárcsázó alkalmazás." }) { Text("Tárcsázó") }
     }
     Spacer(Modifier.height(12.dp))
-    SurfaceCard {
-        Text("🧠 Titkosítva tárolt jegyzetek", color = White, fontWeight = FontWeight.Bold)
-        OutlinedTextField(value = note, onValueChange = { note = it }, label = { Text("Új jegyzet") }, modifier = Modifier.fillMaxWidth())
-        Button(onClick = { if (note.isNotBlank()) { notes.add(0, note.trim()); persist(); note = "" } }) { Text("Mentés") }
-        notes.forEachIndexed { index, text ->
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(text, Modifier.weight(1f), color = White)
-                TextButton(onClick = { notes.removeAt(index); persist() }) { Text("Törlés") }
-            }
-        }
-    }
+    LocalNotesScreen(notes, persist)
     if (result.isNotEmpty()) {
         Spacer(Modifier.height(10.dp))
         Text(result, color = Cyan, fontSize = 13.sp)
@@ -821,3 +850,4 @@ private fun shareInvoicePdf(context: Context, invoice: Invoice) {
         /* PDF export failure is not treated as a completed invoice */
     } finally { doc.close() }
 }
+

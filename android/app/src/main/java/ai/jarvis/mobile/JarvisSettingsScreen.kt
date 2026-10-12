@@ -72,7 +72,11 @@ internal fun JarvisSettingsScreen(
     SettingsSectionTitle("AI-kapcsolat")
     JarvisSettingsGroup {
         JarvisSettingsRow("✧", "AI-agy",
-            if (JarvisAiGateway.configured(context)) "Tesztelői hozzáférés mentve" else "Csatlakoztatás szükséges", onAi)
+            when {
+                JarvisAiGateway.configured(context) -> "AI-kapcsolat beállítva"
+                JarvisAiGateway.hasSavedConnection(context) -> "Kulcs mentve · hozzájárulás szükséges"
+                else -> "Csatlakoztatás szükséges"
+            }, onAi)
     }
     Spacer(Modifier.height(20.dp))
     SettingsSectionTitle("Telefon-hozzáférés")
@@ -100,3 +104,4 @@ internal fun JarvisSettingsScreen(
     Text("Jarvis Mobile " + version, color = JarvisPalette.subtleText, fontSize = 12.sp,
         modifier = Modifier.fillMaxWidth().padding(12.dp))
 }
+
