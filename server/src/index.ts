@@ -22,7 +22,7 @@ if (oidcParts.some(Boolean) && !oidcParts.every(Boolean)) {
 }
 const issuer = oidcParts[0];
 const audience = oidcParts[1];
-const jwks = oidcParts.every(Boolean) ? createRemoteJWKSet(new URL(oidcParts[2])) : null;
+const jwks = oidcParts.every(Boolean) ? createRemoteJWKSet(new URL(oidcParts[2]!)) : null;
 
 // SHA-256 hashes of independent 256-bit random bearer tokens; NEVER raw tokens.
 // JSON format: {"george":"<64 hex chars>","tester2":"<64 hex chars>"}.
