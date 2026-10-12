@@ -96,7 +96,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          gradle -p android :app:testDebugUnitTest :app:lintRelease :app:assembleRelease
+          gradle -p android :app:testDebugUnitTest :app:testReleaseUnitTest :app:lintRelease :app:assembleRelease
       - name: Cryptographically verify APK, version and integrity
         shell: bash
         run: |
