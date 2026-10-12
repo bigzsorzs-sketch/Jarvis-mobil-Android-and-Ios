@@ -405,8 +405,21 @@ class HandsFreeService : Service(), RecognitionListener {
             }
             return
         }
+        val localAiDraft = JarvisMessageIntent.parse(command)
+        if (localAiDraft != null && !JarvisAiGateway.configured(this)) {
+            if (!privateVoiceAllowed()) {
+                speak("A telefon lezárva. Üzenethez előbb oldd fel.")
+            } else {
+                externalProposal = localAiDraft
+                externalDeadline = now + 40_000L
+                speak("Helyben előkészített üzenet " + localAiDraft.recipient +
+                    " részére: " + localAiDraft.text.take(350) +
+                    ". Megnyissam az üzenetalkalmazásban? Igen vagy nem.")
+            }
+            return
+        }
         // Structured AI draft requests must not be intercepted by legacy local parsing.
-        val outgoing = if (JarvisMessageIntent.parse(command) != null) null
+        val outgoing = if (localAiDraft != null) null
             else ExternalTasks.parseMessage(command)
         if (outgoing != null) {
             if (!privateVoiceAllowed()) {
