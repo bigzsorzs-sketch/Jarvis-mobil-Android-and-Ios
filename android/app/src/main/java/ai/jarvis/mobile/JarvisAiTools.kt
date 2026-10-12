@@ -14,7 +14,8 @@ internal data class JarvisAiOutcome(
     val route: String? = null,
     val deviceAction: String? = null,
     val callTarget: String? = null,
-    val messageDraft: OutgoingMessage? = null
+    val messageDraft: OutgoingMessage? = null,
+    val nativeAction: String? = null
 )
 
 internal object JarvisAiTools {
