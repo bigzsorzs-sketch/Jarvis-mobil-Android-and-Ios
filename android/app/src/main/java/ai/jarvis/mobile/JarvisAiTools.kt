@@ -225,6 +225,10 @@ internal object JarvisAiTools {
             } catch (_: Exception) {
                 return JarvisAiOutcome("Az AI érvénytelen eszközparamétereket adott.")
             }
+            if (function.optString("name") == NATIVE_FUNCTION) {
+                if (args.length() != 1 || args.opt("action") !is String) return JarvisAiOutcome("Érvénytelen AI-művelet.")
+                return validateNative(args.optString("action"), originalInput)
+            }
             if (function.optString("name") == MESSAGE_FUNCTION) {
                 if (args.length() != 1 || args.opt("platform") !is String) {
                     return JarvisAiOutcome("Érvénytelen AI-üzenetparaméterek. Nem történt művelet.")
