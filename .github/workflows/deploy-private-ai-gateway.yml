@@ -72,6 +72,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          umask 077
           tar -czf /tmp/jarvis-beta-deploy.tgz \
             --exclude='server/node_modules' --exclude='server/dist' server
           ssh -i /tmp/jarvis-deploy-ssh-key -o IdentitiesOnly=yes \
@@ -83,7 +84,7 @@ jobs:
           ssh -i /tmp/jarvis-deploy-ssh-key -o IdentitiesOnly=yes \
             -o StrictHostKeyChecking=yes -o UserKnownHostsFile=/tmp/jarvis-deploy-known-hosts \
             "$DEPLOY_USER@$DEPLOY_HOST" \
-            'set -eu; cd /opt/jarvis; tar -xzf release.tgz; chmod 600 server/.env; cd server; docker compose up --build -d; rm -f /opt/jarvis/release.tgz'
+            'set -eu; umask 077; cd /opt/jarvis; chmod 600 release.tgz; trap "rm -f /opt/jarvis/release.tgz" EXIT; tar -xzf release.tgz; chmod 600 server/.env; cd server; docker compose up --build -d'
       - name: Verify HTTPS gateway health
         env:
           JARVIS_DOMAIN: ${{ vars.JARVIS_DOMAIN }}
