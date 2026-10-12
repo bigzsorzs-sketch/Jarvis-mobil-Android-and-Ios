@@ -78,6 +78,8 @@ internal object JarvisCapabilities {
         val route = when {
             Regex("\\bismeros").containsMatchIn(n) -> "Ismerősök"
             Regex("\\bnevjegy").containsMatchIn(n) -> "Névjegyek"
+            Regex("\\belozmeny").containsMatchIn(n) ||
+                n.contains("chat history") -> "Előzmények"
             Regex("\\balkalmazasok").containsMatchIn(n) ||
                 Regex("\\bappok").containsMatchIn(n) -> "Alkalmazások"
             Regex("\\bmunka\\b").containsMatchIn(n) ||
