@@ -95,9 +95,16 @@ internal fun JarvisGlucoseDashboard(
                     runCatching {
                         context.contentResolver.openInputStream(uri)?.use { input ->
                             // Capped input; malformed or enormous exports cannot fill memory.
-                            val bytes = input.readNBytes(5_000_001)
-                            require(bytes.size <= 5_000_000)
-                            val csv = bytes.toString(Charsets.UTF_8)
+                            // Compatible with Android 8+, capped at 5 MB.
+                            val output = java.io.ByteArrayOutputStream()
+                            val buffer = ByteArray(16 * 1024)
+                            while (true) {
+                                val n = input.read(buffer)
+                                if (n < 0) break
+                                require(output.size() + n <= 5_000_000)
+                                output.write(buffer, 0, n)
+                            }
+                            val csv = output.toByteArray().toString(Charsets.UTF_8)
                             JarvisGlucoseData.importLibreView(csv, readings.toList())
                         } ?: throw IllegalArgumentException("Cannot read file")
                     }
