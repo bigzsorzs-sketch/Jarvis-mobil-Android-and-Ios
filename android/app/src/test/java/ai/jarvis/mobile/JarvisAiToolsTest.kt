@@ -6,11 +6,12 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class JarvisAiToolsTest {
-    private fun providerWith(vararg calls: JSONObject): JSONObject =
-        JSONObject().put("choices", JSONArray().put(JSONObject().put("message",
-            JSONObject().put("tool_calls", JSONArray().also { array ->
-                calls.forEach { array.put(it) }
-            })))
+    private fun providerWith(vararg calls: JSONObject): JSONObject {
+        val result = JSONArray()
+        calls.forEach { result.put(it) }
+        val message = JSONObject().put("tool_calls", result)
+        return JSONObject().put("choices", JSONArray().put(JSONObject().put("message", message)))
+    }
 
     private fun toolCall(name: String, params: JSONObject): JSONObject =
         JSONObject().put("type", "function")
