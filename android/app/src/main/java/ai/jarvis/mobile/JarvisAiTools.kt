@@ -252,6 +252,9 @@ internal object JarvisAiTools {
         if (JarvisMessageIntent.parse(originalInput) != null) {
             return JarvisAiOutcome("Az AI nem adott ellenőrzött üzenetpiszkozatot. Nem történt küldés.")
         }
+        if (JarvisNativeActions.identify(originalInput) != null) {
+            return JarvisAiOutcome("Az AI nem adott ellenőrzött Android-parancsot. Nem történt végrehajtás.")
+        }
         return JarvisAiOutcome(message.optString("content", "").trim()
             .ifEmpty { "Az AI üres választ küldött." })
     }
@@ -291,6 +294,9 @@ internal object JarvisAiTools {
         }
         if (JarvisMessageIntent.parse(originalInput) != null) {
             return JarvisAiOutcome("A szerver nem adott ellenőrzött üzenetpiszkozatot. Nem történt küldés.")
+        }
+        if (JarvisNativeActions.identify(originalInput) != null) {
+            return JarvisAiOutcome("A szerver nem adott ellenőrzött Android-parancsot. Nem történt végrehajtás.")
         }
         return JarvisAiOutcome(body.optString("reply", "").trim()
             .ifEmpty { "Az AI üres választ küldött." })
