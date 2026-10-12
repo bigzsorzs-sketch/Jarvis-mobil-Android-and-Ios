@@ -31,7 +31,7 @@ class JarvisGlucoseUiInstrumentedTest {
         composeRule.onNodeWithTag("jarvis-subpage-header").assert(hasText("Vércukor"))
         composeRule.onNodeWithText("NFC és LibreLink").performClick()
         composeRule.onNodeWithTag("jarvis-glucose-open-librelink").performScrollTo().assertExists()
-        composeRule.onNodeWithText("Jelentések").performClick()
+        composeRule.onNodeWithText("Jelentések").performScrollTo().performClick()
         composeRule.onNodeWithText("Nincs elegendő szenzoradat").assertExists()
         composeRule.onNodeWithTag("jarvis-language-switcher").performClick()
         composeRule.onNodeWithTag("jarvis-language-en-GB").performClick()
