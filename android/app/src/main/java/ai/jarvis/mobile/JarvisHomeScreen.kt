@@ -93,6 +93,9 @@ internal fun JarvisHomeScreen(
     fun submit(value: String) {
         val command = value.trim()
         if (command.isBlank()) return
+        // User may manually send a partial dictation; stop listening first so
+        // a delayed final-recognition callback cannot execute it twice.
+        dictation.stop()
         keyboard?.hide()
         text = ""
         issue = ""
