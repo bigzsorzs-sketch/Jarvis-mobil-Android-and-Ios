@@ -26,10 +26,22 @@ import androidx.compose.ui.unit.TextUnit
 /** Stable language codes, unrelated to the internal Hungarian route IDs. */
 internal enum class JarvisLanguage(val tag: String, val flag: String, val label: String) {
     HUNGARIAN("hu-HU", "🇭🇺", "Magyar"),
-    ENGLISH("en-GB", "🇬🇧", "English");
+    ENGLISH("en-GB", "🇬🇧", "English"),
+    GERMAN("de-DE", "🇩🇪", "Deutsch"),
+    FRENCH("fr-FR", "🇫🇷", "Français"),
+    SPANISH("es-ES", "🇪🇸", "Español"),
+    ITALIAN("it-IT", "🇮🇹", "Italiano"),
+    POLISH("pl-PL", "🇵🇱", "Polski");
     companion object {
         fun fromTag(raw: String?): JarvisLanguage =
-            entries.firstOrNull { it.tag == raw } ?: HUNGARIAN
+            entries.firstOrNull { it.tag == raw } ?: fromSpeechTag(raw) ?: HUNGARIAN
+
+        /** Accept recognized regional accents (e.g. en-US, es-MX, fr-CA). */
+        fun fromSpeechTag(raw: String?): JarvisLanguage? {
+            if (raw.isNullOrBlank()) return null
+            val language = raw.replace('_', '-').substringBefore('-').lowercase(java.util.Locale.ROOT)
+            return entries.firstOrNull { it.tag.substringBefore('-') == language }
+        }
     }
 }
 
@@ -49,6 +61,7 @@ internal val LocalJarvisLanguage = compositionLocalOf { JarvisLanguage.HUNGARIAN
 
 /** Only UI chrome is translated. Stored chat messages and user data are not rewritten. */
 internal object JarvisTranslations {
+    internal fun fixedTextKeys(): Set<String> = english.keys
     private val english = mapOf(
         "Saját OpenRouter-kapcsolat: nincs szükség Jarvis-szervercímre. Az API-kulcsodat a telefon titkosított tárhelyére mentjük." to "Personal OpenRouter connection: no Jarvis server address is needed. Your API key is saved in encrypted storage on this phone.",
         "Főoldal" to "Home",
@@ -312,11 +325,12 @@ internal object JarvisTranslations {
     )
     fun text(original: String, language: JarvisLanguage): String {
         if (language == JarvisLanguage.HUNGARIAN) return original
-        english[original]?.let { return it }
-        // Never perform broad word substitution; it could corrupt names or user data.
-        return dynamicPrefixes.firstOrNull { original.startsWith(it.first) }?.let {
-            (from, to) -> to + original.removePrefix(from)
-        } ?: original
+        val en = english[original] ?: dynamicPrefixes.firstOrNull {
+            original.startsWith(it.first)
+        }?.let { (from, to) -> to + original.removePrefix(from) } ?: original
+        if (language == JarvisLanguage.ENGLISH) return en
+        // Translation keys are the original fixed UI labels, never user input.
+        return JarvisMoreTranslations.text(original, language) ?: en
     }
 }
 

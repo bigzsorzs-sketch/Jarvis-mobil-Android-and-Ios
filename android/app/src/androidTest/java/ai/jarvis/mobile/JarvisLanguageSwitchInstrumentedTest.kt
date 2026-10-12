@@ -19,6 +19,34 @@ import org.junit.runner.RunWith
 class JarvisLanguageSwitchInstrumentedTest {
     @get:Rule val composeRule = createAndroidComposeRule<MainActivity>()
 
+    @Test fun everyFlagChangesHomeDrawerAndSubpageWithoutChangingRouteId() {
+        val prefs = composeRule.activity.getSharedPreferences("jarvis_onboarding_v1", Context.MODE_PRIVATE)
+        if (!prefs.getBoolean("permissions_reviewed", false)) {
+            composeRule.onNodeWithText("Folytatás").performScrollTo().performClick()
+        }
+        try {
+            for (language in JarvisLanguage.entries) {
+                composeRule.onNodeWithTag("jarvis-language-switcher").performClick()
+                composeRule.onNodeWithTag("jarvis-language-" + language.tag).performClick()
+                composeRule.onNodeWithText(
+                    JarvisTranslations.text("Kérdezd meg Jarvist", language)).assertExists()
+                assertEquals(language, JarvisLanguageSettings.load(composeRule.activity))
+                composeRule.onNodeWithTag("jarvis-home-drawer-trigger").performClick()
+                composeRule.onNodeWithTag("jarvis-drawer-list").performScrollToIndex(
+                    JarvisToolCatalog.all.indexOfFirst { it.route == "Beállítások" })
+                composeRule.onNodeWithText(
+                    JarvisTranslations.text("Beállítások", language)).performClick()
+                composeRule.onNodeWithTag("jarvis-subpage-header").assert(
+                    hasText(JarvisTranslations.text("Beállítások", language)))
+                composeRule.onNodeWithTag("jarvis-subpage-home-button").performClick()
+            }
+        } finally {
+            composeRule.runOnIdle {
+                JarvisLanguageSettings.save(composeRule.activity, JarvisLanguage.HUNGARIAN)
+            }
+        }
+    }
+
     @Test fun languageFlagTranslatesHomeDrawerAndNestedSettingsAndPersists() {
         val prefs = composeRule.activity.getSharedPreferences("jarvis_onboarding_v1", Context.MODE_PRIVATE)
         if (!prefs.getBoolean("permissions_reviewed", false)) {

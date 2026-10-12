@@ -29,7 +29,8 @@ internal class JarvisDictation(private val context: Context) {
     fun start(
         partial: (String) -> Unit,
         complete: (String) -> Unit,
-        status: (String) -> Unit
+        status: (String) -> Unit,
+        onLanguageDetected: (JarvisLanguage) -> Unit = {}
     ) {
         stop()
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) !=
@@ -43,6 +44,7 @@ internal class JarvisDictation(private val context: Context) {
             return
         }
         try {
+            val fallbackLanguage = JarvisLanguageSettings.load(context)
             val speech = SpeechRecognizer.createSpeechRecognizer(context)
             recognizer = speech
             speech.setRecognitionListener(object : RecognitionListener {
@@ -78,12 +80,14 @@ internal class JarvisDictation(private val context: Context) {
                         SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()
                     if (!heard.isNullOrBlank()) partial(heard)
                 }
+                override fun onLanguageDetection(results: Bundle) {
+                    val detected = JarvisSpeechRecognition.fromPlatformResult(results, fallbackLanguage)
+                    if (detected != null && detected != fallbackLanguage) onLanguageDetected(detected)
+                }
                 override fun onEvent(eventType: Int, params: Bundle?) {}
             })
             speech.startListening(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,
-                    RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE, JarvisLanguageSettings.load(context).tag)
+                JarvisSpeechRecognition.configure(this, fallbackLanguage)
                 putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
                 putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
             })

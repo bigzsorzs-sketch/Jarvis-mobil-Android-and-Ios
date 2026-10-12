@@ -70,6 +70,8 @@ class HandsFreeService : Service(), RecognitionListener {
     private var activeVoiceCommand: String? = null
     private var turnCounter = 0L
     private var usingOnDeviceRecognizer = false
+    private var recognizedUtteranceLanguage: JarvisLanguage? = null
+    private var autoLanguageSwitchEnabled = android.os.Build.VERSION.SDK_INT >= 34
     private var running = false
     private var speaking = false
     private var errors = 0
@@ -237,14 +239,15 @@ class HandsFreeService : Service(), RecognitionListener {
             return
         }
         try {
+            recognizedUtteranceLanguage = null
             HandsFreeStatus.status = when {
                 proposed != null -> "Megerősítést várok: igen vagy nem"
                 awaitingCommand -> "Figyelek a parancsodra"
                 else -> "Mondd: Jarvis vagy Hey Jarvis"
             }
             recognizer?.startListening(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE, JarvisLanguageSettings.load(applicationContext).tag)
+                JarvisSpeechRecognition.configure(this, JarvisLanguageSettings.load(applicationContext),
+                    autoLanguageSwitchEnabled)
                 putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, usingOnDeviceRecognizer)
                 putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
             })
@@ -255,6 +258,10 @@ class HandsFreeService : Service(), RecognitionListener {
         }
     }
     private fun speak(text: String) {
+        val wantedLanguage = recognizedUtteranceLanguage ?: JarvisLanguageSettings.load(applicationContext)
+        // Use the actual recognized language for this spoken reply. If the
+        // installed Android voice engine lacks it, keep the existing fallback.
+        tts?.setLanguage(Locale.forLanguageTag(wantedLanguage.tag))
         HandsFreeStatus.answer = text
         HandsFreeStatus.status = "Jarvis válaszol"
         activeVoiceCommand?.let { request ->
@@ -267,7 +274,7 @@ class HandsFreeService : Service(), RecognitionListener {
         if (!ttsReady) {
             // TTS initialization is async. Never silently drop the first answer.
             pendingTtsText = text
-            HandsFreeStatus.status = "A magyar hangmotor indul…"
+            HandsFreeStatus.status = "A hangmotor indul…"
             handler.postDelayed({
                 if (running && pendingTtsText == text && !ttsReady) {
                     pendingTtsText = null
@@ -734,7 +741,8 @@ class HandsFreeService : Service(), RecognitionListener {
                     HandsFreeStatus.status = "AI-válaszra várok"
                     aiJob?.cancel()
                     aiJob = CoroutineScope(Dispatchers.Main.immediate).launch {
-                        val outcome = JarvisAiGateway.askStructured(applicationContext, command)
+                        val outcome = JarvisAiGateway.askStructured(applicationContext, command,
+                            recognizedUtteranceLanguage?.tag)
                         if (running) {
                             speaking = false
                             when {
@@ -823,6 +831,16 @@ class HandsFreeService : Service(), RecognitionListener {
         HandsFreeStatus.micLevel = 0f
     }
     override fun onPartialResults(partialResults: Bundle?) {}
+    override fun onLanguageDetection(results: Bundle) {
+        if (!running || speaking || !autoLanguageSwitchEnabled) return
+        val detected = JarvisSpeechRecognition.fromPlatformResult(
+            results, JarvisLanguageSettings.load(applicationContext)) ?: return
+        recognizedUtteranceLanguage = detected
+        if (detected != JarvisLanguageSettings.load(applicationContext)) {
+            JarvisSpeechLanguageEvents.detected = detected
+            JarvisLanguageSettings.save(applicationContext, detected)
+        }
+    }
     override fun onEvent(eventType: Int, params: Bundle?) {}
     override fun onResults(results: Bundle?) {
         HandsFreeStatus.userSpeaking = false
@@ -840,16 +858,25 @@ class HandsFreeService : Service(), RecognitionListener {
             errors = 0
             try {
                 createRecognizer()
-                HandsFreeStatus.status = "A telefon alapértelmezett magyar beszédfelismerőjére váltok."
+                HandsFreeStatus.status = "A telefon rendszer-beszédfelismerőjére váltok."
                 again(450)
             } catch (_: Exception) {
-                shutdown("Nem érhető el magyar beszédfelismerő. Ellenőrizd a telefon hangbeállításait.")
+                shutdown("Nem érhető el a beszédfelismerő. Ellenőrizd a telefon hangbeállításait.")
             }
             return
         }
         if (error == SpeechRecognizer.ERROR_LANGUAGE_NOT_SUPPORTED ||
             error == SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE) {
-            shutdown("A magyar beszédfelismerés nem érhető el. Engedélyezd vagy töltsd le a magyar nyelvet a telefon hangbeállításaiban.")
+            if (autoLanguageSwitchEnabled) {
+                // Missing extra-language models must not break the user's original
+                // single-language voice command flow. Retry without auto switching.
+                autoLanguageSwitchEnabled = false
+                errors = 0
+                HandsFreeStatus.status = "Automatikus nyelvváltás nem elérhető; a kiválasztott nyelvre váltok."
+                again(450)
+            } else {
+                shutdown("A beszédfelismerés a kiválasztott nyelven nem elérhető. Telepítsd a nyelvi modellt a telefon beállításaiban.")
+            }
             return
         }
         if (error == SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS) {
