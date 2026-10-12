@@ -95,6 +95,11 @@ fun JarvisApp(context: Context) {
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val drawerScope = rememberCoroutineScope()
     var pendingCall by remember { mutableStateOf<VoiceCalling.Target?>(null) }
+    var pendingCallUntilMs by remember { mutableLongStateOf(0L) }
+    fun prepareCallConfirmation(person: VoiceCalling.Target) {
+        pendingCall = person
+        pendingCallUntilMs = android.os.SystemClock.elapsedRealtime() + 30_000L
+    }
     fun openTool(destination: String): String {
         if (destination == "Navigáció" || destination == "Térkép") {
             val opened = openMap(context)
@@ -128,7 +133,7 @@ fun JarvisApp(context: Context) {
                     outcome.callTarget != null -> {
                         when (val match = VoiceCalling.lookup(context, outcome.callTarget)) {
                             is VoiceCalling.Lookup.Found -> {
-                                pendingCall = match.target
+                                prepareCallConfirmation(match.target)
                                 "A hívás még nem indult el. Ellenőrizd a címzettet és erősítsd meg."
                             }
                             VoiceCalling.Lookup.NoContactsAccess ->
@@ -147,7 +152,7 @@ fun JarvisApp(context: Context) {
         } else {
             val answer = JarvisCommandExecutor.run(
                 context, command, { destination -> openTool(destination) },
-                { contact -> pendingCall = contact }
+                { contact -> prepareCallConfirmation(contact) }
             )
             conversation.add(command to answer)
             if (conversation.size > 50) conversation.removeAt(0)
@@ -252,13 +257,20 @@ fun JarvisApp(context: Context) {
                             pendingCall = pendingCall,
                             onCallConfirm = {
                                 val person = pendingCall
+                                val fresh = android.os.SystemClock.elapsedRealtime() <= pendingCallUntilMs
                                 pendingCall = null
-                                val answer = if (person != null && VoiceCalling.place(context, person))
+                                pendingCallUntilMs = 0L
+                                val answer = if (!fresh || person == null)
+                                    "Lejárt a hívás megerősítési ideje. Nem indítottam hívást."
+                                else if (VoiceCalling.place(context, person))
                                     "A híváskérést átadtam az Androidnak."
                                 else "A hívást nem sikerült elindítani. Ellenőrizd a telefonengedélyt."
                                 conversation.add("Hívás megerősítve" to answer)
                             },
-                            onCallDismiss = { pendingCall = null }
+                            onCallDismiss = {
+                                pendingCall = null
+                                pendingCallUntilMs = 0L
+                            }
                         )
                     } else {
                         Row(
