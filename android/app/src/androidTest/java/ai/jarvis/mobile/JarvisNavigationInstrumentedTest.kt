@@ -41,7 +41,7 @@ class JarvisNavigationInstrumentedTest {
             composeRule.onNodeWithTag("jarvis-subpage-header").assert(hasText(displayedRoute(tool.route)))
             composeRule.onNodeWithTag("jarvis-subpage-input").assertDoesNotExist()
             composeRule.onNodeWithTag("jarvis-subpage-send").assertDoesNotExist()
-            composeRule.onNodeWithText("Kérdezd meg Jarvist").assertDoesNotExist()
+            composeRule.onNodeWithText(displayedRoute("Kérdezd meg Jarvist")).assertDoesNotExist()
             composeRule.onNodeWithTag("jarvis-subpage-home-button").performClick()
         }
         composeRule.onNodeWithTag("jarvis-home-input").assertExists()
@@ -64,7 +64,7 @@ class JarvisNavigationInstrumentedTest {
         finishOnboarding()
         composeRule.onNodeWithTag("jarvis-home-drawer-trigger").performClick()
         composeRule.onNodeWithText("Ismerősök").assertDoesNotExist()
-        composeRule.onNodeWithText("Főoldal").assertExists()
+        composeRule.onNodeWithText(displayedRoute("Főoldal")).assertExists()
     }
 
     @Test fun homeMenusAndTwoNewPagesCanBeOpened() {
@@ -75,13 +75,13 @@ class JarvisNavigationInstrumentedTest {
             composeRule.onNodeWithText("Folytatás").performScrollTo().performClick()
         }
         composeRule.onNodeWithTag("jarvis-home-drawer-trigger").assertExists().performClick()
-        composeRule.onNodeWithText("Alkalmazások").assertExists().performClick()
-        composeRule.onNodeWithText("Telepített alkalmazások").assertExists()
+        composeRule.onNodeWithText(displayedRoute("Alkalmazások")).assertExists().performClick()
+        composeRule.onNodeWithText(displayedRoute("Telepített alkalmazások")).assertExists()
         // Header opens the same drawer without a duplicate floating hamburger.
         composeRule.onNodeWithTag("jarvis-subpage-header").performClick()
-        composeRule.onNodeWithText("Előzmények").assertExists().performClick()
-        composeRule.onNodeWithText("Helyi beszélgetések").assertExists()
-        composeRule.onNodeWithText("Keresés az előzményekben").assertExists()
+        composeRule.onNodeWithText(displayedRoute("Előzmények")).assertExists().performClick()
+        composeRule.onNodeWithText(displayedRoute("Helyi beszélgetések")).assertExists()
+        composeRule.onNodeWithText(displayedRoute("Keresés az előzményekben")).assertExists()
     }
 }
 
