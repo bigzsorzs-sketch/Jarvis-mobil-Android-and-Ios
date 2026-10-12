@@ -13,7 +13,7 @@ jobs:
   signed-candidate:
     # Never auto-publish or build production signatures from a PR or unreviewed tag.
     if: >-
-      {{ github.ref == 'refs/heads/main' && inputs.confirmation == 'QA_PASSED_AND_POLICY_REVIEWED' }}
+      ${{ github.ref == 'refs/heads/main' && inputs.confirmation == 'QA_PASSED_AND_POLICY_REVIEWED' }}
     environment: production
     runs-on: ubuntu-latest
     timeout-minutes: 40
@@ -36,10 +36,10 @@ jobs:
       - name: Recover protected signing credentials
         shell: bash
         env:
-          SIGNING_FILE_BASE64: {{ secrets.ANDROID_UPLOAD_KEYSTORE_BASE64 }}
-          SIGNING_STORE_PASSWORD: {{ secrets.ANDROID_UPLOAD_STORE_PASSWORD }}
-          SIGNING_KEY_ALIAS: {{ secrets.ANDROID_UPLOAD_KEY_ALIAS }}
-          SIGNING_KEY_PASSWORD: {{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
+          SIGNING_FILE_BASE64: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_BASE64 }}
+          SIGNING_STORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_STORE_PASSWORD }}
+          SIGNING_KEY_ALIAS: ${{ secrets.ANDROID_UPLOAD_KEY_ALIAS }}
+          SIGNING_KEY_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
         run: |
           set -euo pipefail
           test -n "$SIGNING_FILE_BASE64"
@@ -52,10 +52,10 @@ jobs:
       - name: Run unit tests, release lint and build signed APK and AAB
         shell: bash
         env:
-          ANDROID_SIGNING_STORE_FILE: {{ runner.temp }}/jarvis-upload.jks
-          ANDROID_SIGNING_STORE_PASSWORD: {{ secrets.ANDROID_UPLOAD_STORE_PASSWORD }}
-          ANDROID_SIGNING_KEY_ALIAS: {{ secrets.ANDROID_UPLOAD_KEY_ALIAS }}
-          ANDROID_SIGNING_KEY_PASSWORD: {{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
+          ANDROID_SIGNING_STORE_FILE: ${{ runner.temp }}/jarvis-upload.jks
+          ANDROID_SIGNING_STORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_STORE_PASSWORD }}
+          ANDROID_SIGNING_KEY_ALIAS: ${{ secrets.ANDROID_UPLOAD_KEY_ALIAS }}
+          ANDROID_SIGNING_KEY_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
         run: |
           set -euo pipefail
           test -s "$ANDROID_SIGNING_STORE_FILE"
