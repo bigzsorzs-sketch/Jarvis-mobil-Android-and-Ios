@@ -16,7 +16,8 @@ class JarvisIdentityTest {
         val prompt = JarvisIdentity.systemPrompt
         assertTrue(prompt.contains("vércukornapló"))
         assertTrue(prompt.contains("Navigáció"))
-        assertTrue(prompt.contains("nem futtathat automatikusan Android-eszközműveleteket"))
+        assertTrue(prompt.contains("telefonoldali ellenőrzés"))
+        assertTrue(prompt.contains("külön felhasználói megerősítés"))
         assertTrue(prompt.contains("mobilos önjavítást"))
         assertFalse(prompt.isBlank())
     }
