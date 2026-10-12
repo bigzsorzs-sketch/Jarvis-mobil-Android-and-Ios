@@ -7,7 +7,7 @@ package ai.jarvis.mobile
  */
 internal object JarvisMessageIntent {
     private val hu = Regex(
-        """(?iu)^(?:írj|küldj|üzenj)\s+(?:egy\s+)?(whats\s*app(?:[- ]?on)?|messenger(?:en|ben)?)\s+(?:üzenetet\s+)?(?:a\s+|az\s+)?(.+?)\s*,?\s+(?:hogy|szöveggel)\s+(.+)$"""
+        """(?iu)^(?:írj|küldj|üzenj)\s+(?:egy\s+)?(whats\s*app(?:[- ]?on)?|messenger(?:en|ben)?)\s+(?:üzenetet\s+)?(?:a\s+|az\s+)?(.+?)\s*,?\s*(?:hogy|szöveggel)\s+(.+)$"""
     )
     private val en = Regex(
         """(?iu)^(?:send|write)\s+(?:a\s+)?(whatsapp|messenger)\s+message\s+to\s+(.+?)\s+(?:saying|that\s+says)\s+(.+)$"""
