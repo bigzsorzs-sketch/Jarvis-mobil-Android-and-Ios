@@ -152,6 +152,8 @@ fun JarvisApp(context: Context) {
                 val answer = when {
                     outcome.route != null -> openTool(outcome.route)
                     outcome.deviceAction != null -> JarvisPhoneActions.execute(context, outcome.deviceAction)
+                    outcome.nativeAction != null ->
+                        JarvisNativeActions.execute(context, outcome.nativeAction, command)
                     outcome.messageDraft != null -> {
                         prepareMessageReview(outcome.messageDraft)
                         "A címzett és az üzenet ellenőrzésre vár. Semmit nem küldtem el."
