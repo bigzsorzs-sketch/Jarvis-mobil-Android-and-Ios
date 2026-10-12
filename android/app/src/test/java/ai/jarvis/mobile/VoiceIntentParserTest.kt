@@ -25,4 +25,12 @@ class VoiceIntentParserTest {
         assertEquals("20 perc múlva hazaérek", VoiceIntentParser.replyDraft("Válaszolj neki hogy 20 perc múlva hazaérek"))
         assertNull(VoiceIntentParser.replyDraft("válaszolj neki"))
     }
+    @Test fun messageConsentCannotTriggerPhoneCall() {
+        org.junit.Assert.assertTrue(VoiceIntentParser.isCallYes("igen"))
+        org.junit.Assert.assertTrue(VoiceIntentParser.isCallYes("yes"))
+        org.junit.Assert.assertFalse(VoiceIntentParser.isCallYes("küldd el"))
+        org.junit.Assert.assertFalse(VoiceIntentParser.isCallYes("send"))
+        org.junit.Assert.assertFalse(VoiceIntentParser.isCallYes("nem"))
+    }
+
 }
