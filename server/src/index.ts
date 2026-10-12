@@ -40,6 +40,11 @@ const testerRecords = Object.entries(rawTesters).map(([id, hash]) => {
 if (testerRecords.length > 10 || (!jwks && testerRecords.length === 0)) {
   throw new Error("Configure OIDC or 1–10 tester tokens");
 }
+// Production/public access cannot silently inherit the private-beta token bypass.
+const publicLaunch = process.env.PUBLIC_LAUNCH_ENABLED === "true";
+if (publicLaunch && (!jwks || testerRecords.length > 0)) {
+  throw new Error("Public launch requires complete OIDC and no tester-token bypass");
+}
 function findTester(token: string): string | null {
   if (token.length !== 64 || !/^[a-fA-F0-9]{64}$/.test(token)) return null;
   const digest = createHash("sha256").update(token, "utf8").digest();
@@ -124,7 +129,7 @@ const server = http.createServer(async (req, res) => {
   try {
     const match = /^Bearer\s+(.+)$/i.exec(req.headers.authorization ?? "");
     if (!match?.[1]) return reply(res, 401, { error: "AUTH_REQUIRED" });
-    let subject = findTester(match[1]);
+    let subject = publicLaunch ? null : findTester(match[1]);
     const tester = subject !== null;
     if (!subject && jwks) {
       try {
