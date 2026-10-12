@@ -57,6 +57,13 @@ class JarvisNavigationInstrumentedTest {
         }
     }
 
+    @Test fun removedFriendsAliasPageIsAbsentFromDrawer() {
+        finishOnboarding()
+        composeRule.onNodeWithTag("jarvis-home-drawer-trigger").performClick()
+        composeRule.onNodeWithText("Ismerősök").assertDoesNotExist()
+        composeRule.onNodeWithText("Főoldal").assertExists()
+    }
+
     @Test fun homeMenusAndTwoNewPagesCanBeOpened() {
         // First-run permissions are optional: never grant access in a UI test.
         val prefs = composeRule.activity.getSharedPreferences(
