@@ -8,9 +8,9 @@ internal object JarvisAiRouting {
         if (command.isEmpty() || LocalConversation.reply(command) != null ||
             JarvisCapabilities.replyIfAsked(command) != null ||
             JarvisCapabilities.localPageToOpen(command) != null) return false
-        // The dedicated message grammar must reach structured AI tool calling,
-        // rather than being mistaken for an 'open messages' menu request.
-        if (JarvisMessageIntent.parse(command) != null) return true
+        // Exact explicit drafts are always handled locally with recipient/body
+        // verification and review; they must not depend on model tools.
+        if (JarvisMessageIntent.parse(command) != null) return false
         if (JarvisPhoneActions.requestedAction(command) != null ||
             JarvisSystemPanels.identify(command) != null) return false
         if (BasicCommandRouter.classify(command) != BasicAction.UNKNOWN) return false
