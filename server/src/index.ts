@@ -3,6 +3,7 @@ import { createHash, timingSafeEqual } from "node:crypto";
 import { createRemoteJWKSet, jwtVerify } from "jose";
 import { createClient } from "redis";
 import { JARVIS_TOOLS, verifiedToolCall } from "./toolCalls.js";
+import { shouldOfferToolCalls } from "./toolRouting.js";
 import { readLimitedProviderJson } from "./responseLimits.js";
 
 function required(name: string): string {
@@ -167,6 +168,7 @@ const server = http.createServer(async (req, res) => {
       arguments: ["12", "1000", "180", String(40 * 86400)]
     });
     if (quota !== 0) return reply(res, 429, { error: "USAGE_LIMIT" });
+    const toolsRequested = shouldOfferToolCalls(message);
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 25000);
     let modelReply: {
@@ -186,14 +188,16 @@ const server = http.createServer(async (req, res) => {
             { role: "system", content: JARVIS_SYSTEM_PROMPT },
             { role: "user", content: message }
           ],
-          tools: JARVIS_TOOLS,
-          tool_choice: "auto",
+          ...(toolsRequested ? { tools: JARVIS_TOOLS, tool_choice: "auto" } : {}),
           stream: false,
           max_tokens: MAX_OUTPUT_TOKENS
         }),
         signal: controller.signal
       });
-      if (!upstream.ok) return reply(res, 502, { error: "PROVIDER_ERROR" });
+      if (!upstream.ok) {
+        return reply(res, 502, { error: upstream.status === 404 && toolsRequested
+          ? "PROVIDER_TOOL_ENDPOINT_UNAVAILABLE" : "PROVIDER_ERROR" });
+      }
       modelReply = await readLimitedProviderJson(upstream) as typeof modelReply;
     } finally {
       // Keep the same deadline for streaming the response body, not just headers.
@@ -202,9 +206,12 @@ const server = http.createServer(async (req, res) => {
     const messageData = modelReply.choices?.[0]?.message;
     const hasToolCalls = messageData && "tool_calls" in messageData &&
       messageData.tool_calls != null;
-    const action = hasToolCalls ? verifiedToolCall(messageData.tool_calls) : null;
+    const action = hasToolCalls && toolsRequested
+      ? verifiedToolCall(messageData.tool_calls) : null;
     const answer = messageData?.content;
-    if (!action && (hasToolCalls || typeof answer !== "string")) {
+    // Never pretend that an AI text response executed a requested tool.
+    // Plain questions cannot result in tool actions even if provider misbehaves.
+    if (!action && (hasToolCalls || typeof answer !== "string" || toolsRequested)) {
       return reply(res, 502, { error: "INVALID_PROVIDER_TOOL_CALL" });
     }
     const used = modelReply.usage?.total_tokens;
