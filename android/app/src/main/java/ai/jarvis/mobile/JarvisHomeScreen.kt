@@ -238,7 +238,6 @@ internal fun JarvisHomeScreen(
                             fontWeight = FontWeight.SemiBold)
                         Spacer(Modifier.height(4.dp))
                         Text(answer, color = JarvisMuted, fontSize = 13.sp)
-                        }
                     }
                 }
             }
