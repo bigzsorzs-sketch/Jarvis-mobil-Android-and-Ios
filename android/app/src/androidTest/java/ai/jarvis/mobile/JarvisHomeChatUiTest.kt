@@ -22,6 +22,7 @@ class JarvisHomeChatUiTest {
         if (!prefs.getBoolean("permissions_reviewed", false)) {
             composeRule.onNodeWithText("Folytatás").performScrollTo().performClick()
         }
+        composeRule.onNodeWithTag("jarvis-large-voice-mic").assertExists()
         composeRule.onNodeWithTag("jarvis-home-input").performTextInput("szia")
         composeRule.onNodeWithTag("jarvis-home-send").performClick()
         composeRule.onNodeWithText("Szia! Miben segíthetek?").assertExists()

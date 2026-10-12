@@ -27,6 +27,15 @@ internal object VoiceCalling {
         .replace(Regex("[^a-z0-9+ ]"), "")
         .trim().replace(Regex("\\s+"), " ")
 
+    /** Full-name equality with only common Hungarian address/dative suffixes.
+     * This is never a partial/fuzzy identity match: ambiguous contacts stay blocked.
+     */
+    internal fun matchesContactName(spoken: String, contactName: String): Boolean {
+        val query = normalize(spoken)
+        val name = normalize(contactName)
+        return name.length >= 2 && query in setOf(name, name + "t", name + "nak", name + "nek")
+    }
+
     fun extractRequest(text: String): String? {
         val matched = Regex(
             "^(?:h[ií]vd\\s+fel|t[aá]rcs[aá]zd|telefon[aá]lj|call)\\s+(?:(?:a|az)\\s+)?(.+?)\\s*[.!?]?$",
@@ -86,10 +95,7 @@ internal object VoiceCalling {
                 while (cursor.moveToNext() && candidates.size <= 2) {
                     val name = cursor.getString(nameAt).orEmpty()
                     val phone = cursor.getString(numberAt).orEmpty()
-                    val normalizedName = normalize(name)
-                    val normalizedQuery = normalize(query)
-                    val matches = normalizedQuery == normalizedName ||
-                        normalizedQuery == normalizedName + "t"
+                    val matches = matchesContactName(query, name)
                     if (matches && phone.isNotBlank()) candidates.add(Target(name, phone))
                 }
             }

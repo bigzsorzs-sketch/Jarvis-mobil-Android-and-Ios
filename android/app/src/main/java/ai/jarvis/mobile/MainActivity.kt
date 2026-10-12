@@ -135,6 +135,16 @@ fun JarvisApp(context: Context) {
         conversation.add(turn)
         saveChatTurn(turn)
     }
+    // Spoken commands share the same encrypted local timeline as typed messages.
+    // Consume exactly once even when the Activity is recomposed.
+    val completedVoiceTurn = HandsFreeNavigation.completedVoiceTurn
+    LaunchedEffect(completedVoiceTurn) {
+        completedVoiceTurn?.let { turn ->
+            addHistory(turn.request to turn.answer)
+            if (HandsFreeNavigation.completedVoiceTurn == turn)
+                HandsFreeNavigation.completedVoiceTurn = null
+        }
+    }
     suspend fun loadEarlierConversation() {
         if (!hasOlderChat || loadingOlderChat || oldestChatId <= 0L) return
         loadingOlderChat = true
@@ -560,9 +570,6 @@ fun JarvisApp(context: Context) {
                                 "Névjegyek" -> ContactsScreen(context, onPermissions = {
                                     page = "Engedélyek"
                                 })
-                                "Ismerősök" -> PeopleDirectoryScreen(context, onPermissions = {
-                                    page = "Engedélyek"
-                                })
                                 "Vércukor" -> GlucoseScreen(readings) {
                                     securePrefs.write("readings", writeReadings(readings))
                                 }
@@ -808,7 +815,6 @@ private fun MoreScreen(context: Context, notes: MutableList<String>, persist: ()
         Button(onClick = { onGo("Engedélyek") }) { Text("Engedélyközpont megnyitása") }
         OutlinedButton(onClick = { onGo("Üzenetek") }) { Text("WhatsApp / Messenger / üzenetek") }
         OutlinedButton(onClick = { onGo("Névjegyek") }) { Text("Névjegyek megtekintése") }
-        Button(onClick = { onGo("Ismerősök") }) { Text("Ismerősök, becenevek és címek") }
     }
     Spacer(Modifier.height(12.dp))
     SurfaceCard {

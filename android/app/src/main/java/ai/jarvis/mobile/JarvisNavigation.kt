@@ -30,7 +30,6 @@ internal object JarvisToolCatalog {
         JarvisTool("Naptár", "Naptár", "▦"),
         JarvisTool("Jegyzetek", "Jegyzetek", "≡"),
         JarvisTool("Ébresztő", "Ébresztő", "◷"),
-        JarvisTool("Ismerősök", "Ismerősök", "♡"),
         JarvisTool("Beállítások", "Beállítások", "⚙")
     )
     // Actual destinations reachable from tool pages and Settings.
@@ -110,7 +109,6 @@ internal fun JarvisToolLanding(context: Context, page: String, onOpen: (String) 
                 else if (VoiceNavigation.open(context, "HOME")) "Átadtam az útvonalat a térképnek."
                 else "Nem érhető el térképalkalmazás."
             }) { Text("Navigálás haza") }
-            OutlinedButton(onClick = { onOpen("Ismerősök") }) { Text("Személyek és címek") }
             OutlinedButton(onClick = { onOpen("Továbbiak") }) { Text("Otthoni cím beállítása") }
         }
         "Email" -> {

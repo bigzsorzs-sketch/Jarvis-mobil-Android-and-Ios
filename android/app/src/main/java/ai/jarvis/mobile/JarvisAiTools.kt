@@ -178,7 +178,6 @@ internal object JarvisAiTools {
             "Naptár" to listOf("naptar", "calendar"),
             "Jegyzetek" to listOf("jegyzet", "notes"),
             "Ébresztő" to listOf("ebreszt", "alarm"),
-            "Ismerősök" to listOf("ismeros", "people"),
             "Beállítások" to listOf("beallitas", "settings", "engedely")
         )
         if (Regex("\\b(torol|torold|delete|erase|kuldd|send|fizess|pay)\\b")

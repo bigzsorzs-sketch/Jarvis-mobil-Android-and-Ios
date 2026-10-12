@@ -11,7 +11,8 @@ class JarvisToolCatalogTest {
     @Test fun keyFeaturesRemainReachableFromTools() {
         val routes = JarvisToolCatalog.all.map { it.route }.toSet()
         assertTrue(routes.containsAll(setOf("Főoldal", "Vércukor", "Számlák",
-            "Üzenetek", "Ismerősök", "Email", "Navigáció", "Beállítások", "Jegyzetek")))
+            "Üzenetek", "Névjegyek", "Email", "Navigáció", "Beállítások", "Jegyzetek")))
+        assertFalse(routes.contains("Ismerősök"))
         assertTrue(routes.intersect(setOf("Chat", "Térkép", "Fájlok", "Rendszerállapot")).isEmpty())
     }
 }
