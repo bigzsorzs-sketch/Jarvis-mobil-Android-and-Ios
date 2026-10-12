@@ -537,7 +537,7 @@ class HandsFreeService : Service(), RecognitionListener {
             return
         }
         val localAiDraft = JarvisMessageIntent.parse(command)
-        if (localAiDraft != null && !JarvisAiGateway.configured(this)) {
+        if (localAiDraft != null) {
             if (!privateVoiceAllowed()) {
                 speak("A telefon lezárva. Üzenethez előbb oldd fel.")
             } else {

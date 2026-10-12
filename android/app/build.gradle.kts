@@ -14,8 +14,8 @@ android {
         applicationId = "ai.jarvis.mobile"
         minSdk = 26
         targetSdk = 36
-        versionCode = 22
-        versionName = "0.2.11-dev"
+        versionCode = 23
+        versionName = "0.2.12-dev"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     signingConfigs {

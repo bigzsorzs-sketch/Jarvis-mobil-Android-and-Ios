@@ -225,7 +225,7 @@ fun JarvisApp(context: Context) {
             return
         }
         val localDraft = JarvisMessageIntent.parse(command)
-        if (localDraft != null && !JarvisAiGateway.configured(context)) {
+        if (localDraft != null) {
             prepareMessageReview(localDraft)
             addHistory(command to
                 "Helyben előkészítettem a piszkozatot. Ellenőrizd a címzettet és az üzenetet.")
