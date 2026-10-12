@@ -17,7 +17,7 @@
    node -e 'const c=require("node:crypto"); for (const name of ["owner","family"]) {const t=c.randomBytes(32).toString("hex"); console.log(name+" CODE="+t+" HASH="+c.createHash("sha256").update(t).digest("hex"));}'
    ```
    Keep the CODE values private. In the server's environment secret manager configure `TESTER_TOKEN_SHA256_JSON` as a JSON object mapping `owner` and `family` to their respective HASH values, for example `{"owner":"<owner SHA-256 hash>","family":"<family SHA-256 hash>"}`. Do not put the CODE values into this object.
-3. Configure `OPENROUTER_MODEL`, `REDIS_URL` and `OPENROUTER_API_KEY` in the server environment. Deploy `server/` with Node 22+ and Redis behind an HTTPS domain. Set `HOST=0.0.0.0` only behind a securely configured reverse proxy or isolated network.
+3. Configure `OPENROUTER_MODEL`, `OPENROUTER_API_KEY`, `TESTER_TOKEN_SHA256_JSON` and `JARVIS_DOMAIN` in a **server/.env** file on a trusted VPS (not on GitHub). Point your DNS A/AAAA record to the VPS, open inbound ports 80/443 and run `cd server && docker compose up -d --build`. The supplied Docker Compose stack runs Node 22, a non-public Redis service and Caddy with automatic HTTPS. Alternatively, deploy behind your own trusted HTTPS reverse proxy. Never publish Redis or port 8080 directly.
 4. Install the Android 0.2.0-dev test APK on both devices. On each: **Beállítások → AI-agy** → same HTTPS server address, but their *own* private CODE. Save and press **AI-próbakérdés**. A successful answer confirms real upstream AI usage.
 5. Invalidate any compromised individual access code by removing/replacing its hash in `TESTER_TOKEN_SHA256_JSON` and restarting the gateway.
 
