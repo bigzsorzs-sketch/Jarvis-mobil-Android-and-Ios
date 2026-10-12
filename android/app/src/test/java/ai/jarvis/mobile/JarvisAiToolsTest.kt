@@ -83,4 +83,31 @@ class JarvisAiToolsTest {
         assertNull(JarvisAiTools.fromServer(JSONObject().put("action", "run shell"),
             "Nyisd meg a Munka oldalt").route)
     }
+    @Test fun aiCanOnlyPrepareOneMatchingCallAndNeverExecutesIt() {
+        val tool = toolCall(JarvisAiTools.CALL_FUNCTION, JSONObject().put("target", "Eszter"))
+        val accepted = JarvisAiTools.fromProvider(providerWith(tool), "Fel tudnád hívni Esztert?")
+        assertEquals("Esztert", accepted.callTarget)
+        assertNull(accepted.route)
+        assertNull(accepted.deviceAction)
+        assertNull(JarvisAiTools.fromProvider(providerWith(tool), "Mit tudsz Eszterről?").callTarget)
+        assertNull(JarvisAiTools.fromProvider(providerWith(tool), "Ne hívd fel Esztert").callTarget)
+        assertNull(JarvisAiTools.fromProvider(providerWith(tool,tool), "Hívd fel Esztert").callTarget)
+        assertNull(JarvisAiTools.fromProvider(providerWith(toolCall(JarvisAiTools.CALL_FUNCTION,
+            JSONObject().put("target", "Mari"))), "Hívd fel Esztert").callTarget)
+        assertNull(JarvisAiTools.fromProvider(providerWith(toolCall(JarvisAiTools.CALL_FUNCTION,
+            JSONObject().put("target", "Eszter").put("execute", true))),
+            "Hívd fel Esztert").callTarget)
+    }
+
+    @Test fun serverCallProposalRequiresExactUserRequest() {
+        val proposal = JSONObject().put("action", JSONObject()
+            .put("name", JarvisAiTools.CALL_FUNCTION).put("target", "+441234567890"))
+        assertEquals("+441234567890", JarvisAiTools.fromServer(proposal,
+            "Call +441234567890").callTarget)
+        assertNull(JarvisAiTools.fromServer(proposal, "Call +441234567899").callTarget)
+        assertNull(JarvisAiTools.fromServer(JSONObject().put("action", JSONObject()
+            .put("name", JarvisAiTools.CALL_FUNCTION).put("route", "dialer")),
+            "Call +441234567890").callTarget)
+    }
+
 }
