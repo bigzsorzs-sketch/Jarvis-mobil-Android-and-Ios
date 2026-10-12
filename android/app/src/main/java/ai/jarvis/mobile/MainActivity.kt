@@ -230,6 +230,18 @@ fun JarvisApp(context: Context) {
             }
         }
     }
+    val pendingNative = HandsFreeNavigation.nativeAction
+    LaunchedEffect(pendingNative, appIsForeground) {
+        if (pendingNative != null && appIsForeground) {
+            HandsFreeNavigation.nativeAction = null
+            val age = android.os.SystemClock.elapsedRealtime() - pendingNative.createdAtMs
+            val answer = if (age in 0..30_000L)
+                JarvisNativeActions.execute(context, pendingNative.action, pendingNative.original)
+            else "Lejárt a korábbi Android-művelet. Nem indítottam el semmit."
+            conversation.add("Hangos Android-művelet" to answer)
+            if (conversation.size > 50) conversation.removeAt(0)
+        }
+    }
     val requestedPhoneApp = HandsFreeNavigation.deviceAction
     LaunchedEffect(requestedPhoneApp, appIsForeground) {
         if (requestedPhoneApp != null && appIsForeground) {
