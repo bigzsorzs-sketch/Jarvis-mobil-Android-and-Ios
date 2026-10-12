@@ -20,6 +20,7 @@ import kotlin.coroutines.resume
  * it can read records shared by OTHER compatible apps. Abbott LibreLink GB is
  * not known to publish readings here; this is NOT a LibreLink API or NFC reader.
  */
+@android.annotation.SuppressLint("NewApi") // All API 34 calls are guarded by supported() and isAuthorized().
 internal object JarvisHealthGlucose {
     const val READ_PERMISSION = "android.permission.health.READ_BLOOD_GLUCOSE"
 
