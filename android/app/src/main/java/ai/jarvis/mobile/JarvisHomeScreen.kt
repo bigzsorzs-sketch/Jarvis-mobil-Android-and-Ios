@@ -255,7 +255,8 @@ internal fun JarvisHomeScreen(
             BasicTextField(
                 value = text,
                 onValueChange = { text = it },
-                modifier = Modifier.weight(1f).padding(horizontal = 6.dp),
+                modifier = Modifier.weight(1f).padding(horizontal = 6.dp)
+                    .testTag("jarvis-home-input"),
                 singleLine = true,
                 textStyle = TextStyle(fontSize = 15.sp, color = JarvisInk),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
@@ -268,7 +269,9 @@ internal fun JarvisHomeScreen(
                     }
                 }
             )
-            IconButton(onClick = {
+            IconButton(
+                modifier = Modifier.testTag("jarvis-home-send"),
+                onClick = {
                 if (text.isNotBlank()) {
                     submit(text)
                 } else {
