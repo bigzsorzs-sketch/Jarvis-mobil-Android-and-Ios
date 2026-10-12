@@ -25,5 +25,9 @@ class BasicCommandRouterTest {
         assertEquals(BasicAction.UNKNOWN, BasicCommandRouter.classify("Hogyan működik a számlázás?"))
         assertEquals(BasicAction.UNKNOWN, BasicCommandRouter.classify("What are Gmail permissions?"))
         assertEquals(BasicAction.UNKNOWN, BasicCommandRouter.classify("Jarvis, mit tudsz a vércukorról?"))
+        assertEquals(BasicAction.UNKNOWN, BasicCommandRouter.classify("Jarvis, ne nyisd meg a Gmailt"))
+        assertEquals(BasicAction.UNKNOWN, BasicCommandRouter.classify("Tudsz emailt küldeni?"))
+        assertEquals(BasicAction.UNKNOWN, BasicCommandRouter.classify("Meg tudod nyitni a naptárat?"))
+        assertEquals(BasicAction.UNKNOWN, BasicCommandRouter.classify("Don't open the maps"))
     }
 }
