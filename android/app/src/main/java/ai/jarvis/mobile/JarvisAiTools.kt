@@ -9,10 +9,15 @@ import java.util.Locale
  * The AI never receives a general Android command executor, file access,
  * message sender, settings writer or arbitrary Intent.
  */
-internal data class JarvisAiOutcome(val message: String, val route: String? = null)
+internal data class JarvisAiOutcome(
+    val message: String,
+    val route: String? = null,
+    val deviceAction: String? = null
+)
 
 internal object JarvisAiTools {
     const val FUNCTION_NAME = "open_jarvis_page"
+    const val PHONE_FUNCTION = "open_phone_app"
 
     // Use the same menu inventory as the actual UI; no fabricated tools.
     val allowedRoutes: List<String>
@@ -33,6 +38,21 @@ internal object JarvisAiTools {
                 .put("properties", JSONObject().put("route", JSONObject()
                     .put("type", "string")
                     .put("enum", JSONArray(allowedRoutes))))
+                .put("required", JSONArray().put("route"))
+                .put("additionalProperties", false)))
+
+    fun phoneToolDefinition(): JSONObject = JSONObject()
+        .put("type", "function")
+        .put("function", JSONObject()
+            .put("name", PHONE_FUNCTION)
+            .put("description", "Only open the Android Calendar, Alarms, Email composer, Maps " +
+                "or Dialer if the user explicitly commands to open that specific app. " +
+                "No sending, calling, editing, deleting or background actions.")
+            .put("parameters", JSONObject()
+                .put("type", "object")
+                .put("properties", JSONObject().put("route", JSONObject()
+                    .put("type", "string")
+                    .put("enum", JSONArray(JarvisPhoneActions.supported))))
                 .put("required", JSONArray().put("route"))
                 .put("additionalProperties", false)))
 
@@ -57,6 +77,12 @@ internal object JarvisAiTools {
     }
 
     fun validate(name: String, route: String, originalInput: String): JarvisAiOutcome {
+        if (name == PHONE_FUNCTION) {
+            return if (JarvisPhoneActions.authorized(route, originalInput))
+                JarvisAiOutcome("A kért Android-alkalmazás megnyitását előkészítettem.",
+                    deviceAction = route)
+            else JarvisAiOutcome("A telefonos parancs nincs egyértelműen engedélyezve. Nem történt művelet.")
+        }
         if (name != FUNCTION_NAME || route !in allowedRoutes) {
             return JarvisAiOutcome("Ezt az AI-eszközparancsot nem támogatom; nem hajtottam végre semmit.")
         }
