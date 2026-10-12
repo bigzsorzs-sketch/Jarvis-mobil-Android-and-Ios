@@ -30,7 +30,7 @@ class JarvisCapabilitiesTest {
         val answer = JarvisCapabilities.replyIfAsked("Mondj magadról, mire vagy képes")!!
         assertTrue(answer.startsWith("Jarvis vagyok"))
         assertTrue(answer.contains("Vércukor"))
-        assertTrue(answer.contains("Névjegyek"))
+        assertTrue(answer.contains("Hívás"))
         assertFalse(answer.contains("Ismerősök"))
         assertTrue(answer.contains("nem vezérelnek tetszőleges eszközt"))
     }
