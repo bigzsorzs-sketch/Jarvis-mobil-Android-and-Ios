@@ -21,7 +21,7 @@ android {
         minSdk = 26
         targetSdk = 36
         versionCode = 25
-        versionName = "0.2.14-dev"
+        versionName = "0.2.14"
         buildConfigField("String", "JARVIS_GATEWAY_ORIGIN", "\"$jarvisGatewayOrigin\"")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -37,6 +37,7 @@ android {
     }
     buildTypes {
         debug {
+            versionNameSuffix = "-dev"
             isMinifyEnabled = false
         }
         release {
