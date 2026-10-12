@@ -185,6 +185,19 @@ class JarvisAiToolsTest {
             "Állítsd be az ébresztőt 7:30-ra").nativeAction)
     }
 
+    @Test fun plainAiReplyCannotClaimNativeExecution() {
+        val raw = "Navigálj Leedsbe"
+        val model = JSONObject().put("choices", JSONArray().put(JSONObject().put(
+            "message", JSONObject().put("content", "Elindítottam a navigációt."))))
+        val direct = JarvisAiTools.fromProvider(model, raw)
+        assertNull(direct.nativeAction)
+        assertTrue(direct.message.contains("Nem történt végrehajtás"))
+        val server = JarvisAiTools.fromServer(
+            JSONObject().put("reply", "Elindítottam a navigációt."), raw)
+        assertNull(server.nativeAction)
+        assertTrue(server.message.contains("Nem történt végrehajtás"))
+    }
+
     @Test fun serverCallProposalRequiresExactUserRequest() {
         val proposal = JSONObject().put("action", JSONObject()
             .put("name", JarvisAiTools.CALL_FUNCTION).put("target", "+441234567890"))
