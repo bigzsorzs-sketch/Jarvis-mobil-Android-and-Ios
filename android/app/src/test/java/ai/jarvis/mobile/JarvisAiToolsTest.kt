@@ -99,6 +99,18 @@ class JarvisAiToolsTest {
             "Hívd fel Esztert").callTarget)
     }
 
+    @Test fun plainLanguageModelResponseCannotClaimCallSuccess() {
+        val body = JSONObject().put("choices", JSONArray().put(JSONObject().put(
+            "message", JSONObject().put("content", "Hívlak most."))))
+        val outcome = JarvisAiTools.fromProvider(body, "Fel tudnád hívni Esztert?")
+        assertNull(outcome.callTarget)
+        assertTrue(outcome.message.contains("Nem indítottam hívást"))
+        val server = JarvisAiTools.fromServer(JSONObject().put("reply", "Már hívom."),
+            "Fel tudnád hívni Esztert?")
+        assertNull(server.callTarget)
+        assertTrue(server.message.contains("Nem indítottam hívást"))
+    }
+
     @Test fun serverCallProposalRequiresExactUserRequest() {
         val proposal = JSONObject().put("action", JSONObject()
             .put("name", JarvisAiTools.CALL_FUNCTION).put("target", "+441234567890"))
