@@ -5,9 +5,9 @@ import org.json.JSONObject
 import java.text.Normalizer
 import java.util.Locale
 
-/** Only navigation to existing Jarvis pages is available to the AI.
- * The AI never receives a general Android command executor, file access,
- * message sender, settings writer or arbitrary Intent.
+/** The AI may propose only vetted UI handoffs, an explicitly requested
+ * call pending confirmation, or a reviewed external message draft.
+ * It never receives arbitrary device execution, file deletion or direct sending.
  */
 internal data class JarvisAiOutcome(
     val message: String,
