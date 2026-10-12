@@ -1,0 +1,79 @@
+name: Publish Jarvis Android 0.1.8 test prerelease
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/publish-android-018-test.yml"
+  workflow_dispatch:
+permissions:
+  contents: write
+  actions: read
+jobs:
+  publish-tested-apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Verify successful pinned Android QA run
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          outcome="$(gh api repos/${{ github.repository }}/actions/runs/38209888058 --jq .conclusion)"
+          source_sha="$(gh api repos/${{ github.repository }}/actions/runs/38209888058 --jq .head_sha)"
+          test "$outcome" = "success"
+          test "$source_sha" = "622cd91d9c76b7be95ef47df279c00776b5b6088"
+      - name: Download approved APK artifact
+        uses: actions/download-artifact@v4
+        with:
+          run-id: 38209888058
+          name: Jarvis-Android-Debug-APK
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: dist
+      - name: Verify APK archive and checksum
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s dist/app-debug.apk
+          unzip -t dist/app-debug.apk > /dev/null
+          mv dist/app-debug.apk dist/Jarvis-Mobile-Android-0.1.8-test.apk
+          sha256sum dist/Jarvis-Mobile-Android-0.1.8-test.apk | tee dist/SHA256SUMS.txt
+      - name: Publish test-only GitHub prerelease
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          tag="v0.1.8-dev-test.1"
+          if gh release view "$tag" --repo "${{ github.repository }}" > /dev/null 2>&1; then
+            echo "Release already exists; refusing to replace existing assets."
+            exit 1
+          fi
+          cat > /tmp/JARVIS_TEST_NOTES.md <<'EOF'
+          ## Jarvis Mobile Android – tesztkiadás, nem végleges
+
+          A Jarvis Mobile 0.1.8-dev APK a GitHub Actions **38209888058** sikeres tesztjéből származik.
+
+          - A bal felső menügomb eltávolítva a főoldalról és az aloldalakról; mind a 14 eszköz a Munka fülről érhető el.
+          - Menthető világos/sötét téma; a Jarvis-gömb és hullámok csak tényleges beszéd közben mozognak.
+          - Főoldalon maradó chat és válaszok; az „Egy agy. Hanggal mindent elérek.” felirat eltávolítva.
+          - Billentyűzetnyitáskor a beviteli mezőnek marad hely; a gömb összecsukódik.
+          - Kamera / Fényképek és videók / Fájlok: népszerű fájlformátumok, maximum 20 kép, összesen 1 GiB helyi csatolmány.
+          - Videóknál helyi metaadatok, hangsáv-információ és korlátozott képkocka-előnézet. AI-alapú videóértelmezés még nincs bekötve.
+          - Helyi hangparancsok, névjegyek, térképes útvonal, ébresztő és üzenet-előkészítés.
+
+          A Kotlin-egységtesztek, az Android Lint és az APK-fordítás sikeresek a fenti forráscommiton. A tényleges felületet, a hangszinkront, a billentyűzetet és az engedélyeket fizikai telefonon kell ellenőrizni.
+          Ez debug tesztkiadás; az éles AI-agy és a teljes fiókintegráció még nincs bekötve. A csatolmányok helyben maradnak.
+          Eltérő debug-aláírás esetén a frissítés meghiúsulhat. A régi app eltávolítása törli a helyi adatait; előbb mentsd, amit meg szeretnél tartani.
+
+          A SHA256SUMS.txt az APK ellenőrzőösszegét tartalmazza.
+          EOF
+          gh release create "$tag" \
+            "dist/Jarvis-Mobile-Android-0.1.8-test.apk" \
+            "dist/SHA256SUMS.txt" \
+            --repo "${{ github.repository }}" \
+            --target "622cd91d9c76b7be95ef47df279c00776b5b6088" \
+            --title "Jarvis Mobile Android 0.1.8 – TESZT" \
+            --notes-file /tmp/JARVIS_TEST_NOTES.md \
+            --prerelease \
+            --latest=false
