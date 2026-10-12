@@ -21,6 +21,7 @@ internal object JarvisToolCatalog {
         JarvisTool("Munka", "Munka", "▣"),
         JarvisTool("Navigáció", "Navigáció", "➤"),
         JarvisTool("Alkalmazások", "Alkalmazások", "▦"),
+        JarvisTool("Előzmények", "Előzmények", "◷"),
         JarvisTool("Vércukor", "Vércukor", "♧"),
         JarvisTool("Számlázás", "Számlák", "▤"),
         JarvisTool("Email", "Email", "✉"),
