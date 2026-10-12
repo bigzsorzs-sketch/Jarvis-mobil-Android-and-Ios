@@ -467,6 +467,27 @@ class HandsFreeService : Service(), RecognitionListener {
             }
             return
         }
+        if (BillingVoice.isCandidate(command)) {
+            if (!privateVoiceAllowed()) {
+                speak("A számlázási műveletekhez oldd fel a telefont.")
+            } else if (BillingVoice.isOpen(command)) {
+                HandsFreeNavigation.destination = "Számlák"
+                speak(BillingStrings.get(recognizedUtteranceLanguage
+                    ?: JarvisLanguageSettings.load(applicationContext), "openPage"))
+            } else {
+                val chosenLanguage = recognizedUtteranceLanguage
+                    ?: JarvisLanguageSettings.load(applicationContext)
+                aiJob?.cancel()
+                aiJob = CoroutineScope(Dispatchers.Main.immediate).launch {
+                    val answer = kotlinx.coroutines.withContext(Dispatchers.IO) {
+                        BillingVoice.execute(applicationContext,
+                            BillingRepository(applicationContext), command, chosenLanguage)
+                    }
+                    if (running) speak(answer)
+                }
+            }
+            return
+        }
         JarvisCapabilities.localPageToOpen(command)?.let { route ->
             if (!privateVoiceAllowed()) {
                 speak("A telefon zárolva van. Az oldal megnyitásához előbb oldd fel.")
