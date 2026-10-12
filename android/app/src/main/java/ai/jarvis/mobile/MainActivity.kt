@@ -94,16 +94,23 @@ fun JarvisApp(context: Context) {
         if (onboardingPrefs.getBoolean("permissions_reviewed", false)) "Főoldal" else "Engedélyek"
     ) }
     val chatStore = remember(context) { JarvisChatStore(context) }
-    val initialChat = remember(chatStore) { runCatching { chatStore.recent(50) } }
-    val conversation = remember(chatStore) {
-        mutableStateListOf<Pair<String, String>>().apply {
-            addAll(initialChat.getOrDefault(emptyList()).map { it.request to it.answer })
+    val conversation = remember(chatStore) { mutableStateListOf<Pair<String, String>>() }
+    var chatStorageWarning by remember { mutableStateOf("") }
+    // Keystore + database access must never block the first Compose frame.
+    // Preserve messages submitted while the earlier history is loading.
+    LaunchedEffect(chatStore) {
+        val loaded = withContext(Dispatchers.IO) { runCatching { chatStore.recent(50) } }
+        if (loaded.isSuccess) {
+            val newest = conversation.toList()
+            conversation.clear()
+            conversation.addAll(loaded.getOrDefault(emptyList()).map { it.request to it.answer })
+            newest.forEach { turn -> if (turn !in conversation) conversation.add(turn) }
+            while (conversation.size > 50) conversation.removeAt(0)
+        } else {
+            chatStorageWarning =
+                "Nem tudtam betölteni a helyi beszélgetésnaplót; az adatokat nem töröltem."
         }
     }
-    var chatStorageWarning by remember { mutableStateOf(
-        if (initialChat.isFailure) "Nem tudtam betölteni a helyi beszélgetésnaplót; az adatokat nem töröltem."
-        else ""
-    ) }
     var commandRevision by remember { mutableIntStateOf(0) }
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val drawerScope = rememberCoroutineScope()
