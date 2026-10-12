@@ -366,7 +366,9 @@ internal fun JarvisHomeScreen(
                 shadowElevation = 5.dp,
                 modifier = Modifier.size(57.dp)
             ) {
-                IconButton(onClick = {
+                IconButton(
+                    modifier = Modifier.testTag("jarvis-large-voice-mic"),
+                    onClick = {
                     if (handsFree) {
                         context.startService(
                             Intent(context, HandsFreeService::class.java)
@@ -385,7 +387,7 @@ internal fun JarvisHomeScreen(
                         else voicePermissions.launch(missing.toTypedArray())
                     }
                 }) {
-                    Text(if (handsFree) "■" else "≋",
+                    Text(if (handsFree) "■" else "🎙",
                         color = Color.White, fontSize = 27.sp, fontWeight = FontWeight.Bold)
                 }
             }
