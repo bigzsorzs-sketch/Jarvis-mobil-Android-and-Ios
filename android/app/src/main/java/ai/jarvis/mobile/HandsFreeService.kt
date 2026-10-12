@@ -29,6 +29,7 @@ internal object HandsFreeStatus {
 internal data class PendingPhoneApp(val action: String, val createdAtMs: Long)
 internal data class PendingNativeAction(val action: String, val original: String, val createdAtMs: Long)
 internal data class PendingInstalledApp(val original: String, val createdAtMs: Long)
+internal data class PendingSystemPanel(val kind: String, val original: String, val createdAtMs: Long)
 internal data class PendingSequence(val plan: JarvisSequencePlan, val createdAtMs: Long)
 internal data class PendingExternalTask(val task: HandoffTask, val createdAtMs: Long)
 
@@ -38,6 +39,7 @@ internal object HandsFreeNavigation {
     var deviceAction by mutableStateOf<PendingPhoneApp?>(null)
     var nativeAction by mutableStateOf<PendingNativeAction?>(null)
     var installedApp by mutableStateOf<PendingInstalledApp?>(null)
+    var systemPanel by mutableStateOf<PendingSystemPanel?>(null)
     var sequence by mutableStateOf<PendingSequence?>(null)
     var mapTarget by mutableStateOf<String?>(null)
     var mailDraft by mutableStateOf<EmailDraft?>(null)
@@ -405,6 +407,17 @@ class HandsFreeService : Service(), RecognitionListener {
                     recognizedNative, command, SystemClock.elapsedRealtime())
                 speak("Előkészítettem a kért Android-műveletet. " +
                     "Előtérben lévő Jarvisból, harminc másodpercen belül nyitható meg.")
+            }
+            return
+        }
+        val systemPanel = JarvisSystemPanels.identify(command)
+        if (systemPanel != null) {
+            if (!privateVoiceAllowed()) speak("A telefon zárolva van. Oldd fel a beállítások megnyitásához.")
+            else {
+                HandsFreeNavigation.systemPanel = PendingSystemPanel(
+                    systemPanel, command, SystemClock.elapsedRealtime())
+                speak("A beállítási panel megnyitása előkészítve. " +
+                    "Hozd előtérbe Jarvist harminc másodpercen belül.")
             }
             return
         }
