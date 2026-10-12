@@ -135,6 +135,16 @@ fun JarvisApp(context: Context) {
         conversation.add(turn)
         saveChatTurn(turn)
     }
+    // Spoken commands share the same encrypted local timeline as typed messages.
+    // Consume exactly once even when the Activity is recomposed.
+    val completedVoiceTurn = HandsFreeNavigation.completedVoiceTurn
+    LaunchedEffect(completedVoiceTurn) {
+        completedVoiceTurn?.let { turn ->
+            addHistory(turn.request to turn.answer)
+            if (HandsFreeNavigation.completedVoiceTurn == turn)
+                HandsFreeNavigation.completedVoiceTurn = null
+        }
+    }
     suspend fun loadEarlierConversation() {
         if (!hasOlderChat || loadingOlderChat || oldestChatId <= 0L) return
         loadingOlderChat = true
