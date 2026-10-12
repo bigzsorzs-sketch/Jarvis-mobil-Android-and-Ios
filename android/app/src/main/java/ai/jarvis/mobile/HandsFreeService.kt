@@ -67,6 +67,9 @@ class HandsFreeService : Service(), RecognitionListener {
     private var tts: TextToSpeech? = null
     private var ttsReady = false
     private var pendingTtsText: String? = null
+    private var ttsParts: List<String> = emptyList()
+    private var ttsPartIndex = 0
+    private var activeUtteranceId: String? = null
     private var activeVoiceCommand: String? = null
     private var turnCounter = 0L
     private var usingOnDeviceRecognizer = false
@@ -178,22 +181,16 @@ class HandsFreeService : Service(), RecognitionListener {
                     }
                     override fun onDone(utteranceId: String?) {
                         handler.post {
-                            speaking = false
-                            HandsFreeStatus.speaking = false
-                            HandsFreeStatus.outputLevel = 0f
-                            if (running) {
-                                if (tapActivated) awaitingCommand = true
-                                again(450)
-                            }
+                            if (!running || utteranceId != activeUtteranceId) return@post
+                            ttsPartIndex++
+                            if (ttsPartIndex < ttsParts.size) speakNextPart()
+                            else finishSpokenReply()
                         }
                     }
                     @Deprecated("Deprecated in Java")
                     override fun onError(utteranceId: String?) {
                         handler.post {
-                            speaking = false
-                            HandsFreeStatus.speaking = false
-                            HandsFreeStatus.outputLevel = 0f
-                            if (running) again(450)
+                            if (utteranceId == activeUtteranceId) finishSpokenReply()
                         }
                     }
                 })
@@ -257,10 +254,33 @@ class HandsFreeService : Service(), RecognitionListener {
             else again(2000)
         }
     }
+    private fun finishSpokenReply() {
+        activeUtteranceId = null
+        ttsParts = emptyList()
+        ttsPartIndex = 0
+        speaking = false
+        HandsFreeStatus.speaking = false
+        HandsFreeStatus.outputLevel = 0f
+        if (running) {
+            if (tapActivated) awaitingCommand = true
+            again(450)
+        }
+    }
+
+    private fun speakNextPart() {
+        if (!running || ttsPartIndex !in ttsParts.indices) {
+            finishSpokenReply()
+            return
+        }
+        val id = "jarvis-" + java.util.UUID.randomUUID().toString()
+        activeUtteranceId = id
+        if (tts?.speak(ttsParts[ttsPartIndex], TextToSpeech.QUEUE_FLUSH, null, id)
+            != TextToSpeech.SUCCESS) finishSpokenReply()
+    }
+
     private fun speak(text: String) {
         val wantedLanguage = recognizedUtteranceLanguage ?: JarvisLanguageSettings.load(applicationContext)
-        // Use the actual recognized language for this spoken reply. If the
-        // installed Android voice engine lacks it, keep the existing fallback.
+        val previousAnswer = HandsFreeStatus.answer
         tts?.setLanguage(Locale.forLanguageTag(wantedLanguage.tag))
         HandsFreeStatus.answer = text
         HandsFreeStatus.status = "Jarvis válaszol"
@@ -270,9 +290,7 @@ class HandsFreeService : Service(), RecognitionListener {
             activeVoiceCommand = null
         }
         handler.removeCallbacks(restart)
-        val engine = tts
         if (!ttsReady) {
-            // TTS initialization is async. Never silently drop the first answer.
             pendingTtsText = text
             HandsFreeStatus.status = "A hangmotor indul…"
             handler.postDelayed({
@@ -285,22 +303,16 @@ class HandsFreeService : Service(), RecognitionListener {
             }, 6000)
             return
         }
+        tts?.stop()
+        activeUtteranceId = null
+        ttsParts = JarvisSpeechChunks.split(text)
+        ttsPartIndex = 0
         speaking = true
         HandsFreeStatus.speaking = true
         HandsFreeStatus.micLevel = 0f
         HandsFreeStatus.userSpeaking = false
         recognizer?.cancel()
-        if (engine != null && engine.speak(text, TextToSpeech.QUEUE_FLUSH, null,
-                "jarvis-" + SystemClock.uptimeMillis()) == TextToSpeech.SUCCESS) return
-        handler.postDelayed({
-            speaking = false
-            HandsFreeStatus.speaking = false
-            HandsFreeStatus.outputLevel = 0f
-            if (running) {
-                if (tapActivated) awaitingCommand = true
-                again(400)
-            }
-        }, 1500)
+        speakNextPart()
     }
     private fun privateVoiceAllowed(): Boolean {
         val guard = getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager
@@ -453,6 +465,34 @@ class HandsFreeService : Service(), RecognitionListener {
         aiJob?.cancel()
         aiJob = null
         activeVoiceCommand = command
+        when (val read = JarvisReadAloudCommand.parse(command)) {
+            ReadAloudRequest.LastAnswer -> {
+                val previous = HandsFreeStatus.answer
+                speak(if (previous.isBlank()) JarvisReadAloudCommand.response(
+                    recognizedUtteranceLanguage ?: JarvisLanguageSettings.load(applicationContext),
+                    "noAnswer") else previous)
+            }
+            is ReadAloudRequest.Literal -> {
+                if (privateVoiceAllowed()) speak(read.text)
+                else speak("Oldd fel a telefont a megadott szöveg felolvasásához.")
+            }
+            is ReadAloudRequest.Generate -> {
+                if (!privateVoiceAllowed()) {
+                    speak("Oldd fel a telefont a felolvasáshoz.")
+                } else {
+                    val selected = recognizedUtteranceLanguage
+                        ?: JarvisLanguageSettings.load(applicationContext)
+                    aiJob = CoroutineScope(Dispatchers.Main.immediate).launch {
+                        val outcome = JarvisAiGateway.askStructured(applicationContext,
+                            JarvisReadAloudCommand.generationPrompt(read.request, selected),
+                            selected.tag)
+                        if (running) speak(outcome.message)
+                    }
+                }
+            }
+            null -> Unit
+        }
+        if (JarvisReadAloudCommand.parse(command) != null) return
         if (JarvisGlucoseVoice.isQuery(command)) {
             if (!privateVoiceAllowed()) {
                 speak("A telefon zárolva van. A személyes egészségügyi adatokhoz előbb oldd fel.")
@@ -957,6 +997,8 @@ class HandsFreeService : Service(), RecognitionListener {
         tts = null
         ttsReady = false
         pendingTtsText = null
+        ttsParts = emptyList()
+        activeUtteranceId = null
         activeVoiceCommand = null
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
