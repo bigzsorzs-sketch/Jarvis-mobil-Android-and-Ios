@@ -242,7 +242,8 @@ fun JarvisApp(context: Context) {
             } else {
                 val reply = notice.sender + ": " + notice.body
                 narrator.read(reply, language)
-                addHistory(command to reply)
+                // Do not persist a third-party private notification into chat history.
+                addHistory(command to JarvisReadAloudCommand.response(language, "started"))
             }
             return
         }
