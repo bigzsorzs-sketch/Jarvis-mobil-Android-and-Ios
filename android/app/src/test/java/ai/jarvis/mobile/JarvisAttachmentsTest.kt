@@ -46,6 +46,15 @@ class JarvisAttachmentsTest {
         assertFalse(JarvisAttachments.determineType("report.pdf",
             "application/octet-stream").second)
     }
+    @Test fun windowsProgramsCanBeAttachedWithoutCountingAsPictures() {
+        val (mime, image) = JarvisAttachments.determineType("JarvisSetup.EXE", "application/octet-stream")
+        assertEquals("application/vnd.microsoft.portable-executable", mime)
+        assertFalse(image)
+        assertEquals("Windows-program", JarvisAttachments.categoryFor(mime, image))
+        assertTrue(JarvisAttachments.withinLimits(20, 0, image, 1024))
+        assertEquals("application/x-msdownload",
+            JarvisAttachments.determineType("program.exe", "application/x-msdownload").first)
+    }
     @Test fun aggregateOneGibibyteHardLimit() {
         val limit = JarvisAttachments.MAX_TOTAL_BYTES
         assertTrue(JarvisAttachments.withinLimits(1, limit - 1, false, 1))

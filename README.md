@@ -2,6 +2,10 @@
 
 Separate **native mobile** Jarvis repository, independent from the Windows Electron app. This is a first **functional Basic prototype**, not a production release.
 
+## Android 0.1.9-dev — revised menu, settings and file opening
+
+The home Jarvis/Munka switch is removed. Open the side menu by swiping or tapping the central Jarvis name. System Status, the duplicate Map entry and the Files/Photos page are removed. Notes opens the phone's notes application. Settings uses compact grouped rows and Android-owned permission dialogs, with system pages for special access. EXE attachments, external file opening and format-only Play Store search are supported. Short greetings work offline in both typed and hands-free commands. [Test scenarios and limits](docs/JARVIS_ANDROID_0.1.9_TEST.md).
+
 ## Android 0.1.8-dev — simplified home and tools navigation
 
 The top-left menu button is removed from Home and every subpage, including System Status. All previous tools are available under **Munka**, including permissions/settings; Navigation and Map still open the installed map app. The centered Jarvis/Munka switch, theme toggle, system Back navigation and bottom prompt/attachment bar remain available. See [Android test scenarios](docs/JARVIS_ANDROID_0.1.8_TEST.md).

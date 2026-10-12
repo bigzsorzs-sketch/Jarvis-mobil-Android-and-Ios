@@ -474,6 +474,10 @@ class HandsFreeService : Service(), RecognitionListener {
             }
             return
         }
+        LocalConversation.reply(command)?.let {
+            speak(it)
+            return
+        }
         val action = BasicCommandRouter.classify(command)
         when (action) {
             BasicAction.OPEN_GLUCOSE, BasicAction.OPEN_INVOICES,
@@ -482,8 +486,8 @@ class HandsFreeService : Service(), RecognitionListener {
                     BasicAction.OPEN_GLUCOSE -> "Vércukor"
                     BasicAction.OPEN_INVOICES -> "Számlák"
                     BasicAction.OPEN_HOME -> "Főoldal"
-                    BasicAction.OPEN_NOTES -> "Továbbiak"
-                    else -> "Engedélyek"
+                    BasicAction.OPEN_NOTES -> "Jegyzetek"
+                    else -> "Beállítások"
                 }
                 speak("Előkészítettem a kért oldalt a Jarvisban.")
             }

@@ -11,6 +11,8 @@ class BasicCommandRouterTest {
         assertEquals(BasicAction.OPEN_MESSAGES, BasicCommandRouter.classify("WhatsApp üzeneteim"))
         assertEquals(BasicAction.OPEN_MESSAGES, BasicCommandRouter.classify("Messenger"))
         assertEquals(BasicAction.OPEN_PERMISSIONS, BasicCommandRouter.classify("Engedélyek"))
+        assertEquals(BasicAction.OPEN_PERMISSIONS, BasicCommandRouter.classify("Nyisd meg a beállításokat"))
+        assertEquals(BasicAction.OPEN_NOTES, BasicCommandRouter.classify("Telefon jegyzetei"))
         assertEquals(BasicAction.OPEN_MAP, BasicCommandRouter.classify("Térkép"))
         assertEquals(BasicAction.OPEN_CALENDAR, BasicCommandRouter.classify("Naptár"))
         assertEquals(BasicAction.OPEN_ALARMS, BasicCommandRouter.classify("Ébresztő"))

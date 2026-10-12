@@ -1,15 +1,19 @@
 package ai.jarvis.mobile
 
 import android.content.Context
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-/** Every tool in the Munka page has a real destination. */
+/** One menu for all tools; no duplicate map, attachment, chat or system-status pages. */
 internal data class JarvisTool(val name: String, val route: String, val glyph: String)
 internal object JarvisToolCatalog {
     val all = listOf(
@@ -22,14 +26,49 @@ internal object JarvisToolCatalog {
         JarvisTool("Üzenetek", "Üzenetek", "▢"),
         JarvisTool("Hívás", "Névjegyek", "☎"),
         JarvisTool("Naptár", "Naptár", "▦"),
-        JarvisTool("Térkép", "Térkép", "◎"),
-        JarvisTool("Fájlok és képek", "Fájlok", "▱"),
         JarvisTool("Jegyzetek", "Jegyzetek", "≡"),
         JarvisTool("Ébresztő", "Ébresztő", "◷"),
         JarvisTool("Ismerősök", "Ismerősök", "♡"),
-        JarvisTool("Beállítások", "Engedélyek", "⚙"),
-        JarvisTool("Rendszerállapot", "Rendszerállapot", "◈")
+        JarvisTool("Beállítások", "Beállítások", "⚙")
     )
+}
+
+@Composable
+internal fun JarvisDrawer(selected: String, onSelect: (String) -> Unit) {
+    val dark = LocalJarvisDark.current
+    ModalDrawerSheet(
+        modifier = Modifier.widthIn(max = 320.dp),
+        drawerContainerColor = JarvisPalette.background
+    ) {
+        Text("Jarvis", color = JarvisPalette.mainText, fontSize = 31.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(start = 22.dp, top = 24.dp, bottom = 24.dp))
+        HorizontalDivider(color = if (dark) Color(0xFF25344E) else Color(0xFFE7ECF5))
+        LazyColumn(
+            modifier = Modifier.weight(1f),
+            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            items(JarvisToolCatalog.all, key = { it.route }) { item ->
+                NavigationDrawerItem(
+                    label = { Text(item.name, fontSize = 15.sp,
+                        color = JarvisPalette.mainText) },
+                    icon = {
+                        Box(Modifier.width(28.dp), contentAlignment = Alignment.Center) {
+                            Text(item.glyph, fontSize = 23.sp, color = JarvisPalette.accent)
+                        }
+                    },
+                    selected = selected == item.route,
+                    colors = NavigationDrawerItemDefaults.colors(
+                        selectedContainerColor = if (dark) Color(0xFF172F56) else Color(0xFFDDEAFF),
+                        unselectedContainerColor = Color.Transparent
+                    ),
+                    onClick = { onSelect(item.route) },
+                    modifier = Modifier.heightIn(min = 48.dp)
+                )
+            }
+        }
+    }
 }
 
 @Composable
@@ -40,8 +79,8 @@ internal fun JarvisToolLanding(context: Context, page: String, onOpen: (String) 
     when (page) {
         "Munka" -> {
             Text("Eszközök", color = JarvisPalette.subtleText)
-            JarvisToolCatalog.all.filterNot {
-                it.route == "Főoldal" || it.route == "Munka"
+            JarvisToolCatalog.all.filter {
+                it.route in setOf("Számlák", "Naptár", "Jegyzetek")
             }.forEach { item ->
                 OutlinedButton(
                     onClick = { onOpen(item.route) },
@@ -76,21 +115,6 @@ internal fun JarvisToolLanding(context: Context, page: String, onOpen: (String) 
                 else "Nem találok naptáralkalmazást." }) { Text("Naptár megnyitása") }
             OutlinedButton(onClick = { onOpen("Továbbiak") }) { Text("Esemény hozzáadása") }
         }
-        "Térkép" -> {
-            Button(onClick = { message = if (openMap(context)) "Térkép megnyitva."
-                else "Nem találok térképalkalmazást." }) { Text("Térkép megnyitása") }
-            OutlinedButton(onClick = { onOpen("Navigáció") }) { Text("Navigációs beállítások") }
-        }
-        "Fájlok" -> {
-            Text("Kamera, legfeljebb 20 kép és 1 GB összméret a főoldalon lévő + gombbal.",
-                color = JarvisPalette.subtleText)
-            Button(onClick = { onOpen("Főoldal") }) { Text("Vissza a + csatoláshoz") }
-        }
-        "Jegyzetek" -> {
-            Text("A helyi, titkosított jegyzeteket az Eszközök oldalon szerkesztheted.",
-                color = JarvisPalette.subtleText)
-            Button(onClick = { onOpen("Továbbiak") }) { Text("Jegyzetek megnyitása") }
-        }
         "Ébresztő" -> {
             val next = JarvisAlarms.current(context)
             Text(if (next > 0) "Aktív saját Jarvis-ébresztő." else "Nincs aktív saját Jarvis-ébresztő.",
@@ -100,15 +124,6 @@ internal fun JarvisToolLanding(context: Context, page: String, onOpen: (String) 
                 else "Nem találok Óra alkalmazást."
             }) { Text("Telefon ébresztői") }
             OutlinedButton(onClick = { onOpen("Továbbiak") }) { Text("Jarvis-ébresztő kezelése") }
-        }
-        "Rendszerállapot" -> {
-            Text("Jarvis Mobile – belső Android prototípus. Az AI-agy még nincs élesen bekötve.",
-                color = JarvisPalette.subtleText)
-            Text("Hey Jarvis: " + if (HandsFreeStatus.running) "Aktív" else "Kikapcsolva",
-                color = JarvisPalette.accent)
-            Text("A zöld GitHub-build nem helyettesíti a telefonos tesztet.",
-                color = JarvisPalette.subtleText)
-            Button(onClick = { onOpen("Engedélyek") }) { Text("Engedélyek") }
         }
     }
     if (message.isNotEmpty()) {

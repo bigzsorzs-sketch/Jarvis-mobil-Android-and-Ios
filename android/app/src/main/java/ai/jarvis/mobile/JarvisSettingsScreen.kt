@@ -1,0 +1,78 @@
+package ai.jarvis.mobile
+
+import android.content.Context
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.*
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+
+@Composable
+internal fun SettingsSectionTitle(title: String) {
+    Text(title, color = JarvisPalette.subtleText, fontSize = 12.sp,
+        fontWeight = FontWeight.SemiBold,
+        modifier = Modifier.padding(start = 12.dp, bottom = 8.dp))
+}
+
+@Composable
+internal fun JarvisSettingsGroup(content: @Composable ColumnScope.() -> Unit) {
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
+        .background(JarvisPalette.panel), content = content)
+}
+
+@Composable
+internal fun SettingsDivider() {
+    HorizontalDivider(
+        modifier = Modifier.padding(start = 52.dp),
+        color = JarvisPalette.subtleText.copy(alpha = 0.15f)
+    )
+}
+
+@Composable
+internal fun JarvisSettingsRow(icon: String, title: String, detail: String, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clickable(onClick = onClick)
+            .heightIn(min = 60.dp).padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(icon, fontSize = 22.sp, color = JarvisPalette.accent,
+            modifier = Modifier.width(32.dp))
+        Spacer(Modifier.width(6.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, color = JarvisPalette.mainText, fontSize = 15.sp)
+            if (detail.isNotBlank()) Text(detail, color = JarvisPalette.subtleText,
+                fontSize = 12.sp)
+        }
+        Spacer(Modifier.width(8.dp))
+        Text("›", color = JarvisPalette.subtleText, fontSize = 24.sp)
+    }
+}
+
+@Composable
+internal fun JarvisSettingsScreen(
+    context: Context, isDark: Boolean, onToggleTheme: () -> Unit, onVoice: () -> Unit
+) {
+    SettingsSectionTitle("Általános")
+    JarvisSettingsGroup {
+        JarvisSettingsRow(if (isDark) "☾" else "☀", "Megjelenés",
+            if (isDark) "Sötét" else "Világos", onToggleTheme)
+        SettingsDivider()
+        JarvisSettingsRow("≋", "Hangvezérlés",
+            if (HandsFreeStatus.running) "Aktív" else "Kikapcsolva", onVoice)
+    }
+    Spacer(Modifier.height(20.dp))
+    SettingsSectionTitle("Telefon-hozzáférés")
+    PermissionCenter(context, onDone = {}, showContinue = false, showHeading = false)
+    val version = try {
+        context.packageManager.getPackageInfo(context.packageName, 0).versionName.orEmpty()
+    } catch (_: Exception) { "" }
+    Text("Jarvis Mobile " + version, color = JarvisPalette.subtleText, fontSize = 12.sp,
+        modifier = Modifier.fillMaxWidth().padding(12.dp))
+}

@@ -16,6 +16,7 @@ import android.app.Activity
 import android.speech.RecognizerIntent
 import android.speech.tts.TextToSpeech
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.clickable
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -34,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
 import androidx.core.view.WindowInsetsControllerCompat
+import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -90,6 +92,8 @@ fun JarvisApp(context: Context) {
         if (onboardingPrefs.getBoolean("permissions_reviewed", false)) "Főoldal" else "Engedélyek"
     ) }
     val conversation = remember { mutableStateListOf<Pair<String, String>>() }
+    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+    val drawerScope = rememberCoroutineScope()
     var pendingCall by remember { mutableStateOf<VoiceCalling.Target?>(null) }
     fun openTool(destination: String) {
         if (destination == "Navigáció" || destination == "Térkép") {
@@ -97,19 +101,28 @@ fun JarvisApp(context: Context) {
                 conversation.add("Navigáció" to "Nem találok telepített térképalkalmazást.")
                 page = "Főoldal"
             }
+        } else if (destination == "Jegyzetek") {
+            val result = JarvisExternalApps.openNotes(context)
+            if (result != AppHandoffResult.OPENED) {
+                page = "Főoldal"
+                conversation.add("Jegyzetek" to if (result == AppHandoffResult.SEARCH_OPENED)
+                    "Jegyzetalkalmazást keresek a Play Áruházban."
+                    else "Nem sikerült megnyitni a telefon jegyzetalkalmazását.")
+            }
         } else page = destination
     }
     fun executeHome(command: String) {
         if (command.isBlank()) return
         val answer = JarvisCommandExecutor.run(
-            context, command, { destination -> page = destination },
+            context, command, { destination -> openTool(destination) },
             { contact -> pendingCall = contact }
         )
         conversation.add(command to answer)
         if (conversation.size > 50) conversation.removeAt(0)
     }
-    BackHandler(enabled = page != "Főoldal") {
-        page = "Főoldal"
+    BackHandler(enabled = drawerState.isOpen || page != "Főoldal") {
+        if (drawerState.isOpen) drawerScope.launch { drawerState.close() }
+        else page = "Főoldal"
     }
     SideEffect {
         (context as? Activity)?.window?.let { window ->
@@ -150,9 +163,9 @@ fun JarvisApp(context: Context) {
         }
     }
     val voiceDestination = HandsFreeNavigation.destination
-    LaunchedEffect(voiceDestination) {
-        if (voiceDestination != null) {
-            page = voiceDestination
+    LaunchedEffect(voiceDestination, appIsForeground) {
+        if (voiceDestination != null && appIsForeground) {
+            openTool(voiceDestination)
             HandsFreeNavigation.destination = null
         }
     }
@@ -169,84 +182,99 @@ fun JarvisApp(context: Context) {
             primary = Cyan, background = Night, surface = Panel,
             onSurface = White, onBackground = White, onPrimary = Night
         )) {
-            Column(
-                Modifier.fillMaxSize()
-                    .windowInsetsPadding(WindowInsets.safeDrawing)
-                    .imePadding()
-                    .background(Night)
+            ModalNavigationDrawer(
+                drawerState = drawerState,
+                drawerContent = {
+                    JarvisDrawer(page) { selected ->
+                        openTool(selected)
+                        drawerScope.launch { drawerState.close() }
+                    }
+                }
             ) {
-                if (onHome) {
-                    JarvisHomeScreen(
-                        context = context,
-                        isDark = isDark,
-                        onToggleTheme = toggleTheme,
-                        onNavigate = { openTool(it) },
-                        onCommand = { command -> executeHome(command) },
-                        history = conversation,
-                        pendingCall = pendingCall,
-                        onCallConfirm = {
-                            val person = pendingCall
-                            pendingCall = null
-                            val answer = if (person != null && VoiceCalling.place(context, person))
-                                "A híváskérést átadtam az Androidnak."
-                            else "A hívást nem sikerült elindítani. Ellenőrizd a telefonengedélyt."
-                            conversation.add("Hívás megerősítve" to answer)
-                        },
-                        onCallDismiss = { pendingCall = null }
-                    )
-                } else {
-                    Row(
-                        Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(page, color = White, fontSize = 19.sp,
-                            fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                        TextButton(onClick = toggleTheme) {
-                            Text(if (isDark) "☀ Világos" else "☾ Sötét", color = Cyan)
-                        }
-                        TextButton(onClick = { page = "Főoldal" }) {
-                            Text("Főoldal", color = Cyan)
-                        }
-                    }
-                    HorizontalDivider(color = Color(0xFF243149))
-                    if (handoffResult.isNotBlank()) {
-                        Text(handoffResult, color = Cyan, fontSize = 12.sp,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
-                    }
-                    Column(
-                        Modifier.weight(1f).fillMaxWidth()
-                            .verticalScroll(rememberScrollState())
-                            .padding(16.dp)
-                    ) {
-                        when (page) {
-                            "Engedélyek" -> PermissionCenter(
-                                context,
-                                onDone = {
-                                    onboardingPrefs.edit()
-                                        .putBoolean("permissions_reviewed", true).apply()
-                                    page = "Főoldal"
-                                },
-                                onMessages = { page = "Üzenetek" }
-                            )
-                            "Üzenetek" -> MessageInboxScreen(context, onPermissions = {
-                                page = "Engedélyek"
-                            })
-                            "Névjegyek" -> ContactsScreen(context, onPermissions = {
-                                page = "Engedélyek"
-                            })
-                            "Ismerősök" -> PeopleDirectoryScreen(context, onPermissions = {
-                                page = "Engedélyek"
-                            })
-                            "Vércukor" -> GlucoseScreen(readings) {
-                                securePrefs.write("readings", writeReadings(readings))
+                Column(
+                    Modifier.fillMaxSize()
+                        .windowInsetsPadding(WindowInsets.safeDrawing)
+                        .imePadding()
+                        .background(Night)
+                ) {
+                    if (onHome) {
+                        JarvisHomeScreen(
+                            context = context,
+                            isDark = isDark,
+                            onToggleTheme = toggleTheme,
+                            onMenu = { drawerScope.launch { drawerState.open() } },
+                            onCommand = { command -> executeHome(command) },
+                            history = conversation,
+                            pendingCall = pendingCall,
+                            onCallConfirm = {
+                                val person = pendingCall
+                                pendingCall = null
+                                val answer = if (person != null && VoiceCalling.place(context, person))
+                                    "A híváskérést átadtam az Androidnak."
+                                else "A hívást nem sikerült elindítani. Ellenőrizd a telefonengedélyt."
+                                conversation.add("Hívás megerősítve" to answer)
+                            },
+                            onCallDismiss = { pendingCall = null }
+                        )
+                    } else {
+                        Row(
+                            Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(page, color = White, fontSize = 19.sp,
+                                fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f)
+                                    .clickable { drawerScope.launch { drawerState.open() } })
+                            TextButton(onClick = toggleTheme) {
+                                Text(if (isDark) "☀ Világos" else "☾ Sötét", color = Cyan)
                             }
-                            "Számlák" -> InvoiceScreen(context, invoices) {
-                                securePrefs.write("invoices", writeInvoices(invoices))
+                            TextButton(onClick = { page = "Főoldal" }) {
+                                Text("Főoldal", color = Cyan)
                             }
-                            "Továbbiak" -> MoreScreen(context, notes, {
-                                securePrefs.write("notes", JSONArray(notes).toString())
-                            }, { page = it })
-                            else -> JarvisToolLanding(context, page, onOpen = { openTool(it) })
+                        }
+                        HorizontalDivider(color = Color(0xFF243149))
+                        if (handoffResult.isNotBlank()) {
+                            Text(handoffResult, color = Cyan, fontSize = 12.sp,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
+                        }
+                        Column(
+                            Modifier.weight(1f).fillMaxWidth()
+                                .verticalScroll(rememberScrollState())
+                                .padding(16.dp)
+                        ) {
+                            when (page) {
+                                "Beállítások" -> JarvisSettingsScreen(
+                                    context, isDark, toggleTheme,
+                                    onVoice = { page = "Hangbeállítások" }
+                                )
+                                "Hangbeállítások" -> HandsFreePanel(context)
+                                "Engedélyek" -> PermissionCenter(
+                                    context,
+                                    onDone = {
+                                        onboardingPrefs.edit()
+                                            .putBoolean("permissions_reviewed", true).apply()
+                                        page = "Főoldal"
+                                    }
+                                )
+                                "Üzenetek" -> MessageInboxScreen(context, onPermissions = {
+                                    page = "Engedélyek"
+                                })
+                                "Névjegyek" -> ContactsScreen(context, onPermissions = {
+                                    page = "Engedélyek"
+                                })
+                                "Ismerősök" -> PeopleDirectoryScreen(context, onPermissions = {
+                                    page = "Engedélyek"
+                                })
+                                "Vércukor" -> GlucoseScreen(readings) {
+                                    securePrefs.write("readings", writeReadings(readings))
+                                }
+                                "Számlák" -> InvoiceScreen(context, invoices) {
+                                    securePrefs.write("invoices", writeInvoices(invoices))
+                                }
+                                "Továbbiak" -> MoreScreen(context, notes, {
+                                    securePrefs.write("notes", JSONArray(notes).toString())
+                                }, { page = it })
+                                else -> JarvisToolLanding(context, page, onOpen = { openTool(it) })
+                            }
                         }
                     }
                 }
@@ -476,7 +504,7 @@ private fun MoreScreen(context: Context, notes: MutableList<String>, persist: ()
     SurfaceCard {
         Text("🔒 Integrációk folyamatban", color = White, fontWeight = FontWeight.Bold)
         Text("Központi AI, Gmail-fiókszinkron, Libre 2 szinkron, OBD2, 42 nyelv és PC-s adatszinkron további fejlesztést igényel. A Self-Repair nem kerül mobilra.", color = Soft, fontSize = 12.sp)
-        TextButton(onClick = { onGo("Chat") }) { Text("Hangos helyi parancsok") }
+        TextButton(onClick = { onGo("Főoldal") }) { Text("Hangos helyi parancsok") }
     }
 }
 

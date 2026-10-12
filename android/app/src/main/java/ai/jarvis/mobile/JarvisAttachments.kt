@@ -40,6 +40,7 @@ internal object JarvisAttachments {
         "zip" to "application/zip", "rar" to "application/vnd.rar",
         "7z" to "application/x-7z-compressed",
         "tar" to "application/x-tar", "gz" to "application/gzip",
+        "exe" to "application/vnd.microsoft.portable-executable",
         "jpg" to "image/jpeg", "jpeg" to "image/jpeg", "png" to "image/png",
         "webp" to "image/webp", "gif" to "image/gif",
         "heic" to "image/heic", "heif" to "image/heif",
@@ -78,6 +79,8 @@ internal object JarvisAttachments {
     }
 
     internal fun categoryFor(mime: String, isImage: Boolean): String = when {
+        mime == "application/vnd.microsoft.portable-executable" ||
+            mime == "application/x-msdownload" -> "Windows-program"
         isImage -> "Kép"
         mime.startsWith("video/") -> "Videó"
         mime.startsWith("audio/") -> "Hang"
@@ -96,6 +99,11 @@ internal object JarvisAttachments {
 
     fun total(items: List<JarvisAttachment>): Long = items.sumOf { it.sizeBytes }
     fun imageCount(items: List<JarvisAttachment>): Int = items.count { it.isImage }
+
+    internal fun localExtension(displayName: String): String {
+        val extension = displayName.substringAfterLast('.', "").lowercase(Locale.ROOT)
+        return extension.takeIf { it.matches(Regex("[a-z0-9]{1,16}")) } ?: "bin"
+    }
 
     /** Must run on Dispatchers.IO. Reads streams incrementally and fails closed at the size cap. */
     fun importSelected(
@@ -116,7 +124,7 @@ internal object JarvisAttachments {
         val limit = MAX_TOTAL_BYTES - total(previous)
         if (limit <= 0L) error("Elérted az 1 GB összméretű csatolási korlátot.")
         val dir = File(context.cacheDir, "jarvis_attachments").apply { mkdirs() }
-        val dest = File(dir, UUID.randomUUID().toString() + ".bin")
+        val dest = File(dir, UUID.randomUUID().toString() + "." + localExtension(displayName))
         var copied = 0L
         try {
             val source = resolver.openInputStream(uri) ?: error("Nem olvasható a kiválasztott fájl.")

@@ -18,6 +18,11 @@
         <package android:name="com.whatsapp" />
         <package android:name="com.facebook.orca" />
         <package android:name="com.android.chrome" />
+        <package android:name="com.miui.notes" />
+        <package android:name="com.samsung.android.app.notes" />
+        <package android:name="com.google.android.keep" />
+        <intent><action android:name="android.intent.action.CREATE_NOTE" /></intent>
+        <intent><action android:name="com.google.android.gms.actions.CREATE_NOTE" /></intent>
     </queries>
 
     <!-- No READ_SMS, SEND_SMS, READ_MEDIA_IMAGES, MANAGE_EXTERNAL_STORAGE or AccessibilityService.

@@ -25,7 +25,7 @@ import java.io.File
 import java.util.Locale
 
 /** Android-owned Camera, Photo Picker, and scoped document picker. No broad storage permission. */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 internal fun JarvisAttachmentPicker(
     context: Context, dark: Boolean, onStatus: (String) -> Unit
@@ -146,15 +146,11 @@ internal fun JarvisAttachmentPicker(
             onDismissRequest = { if (!busy) open = false },
             containerColor = JarvisPalette.panel
         ) {
-            Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp)) {
+            Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())
+                .padding(horizontal = 24.dp, vertical = 8.dp)) {
                 Text("Csatolás Jarvishoz", style = MaterialTheme.typography.titleLarge,
                     color = JarvisPalette.mainText)
                 Spacer(Modifier.height(12.dp))
-                Text("PDF, Word, Excel, PowerPoint, TXT, CSV, ZIP, RAR, 7Z, " +
-                    "képek, hangok, videók és más fájlok. " +
-                    "Legfeljebb 20 kép és összesen 1 GB; egyelőre helyi előkészítés.",
-                    color = JarvisPalette.subtleText)
-                Spacer(Modifier.height(14.dp))
                 TextButton(onClick = {
                     if (busy) return@TextButton
                     try {
@@ -192,8 +188,8 @@ internal fun JarvisAttachmentPicker(
                     color = JarvisPalette.accent
                 )
                 items.forEach { attachment ->
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Column(Modifier.weight(1f)) {
+                    Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+                        Column(Modifier.fillMaxWidth()) {
                             Text(attachment.displayName.take(36),
                                 color = JarvisPalette.mainText)
                             Text(
@@ -204,6 +200,19 @@ internal fun JarvisAttachmentPicker(
                                 style = MaterialTheme.typography.bodySmall
                             )
                         }
+                        FlowRow(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                        TextButton(onClick = {
+                            open = false
+                            val result = JarvisExternalApps.openFile(context, attachment)
+                            onStatus(when (result) {
+                                AppHandoffResult.OPENED -> "Átadtam a fájlt a megnyitó alkalmazásnak."
+                                AppHandoffResult.SEARCH_OPENED -> "Alkalmazást keresek a fájl megnyitásához."
+                                AppHandoffResult.UNAVAILABLE -> "Nem sikerült megnyitni a fájlt."
+                            })
+                        }, enabled = !busy) { Text("Megnyitás") }
                         if (attachment.mimeType.startsWith("video/")) {
                             TextButton(onClick = {
                                 if (!busy) {
@@ -217,8 +226,15 @@ internal fun JarvisAttachmentPicker(
                                             previewTitle = attachment.displayName
                                             inspectedVideo = it
                                         }.onFailure {
-                                            onStatus("A videó nem dolgozható fel ezen a készüléken: " +
-                                                (it.message ?: "ismeretlen hiba"))
+                                            val found = JarvisExternalApps.search(
+                                                context, JarvisExternalApps.viewerQuery(
+                                                    attachment.displayName, attachment.mimeType
+                                                )
+                                            )
+                                            if (found) open = false
+                                            onStatus(if (found)
+                                                "A helyi előnézet nem sikerült; videólejátszót keresek."
+                                                else "A videóelőnézet nem sikerült ezen a készüléken.")
                                         }
                                     }
                                 }
@@ -230,13 +246,10 @@ internal fun JarvisAttachmentPicker(
                             JarvisVideoInspector.removeCache(context, attachment.id)
                             JarvisAttachments.delete(attachment)
                             items.remove(attachment)
-                        }) { Text("Eltávolítás") }
+                        }, enabled = !busy) { Text("Eltávolítás") }
+                        }
                     }
                 }
-                Text("A csatolmányok helyben maradnak; a felhőalapú AI-feldolgozás " +
-                    "még nincs összekapcsolva.",
-                    color = JarvisPalette.subtleText,
-                    style = MaterialTheme.typography.bodySmall)
                 Spacer(Modifier.height(26.dp))
             }
         }

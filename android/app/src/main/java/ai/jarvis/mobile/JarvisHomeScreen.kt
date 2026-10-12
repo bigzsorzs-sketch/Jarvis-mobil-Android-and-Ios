@@ -33,6 +33,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.Role
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -50,7 +51,7 @@ internal fun JarvisHomeScreen(
     context: Context,
     isDark: Boolean,
     onToggleTheme: () -> Unit,
-    onNavigate: (String) -> Unit,
+    onMenu: () -> Unit,
     onCommand: (String) -> Unit,
     history: List<Pair<String, String>>,
     pendingCall: VoiceCalling.Target?,
@@ -147,29 +148,10 @@ internal fun JarvisHomeScreen(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Box(
-            modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 12.dp),
+            modifier = Modifier.fillMaxWidth().heightIn(min = 60.dp)
+                .padding(start = 16.dp, end = 16.dp, top = 12.dp),
             contentAlignment = Alignment.Center
         ) {
-            Row(
-                modifier = Modifier.background(
-                    if (isDark) Color(0xFF202B42) else Color(0xFFE9EEF6),
-                    RoundedCornerShape(36.dp))
-                    .padding(4.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Surface(
-                    color = JarvisPalette.panel, shape = RoundedCornerShape(30.dp),
-                    shadowElevation = 1.dp,
-                    modifier = Modifier.clickable { onNavigate("Főoldal") }
-                ) {
-                    Text("Jarvis", color = JarvisInk, fontSize = 15.sp,
-                        modifier = Modifier.padding(horizontal = 25.dp, vertical = 12.dp))
-                }
-                TextButton(onClick = { onNavigate("Munka") }) {
-                    Text("Munka", color = JarvisMuted, fontSize = 15.sp,
-                        modifier = Modifier.padding(horizontal = 8.dp))
-                }
-            }
             Surface(
                 modifier = Modifier.align(Alignment.CenterEnd),
                 shape = CircleShape, color = JarvisPalette.panel, shadowElevation = 3.dp
@@ -185,7 +167,10 @@ internal fun JarvisHomeScreen(
             Spacer(Modifier.height(18.dp))
             JarvisVoiceOrb()
             Text("Jarvis", fontSize = 37.sp, fontWeight = FontWeight.Bold,
-                color = JarvisInk)
+                color = JarvisInk,
+                modifier = Modifier.clickable(
+                    onClickLabel = "Menü megnyitása", role = Role.Button, onClick = onMenu
+                ).padding(horizontal = 12.dp, vertical = 4.dp))
             Spacer(Modifier.height(18.dp))
             val spokenStatus = when {
                 HandsFreeStatus.speaking -> "Jarvis beszél..."

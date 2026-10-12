@@ -24,13 +24,14 @@ internal object BasicCommandRouter {
             listOf("vércukor", "vercukor", "cukornapl", "glucose", "blood sugar").any { it in input } -> BasicAction.OPEN_GLUCOSE
             listOf("száml", "szaml", "invoice", "billing").any { it in input } -> BasicAction.OPEN_INVOICES
             listOf("whatsapp", "messenger", "üzenet", "uzenet", "sms", "telegram", "signal").any { it in input } -> BasicAction.OPEN_MESSAGES
-            listOf("engedély", "engedely", "permissions").any { it in input } -> BasicAction.OPEN_PERMISSIONS
+            listOf("engedély", "engedely", "permissions", "beállítás", "beallitas", "settings")
+                .any { it in input } -> BasicAction.OPEN_PERMISSIONS
             listOf("email", "e-mail", "gmail", "levelez", "levél", "level", "mail").any { it in input } -> BasicAction.OPEN_EMAIL
             listOf("térkép", "terkep", "navig", "maps", "route").any { it in input } -> BasicAction.OPEN_MAP
             listOf("naptár", "naptar", "calendar").any { it in input } -> BasicAction.OPEN_CALENDAR
             listOf("ébreszt", "ebreszt", "alarm", "riasztó").any { it in input } -> BasicAction.OPEN_ALARMS
-            listOf("telefon", "tárcsáz", "tarcsaz", "dial", "hívás", "hivas").any { it in input } -> BasicAction.OPEN_DIALER
             listOf("jegyzet", "notes", "note").any { it in input } -> BasicAction.OPEN_NOTES
+            listOf("telefon", "tárcsáz", "tarcsaz", "dial", "hívás", "hivas").any { it in input } -> BasicAction.OPEN_DIALER
             listOf("főoldal", "fooldal", "home", "kezdőlap", "kezdolap").any { it in input } -> BasicAction.OPEN_HOME
             else -> BasicAction.UNKNOWN
         }
@@ -72,11 +73,15 @@ internal fun openDialer(context: Context): Boolean =
 internal fun performBasicAction(context: Context, action: BasicAction, onNavigate: (String) -> Unit): String {
     return when (action) {
         BasicAction.OPEN_MESSAGES -> { onNavigate("Üzenetek"); "Megnyitottam az üzeneteket. Értesítési hozzáférés szükséges." }
-        BasicAction.OPEN_PERMISSIONS -> { onNavigate("Engedélyek"); "Megnyitottam az engedélyeket." }
+        BasicAction.OPEN_PERMISSIONS -> { onNavigate("Beállítások"); "Megnyitottam a beállításokat." }
         BasicAction.OPEN_GLUCOSE -> { onNavigate("Vércukor"); "Megnyitottam a vércukornaplót." }
         BasicAction.OPEN_INVOICES -> { onNavigate("Számlák"); "Megnyitottam a számlázást." }
         BasicAction.OPEN_HOME -> { onNavigate("Főoldal"); "Megnyitottam a főoldalt." }
-        BasicAction.OPEN_NOTES -> { onNavigate("Továbbiak"); "A jegyzeteidet az Eszközöknél találod." }
+        BasicAction.OPEN_NOTES -> when (JarvisExternalApps.openNotes(context)) {
+            AppHandoffResult.OPENED -> "Megnyitottam a telefon jegyzetalkalmazását."
+            AppHandoffResult.SEARCH_OPENED -> "Jegyzetalkalmazást keresek a Play Áruházban."
+            AppHandoffResult.UNAVAILABLE -> "Nem sikerült megnyitni a telefon jegyzetalkalmazását."
+        }
         BasicAction.OPEN_EMAIL -> if (openEmail(context)) "Megnyitottam az emailírást." else "Nem található emailalkalmazás."
         BasicAction.OPEN_MAP -> if (openMap(context)) "Megnyitottam a térképet." else "Nem található térképalkalmazás."
         BasicAction.OPEN_CALENDAR -> if (openCalendar(context)) "Megnyitottam a naptárat." else "Nem található naptáralkalmazás."
