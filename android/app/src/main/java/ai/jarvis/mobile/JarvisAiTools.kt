@@ -183,6 +183,9 @@ internal object JarvisAiTools {
             }
             return validate(function.optString("name"), args.optString("route"), originalInput)
         }
+        if (VoiceCalling.extractAiRequest(originalInput) != null) {
+            return JarvisAiOutcome("Az AI nem adott ellenőrzött hívási parancsot. Nem indítottam hívást.")
+        }
         return JarvisAiOutcome(message.optString("content", "").trim()
             .ifEmpty { "Az AI üres választ küldött." })
     }
@@ -207,6 +210,9 @@ internal object JarvisAiTools {
         }
         // Fail closed on unexpected action types, not a string masquerading as a tool call.
         if (body.has("action")) return JarvisAiOutcome("Hibás szerveres eszközkérés.")
+        if (VoiceCalling.extractAiRequest(originalInput) != null) {
+            return JarvisAiOutcome("A szerver nem adott ellenőrzött hívási parancsot. Nem indítottam hívást.")
+        }
         return JarvisAiOutcome(body.optString("reply", "").trim()
             .ifEmpty { "Az AI üres választ küldött." })
     }
