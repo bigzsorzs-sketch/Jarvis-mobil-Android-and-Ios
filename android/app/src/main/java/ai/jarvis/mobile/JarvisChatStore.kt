@@ -11,7 +11,10 @@ import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
-internal data class JarvisChatEntry(val createdAtMs: Long, val request: String, val answer: String)
+internal data class JarvisChatEntry(
+    val createdAtMs: Long, val request: String, val answer: String,
+    val id: Long = 0L
+)
 
 /**
  * Local-only chat history, encrypted row-by-row with a nonexportable device key.
@@ -77,13 +80,33 @@ internal class JarvisChatStore(context: Context) : SQLiteOpenHelper(
         require(limit in 1..200)
         val result = ArrayList<JarvisChatEntry>()
         readableDatabase.rawQuery(
-            "SELECT created_at, request, response FROM chat ORDER BY id DESC LIMIT ?",
+            "SELECT id, created_at, request, response FROM chat ORDER BY id DESC LIMIT ?",
             arrayOf(limit.toString())
         ).use { c ->
             while (c.moveToNext()) {
-                result.add(JarvisChatEntry(c.getLong(0),
-                    decrypt(c.getBlob(1)), decrypt(c.getBlob(2))))
+                result.add(JarvisChatEntry(c.getLong(1),
+                    decrypt(c.getBlob(2)), decrypt(c.getBlob(3)), c.getLong(0)))
             }
+        }
+        return result.asReversed()
+    }
+
+    /** Load older rows using a stable database cursor. New chat messages can be
+     * appended concurrently without shifting the pagination window.
+     * Only decrypted in memory on the user's own device.
+     */
+    @Synchronized fun before(idExclusive: Long, limit: Int = 40): List<JarvisChatEntry> {
+        require(idExclusive > 0L && limit in 1..200)
+        val result = ArrayList<JarvisChatEntry>()
+        readableDatabase.rawQuery(
+            "SELECT id, created_at, request, response FROM chat " +
+                "WHERE id < ? ORDER BY id DESC LIMIT ?",
+            arrayOf(idExclusive.toString(), limit.toString())
+        ).use { cursor ->
+            while (cursor.moveToNext()) result.add(JarvisChatEntry(
+                cursor.getLong(1), decrypt(cursor.getBlob(2)),
+                decrypt(cursor.getBlob(3)), cursor.getLong(0)
+            ))
         }
         return result.asReversed()
     }

@@ -27,21 +27,22 @@ class JarvisNavigationInstrumentedTest {
         }
     }
 
-    @Test fun everyToolAndSubpageCanBeReachedByWrittenCommandFromAnyPage() {
+    @Test fun subpagesHaveNoDuplicatedJarvisComposerAndRemainReachableFromHome() {
         finishOnboarding()
-        var home = true
-        for (tool in (JarvisToolCatalog.all + JarvisToolCatalog.subpages).filter { it.route != "Főoldal" }) {
-            val input = if (home) "jarvis-home-input" else "jarvis-subpage-input"
-            val send = if (home) "jarvis-home-send" else "jarvis-subpage-send"
-            composeRule.onNodeWithTag(input).performTextClearance()
-            composeRule.onNodeWithTag(input).performTextInput("Nyisd meg a " + tool.name + " oldalt")
-            composeRule.onNodeWithTag(send).performClick()
+        for (tool in (JarvisToolCatalog.all + JarvisToolCatalog.subpages)
+            .filter { it.route != "Főoldal" }) {
+            composeRule.onNodeWithTag("jarvis-home-input").performTextClearance()
+            composeRule.onNodeWithTag("jarvis-home-input")
+                .performTextInput("Nyisd meg a " + tool.name + " oldalt")
+            composeRule.onNodeWithTag("jarvis-home-send").performClick()
             composeRule.onNodeWithTag("jarvis-subpage-header").assert(hasText(tool.route))
-            home = false
+            composeRule.onNodeWithTag("jarvis-subpage-input").assertDoesNotExist()
+            composeRule.onNodeWithTag("jarvis-subpage-send").assertDoesNotExist()
+            composeRule.onNodeWithText("Kérdezd meg Jarvist").assertDoesNotExist()
+            composeRule.onNodeWithTag("jarvis-subpage-home-button").performClick()
         }
-        composeRule.onNodeWithTag("jarvis-subpage-input").performTextInput("Nyisd meg a főoldalt")
-        composeRule.onNodeWithTag("jarvis-subpage-send").performClick()
         composeRule.onNodeWithTag("jarvis-home-input").assertExists()
+        composeRule.onNodeWithTag("jarvis-home-chat-timeline").assertExists()
     }
 
     @Test fun everyToolAndSubpageAcceptsTheSameForegroundVoiceDestination() {

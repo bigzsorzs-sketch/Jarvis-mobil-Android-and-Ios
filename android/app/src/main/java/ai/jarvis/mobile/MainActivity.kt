@@ -97,16 +97,21 @@ fun JarvisApp(context: Context) {
     val chatStore = remember(context) { JarvisChatStore(context) }
     val conversation = remember(chatStore) { mutableStateListOf<Pair<String, String>>() }
     var chatStorageWarning by remember { mutableStateOf("") }
+    var oldestChatId by remember(chatStore) { mutableLongStateOf(0L) }
+    var hasOlderChat by remember(chatStore) { mutableStateOf(false) }
+    var loadingOlderChat by remember(chatStore) { mutableStateOf(false) }
     // Keystore + database access must never block the first Compose frame.
     // Preserve messages submitted while the earlier history is loading.
     LaunchedEffect(chatStore) {
         val loaded = withContext(Dispatchers.IO) { runCatching { chatStore.recent(50) } }
         if (loaded.isSuccess) {
+            val earlier = loaded.getOrDefault(emptyList())
             val newest = conversation.toList()
             conversation.clear()
-            conversation.addAll(loaded.getOrDefault(emptyList()).map { it.request to it.answer })
-            newest.forEach { turn -> if (turn !in conversation) conversation.add(turn) }
-            while (conversation.size > 50) conversation.removeAt(0)
+            conversation.addAll(earlier.map { it.request to it.answer })
+            newest.forEach { turn -> conversation.add(turn) }
+            oldestChatId = earlier.firstOrNull()?.id ?: 0L
+            hasOlderChat = earlier.size == 50
         } else {
             chatStorageWarning =
                 "Nem tudtam betölteni a helyi beszélgetésnaplót; az adatokat nem töröltem."
@@ -128,8 +133,25 @@ fun JarvisApp(context: Context) {
     }
     fun addHistory(turn: Pair<String, String>) {
         conversation.add(turn)
-        if (conversation.size > 50) conversation.removeAt(0)
         saveChatTurn(turn)
+    }
+    suspend fun loadEarlierConversation() {
+        if (!hasOlderChat || loadingOlderChat || oldestChatId <= 0L) return
+        loadingOlderChat = true
+        try {
+            val entries = withContext(Dispatchers.IO) {
+                chatStore.before(oldestChatId, 50)
+            }
+            if (entries.isNotEmpty()) {
+                conversation.addAll(0, entries.map { it.request to it.answer })
+                oldestChatId = entries.first().id
+            }
+            hasOlderChat = entries.size == 50
+        } catch (_: Exception) {
+            chatStorageWarning = "Nem tudtam betölteni a régebbi helyi beszélgetéseket."
+        } finally {
+            loadingOlderChat = false
+        }
     }
     var pendingCall by remember { mutableStateOf<VoiceCalling.Target?>(null) }
     var pendingCallUntilMs by remember { mutableLongStateOf(0L) }
@@ -190,13 +212,13 @@ fun JarvisApp(context: Context) {
         if (sequence != null) {
             askSequenceReview(sequence)
             addHistory(command to "Két lépést azonosítottam. Indítás előtt erősítsd meg a műveletsort.")
-            if (conversation.size > 50) conversation.removeAt(0)
+            
             return
         }
         val native = JarvisNativeActions.identify(command)
         if (native != null) {
             addHistory(command to JarvisNativeActions.execute(context, native, command))
-            if (conversation.size > 50) conversation.removeAt(0)
+            
             return
         }
         val systemPanel = JarvisSystemPanels.identify(command)
@@ -217,7 +239,7 @@ fun JarvisApp(context: Context) {
                 BasicCommandRouter.classify(command) == BasicAction.UNKNOWN &&
                 JarvisCapabilities.localPageToOpen(command) == null)) {
             addHistory(command to JarvisInstalledApps.openRequested(context, command))
-            if (conversation.size > 50) conversation.removeAt(0)
+            
             return
         }
         if (phoneAction != null) {
@@ -229,13 +251,13 @@ fun JarvisApp(context: Context) {
             prepareMessageReview(localDraft)
             addHistory(command to
                 "Helyben előkészítettem a piszkozatot. Ellenőrizd a címzettet és az üzenetet.")
-            if (conversation.size > 50) conversation.removeAt(0)
+            
             return
         }
         if (JarvisAiRouting.shouldAskAi(command)) {
             val pending = command to "AI-válaszra várok…"
             conversation.add(pending)
-            if (conversation.size > 50) conversation.removeAt(0)
+            
             drawerScope.launch {
                 val outcome = JarvisAiGateway.askStructured(context, command)
                 if (requestRevision != commandRevision) {
@@ -281,7 +303,7 @@ fun JarvisApp(context: Context) {
                 { contact -> prepareCallConfirmation(contact) }
             )
             addHistory(command to answer)
-            if (conversation.size > 50) conversation.removeAt(0)
+            
         }
     }
     BackHandler(enabled = drawerState.isOpen || page != "Főoldal") {
@@ -339,7 +361,7 @@ fun JarvisApp(context: Context) {
                 JarvisSequence.execute(context, pendingVoiceSequence.plan)
             else "A kétlépéses hangparancs lejárt. Semmit nem hajtottam végre."
             addHistory("Hangos műveletsor" to outcome)
-            if (conversation.size > 50) conversation.removeAt(0)
+            
         }
     }
     val pendingPanel = HandsFreeNavigation.systemPanel
@@ -362,7 +384,7 @@ fun JarvisApp(context: Context) {
                 JarvisInstalledApps.openRequested(context, pendingInstalled.original)
             else "Lejárt a korábbi alkalmazásmegnyitási kérés. Nem történt indítás."
             addHistory("Hangos alkalmazásmegnyitás" to response)
-            if (conversation.size > 50) conversation.removeAt(0)
+            
         }
     }
     val pendingNative = HandsFreeNavigation.nativeAction
@@ -374,7 +396,7 @@ fun JarvisApp(context: Context) {
                 JarvisNativeActions.execute(context, pendingNative.action, pendingNative.original)
             else "Lejárt a korábbi Android-művelet. Nem indítottam el semmit."
             addHistory("Hangos Android-művelet" to answer)
-            if (conversation.size > 50) conversation.removeAt(0)
+            
         }
     }
     val requestedPhoneApp = HandsFreeNavigation.deviceAction
@@ -435,6 +457,9 @@ fun JarvisApp(context: Context) {
                             onMenu = { drawerScope.launch { drawerState.open() } },
                             onCommand = { command -> executeHome(command) },
                             history = conversation,
+                            hasOlderHistory = hasOlderChat,
+                            loadingOlderHistory = loadingOlderChat,
+                            onLoadOlderHistory = { loadEarlierConversation() },
                             pendingCall = pendingCall,
                             pendingMessage = pendingMessage,
                             pendingSequence = pendingSequence,
@@ -494,7 +519,10 @@ fun JarvisApp(context: Context) {
                             TextButton(onClick = toggleTheme) {
                                 Text(if (isDark) "☀ Világos" else "☾ Sötét", color = Cyan)
                             }
-                            TextButton(onClick = { page = "Főoldal" }) {
+                            TextButton(
+                                modifier = Modifier.testTag("jarvis-subpage-home-button"),
+                                onClick = { page = "Főoldal" }
+                            ) {
                                 Text("Főoldal", color = Cyan)
                             }
                         }
@@ -550,14 +578,6 @@ fun JarvisApp(context: Context) {
                                 else -> JarvisToolLanding(context, page, onOpen = { openTool(it, asPage = true) })
                             }
                         }
-                    }
-                    if (!onHome) {
-                        conversation.lastOrNull()?.let { turn ->
-                            Text(turn.second, color = Soft, fontSize = 12.sp,
-                                maxLines = 3,
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
-                        }
-                        JarvisCommandBar(context, onCommand = { executeHome(it) })
                     }
                 }
             }
