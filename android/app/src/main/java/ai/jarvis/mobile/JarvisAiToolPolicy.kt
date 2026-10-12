@@ -33,11 +33,14 @@ internal object JarvisAiToolPolicy {
         return definitions
     }
 
-    fun providerPayload(question: String): JSONObject {
+    fun providerPayload(question: String, languageTag: String = "hu-HU"): JSONObject {
         val payload = JSONObject()
             .put("model", JarvisAiGateway.TEST_MODEL)
             .put("messages", JSONArray()
-                .put(JSONObject().put("role", "system").put("content", JarvisIdentity.systemPrompt))
+                .put(JSONObject().put("role", "system").put("content",
+                    JarvisIdentity.systemPrompt + if (languageTag.startsWith("en"))
+                        " Respond in English by default, unless the user asks for another language."
+                    else " Alapértelmezés szerint magyarul válaszolj, kivéve ha a felhasználó más nyelvet kér."))
                 .put(JSONObject().put("role", "user").put("content", question)))
             .put("max_tokens", 800)
             .put("stream", false)
