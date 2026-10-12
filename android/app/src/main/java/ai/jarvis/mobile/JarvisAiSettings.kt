@@ -28,7 +28,8 @@ internal fun JarvisAiSettings(context: Context) {
         style = MaterialTheme.typography.titleLarge)
     Spacer(Modifier.height(12.dp))
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        if (BuildConfig.DEBUG) FilterChip(
+        if (BuildConfig.DEBUG &&
+            JarvisAiGateway.normalizedBaseUrl(BuildConfig.JARVIS_GATEWAY_ORIGIN) == null) FilterChip(
             selected = selectedMode == JarvisAiGateway.DIRECT_TEST,
             onClick = {
                 selectedMode = JarvisAiGateway.DIRECT_TEST
