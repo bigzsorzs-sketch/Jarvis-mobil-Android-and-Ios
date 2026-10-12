@@ -12,6 +12,14 @@ class JarvisCapabilitiesTest {
         assertTrue(answer.contains("nem vezérelnek tetszőleges eszközt"))
     }
 
+    @Test fun canExplainItselfOfflineWithNaturalHungarianRequest() {
+        val request = "mit tud elmondani magadról"
+        assertTrue(JarvisCapabilities.replyIfAsked(request)!!.startsWith("Jarvis vagyok"))
+        assertFalse(JarvisAiRouting.shouldAskAi(request))
+        assertNotNull(JarvisCapabilities.replyIfAsked("Mit tudsz elmondani magadról?"))
+        assertNull(JarvisCapabilities.replyIfAsked("Mit tudsz elmondani az autókról?"))
+    }
+
     @Test fun listsTheRealMenuRatherThanASecondFakeCatalog() {
         val answer = JarvisCapabilities.replyIfAsked("Listázd az összes eszközöd")!!
         for (item in JarvisToolCatalog.all) assertTrue(item.name, answer.contains(item.name))

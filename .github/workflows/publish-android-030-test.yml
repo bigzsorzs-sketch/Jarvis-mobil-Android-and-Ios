@@ -1,0 +1,71 @@
+name: Publish Jarvis Android 0.2.10 test APK
+on:
+  workflow_run:
+    workflows: ["Build Android APK"]
+    types: [completed]
+    branches: [main]
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  publish-tested-apk:
+    if: >-
+      ${{ github.event.workflow_run.conclusion == 'success' &&
+          github.event.workflow_run.event == 'push' &&
+          github.event.workflow_run.head_branch == 'main' &&
+          github.event.workflow_run.head_repository.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Confirm build commit is still main HEAD
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_SHA: ${{ github.event.workflow_run.head_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          main_sha="$(gh api "repos/${{ github.repository }}/git/ref/heads/main" --jq '.object.sha')"
+          test "$main_sha" = "$RUN_SHA"
+      - name: Download exact successful Android build artifact
+        uses: actions/download-artifact@v4
+        with:
+          run-id: ${{ github.event.workflow_run.id }}
+          name: Jarvis-Android-Debug-APK
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: dist
+      - name: Verify APK and checksum
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s dist/app-debug.apk
+          unzip -t dist/app-debug.apk >/dev/null
+          mv dist/app-debug.apk dist/Jarvis-Mobile-Android-0.2.10-test.apk
+          sha256sum dist/Jarvis-Mobile-Android-0.2.10-test.apk > dist/SHA256SUMS.txt
+      - name: Publish test-only GitHub prerelease
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          tag="v0.2.10-dev-test.1"
+          if gh release view "$tag" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            echo "Existing release kept intact."
+            exit 0
+          fi
+          cat > /tmp/JARVIS_TEST_NOTES.md <<'EOF'
+          ## Jarvis Mobile Android 0.2.10 – TESZT (nem Play Store)
+
+          Ez az APK a sikeres Android egységteszt, Android Lint és debug-fordítás eredményéből származik.
+
+          - A kezdőlapon megjelenő minden válasz alól eltávolítottuk a külön "Felolvasás" gombot; a hangvezérlés változatlanul külön funkció.
+          - A "mit tud elmondani magadról" és más természetes bemutatkozási kérdésekre Jarvis helyben válaszol; nincs felesleges AI-kérés.
+          - HTTP 404 esetén egyértelműen jelzi, hogy a saját Jarvis-szerver /v1/chat útvonala hiányzik-e, vagy a közvetlen OpenRouter-modellhez nincs elérhető végpont.
+          - Az AI-agy beállítások megmutatják az éppen mentett kapcsolati módot. Az alkalmazás nem küld API-kulcsot a Githubra és nem találgatva vált modellt.
+          - Android 16 / API 36, titkosított helyi chatnapló, offline kereshető előzmények, telepített alkalmazások megnyitása megmaradt.
+          - Automatizált Kotlin-, Android Lint-, APK- és UI-emulátoros ellenőrzések nem helyettesítik a fizikai telefonos próba eredményét.
+          - Ha HTTP 404 továbbra is jelentkezik általános kérdésnél, nézd meg a Beállítások → AI-agy alatt a kiválasztott üzemmódot és a hiba pontos szövegét; szerver- vagy OpenRouter-fiókbeállítás is szükséges lehet.
+          - Belső debug tesztkiadás. Egy eltérő debug-aláírás miatti újratelepítés törölheti a telefonon lévő beszélgetéselőzményeket. Biztonsági mentés nélkül ne töröld a régi alkalmazást.
+          EOF
+          gh release create "$tag"             "dist/Jarvis-Mobile-Android-0.2.10-test.apk"             "dist/SHA256SUMS.txt"             --repo "${{ github.repository }}"             --target "$RUN_SHA"             --title "Jarvis Mobile Android 0.2.10 – TESZT"             --notes-file /tmp/JARVIS_TEST_NOTES.md             --prerelease             --latest=false

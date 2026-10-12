@@ -32,6 +32,17 @@ class JarvisAiGatewayTest {
         assertFalse(JarvisAiGateway.isValidOpenRouterKey("sk-or-" + "a".repeat(20) + " "))
     }
 
+    @Test fun http404ExplainsRoutingNotInvalidSecrets() {
+        val direct = JarvisAiGateway.http404Message(true)
+        assertTrue(direct.contains("OpenRouter HTTP 404"))
+        assertTrue(direct.contains("openai/gpt-4o-mini"))
+        assertFalse(direct.contains("érvénytelen"))
+        val server = JarvisAiGateway.http404Message(false)
+        assertTrue(server.contains("/v1/chat"))
+        assertTrue(server.contains("saját Jarvis-szerver"))
+        assertFalse(server.contains("sk-or-"))
+    }
+
     @Test fun routesQuestionsButNotLocalCommands() {
         assertTrue(JarvisAiRouting.shouldAskAi("Magyarázd el a napfogyatkozást"))
         assertFalse(JarvisAiRouting.shouldAskAi("Szia"))
