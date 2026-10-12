@@ -15,7 +15,9 @@ internal fun JarvisInstalledAppsScreen(context: Context) {
     var feedback by remember { mutableStateOf("") }
     Text("Telepített alkalmazások", style = MaterialTheme.typography.headlineSmall)
     Text("Jarvis csak megnyitja a kiválasztott alkalmazást. Nem olvas bele, " +
-        "nem nyom meg gombokat és nem küld üzeneteket helyetted.",
+        "nem nyom meg gombokat és nem küld üzeneteket helyetted. " +
+        "A telepített alkalmazások listája csak a telefonon marad; " +
+        "nem küldöm sem a Jarvis szerverre, sem az AI-szolgáltatónak.",
         style = MaterialTheme.typography.bodySmall)
     Spacer(Modifier.height(12.dp))
     OutlinedTextField(
