@@ -272,6 +272,7 @@ class HandsFreeService : Service(), RecognitionListener {
                 if (running && pendingTtsText == text && !ttsReady) {
                     pendingTtsText = null
                     HandsFreeStatus.status = "A hangmotor nem indult el. Ellenőrizd a TTS-beállításokat."
+                    if (tapActivated) awaitingCommand = true
                     again(400)
                 }
             }, 6000)
@@ -805,7 +806,9 @@ class HandsFreeService : Service(), RecognitionListener {
         }
     }
 
-    override fun onReadyForSpeech(params: Bundle?) {}
+    override fun onReadyForSpeech(params: Bundle?) {
+        if (running && !speaking) HandsFreeStatus.status = "Hallgatlak, mondd a kérésed…"
+    }
     override fun onBeginningOfSpeech() {
         HandsFreeStatus.userSpeaking = true
     }
@@ -853,8 +856,11 @@ class HandsFreeService : Service(), RecognitionListener {
             shutdown("A mikrofonengedély megszűnt.")
             return
         }
-        if (error == SpeechRecognizer.ERROR_NO_MATCH || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT)
-            errors = 0 else errors++
+        if (error == SpeechRecognizer.ERROR_NO_MATCH || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT) {
+            HandsFreeStatus.status = "Nem értettem. Próbáld újra, most figyelek."
+            errors = 0
+            if (tapActivated) awaitingCommand = true
+        } else errors++
         if (errors >= 5) shutdown("A beszédfelismerés nem működik stabilan.")
         else again(if (error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY) 2200 else 1100)
     }
