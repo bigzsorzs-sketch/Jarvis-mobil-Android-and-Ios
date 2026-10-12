@@ -154,6 +154,37 @@ class JarvisAiToolsTest {
         assertTrue(serverPlain.message.contains("Nem történt küldés"))
     }
 
+    @Test fun nativeAiToolIsValidatedAgainstOriginalCommand() {
+        val tool = toolCall(JarvisAiTools.NATIVE_FUNCTION,
+            JSONObject().put("action", "navigate"))
+        val ok = JarvisAiTools.fromProvider(providerWith(tool), "Navigálj Leedsbe")
+        assertEquals("navigate", ok.nativeAction)
+        assertNull(ok.callTarget)
+        assertNull(JarvisAiTools.fromProvider(providerWith(tool),
+            "Állítsd be az ébresztőt 7:30-ra").nativeAction)
+        assertNull(JarvisAiTools.fromProvider(providerWith(tool, tool),
+            "Navigálj Leedsbe").nativeAction)
+        assertNull(JarvisAiTools.fromProvider(providerWith(toolCall(
+            JarvisAiTools.NATIVE_FUNCTION, JSONObject().put("action", "navigate")
+                .put("destination", "another-place"))), "Navigálj Leedsbe").nativeAction)
+        assertNull(JarvisAiTools.fromProvider(providerWith(tool),
+            "Ne navigálj Leedsbe").nativeAction)
+    }
+
+    @Test fun serverCannotChooseAnotherNativeAction() {
+        val good = JSONObject().put("action", JSONObject()
+            .put("name", JarvisAiTools.NATIVE_FUNCTION)
+            .put("action", "set_alarm"))
+        assertEquals("set_alarm", JarvisAiTools.fromServer(good,
+            "Állítsd be az ébresztőt 7:30-ra").nativeAction)
+        assertNull(JarvisAiTools.fromServer(good, "Navigálj Leedsbe").nativeAction)
+        val unexpected = JSONObject().put("action", JSONObject()
+            .put("name", JarvisAiTools.NATIVE_FUNCTION)
+            .put("action", "delete_files"))
+        assertNull(JarvisAiTools.fromServer(unexpected,
+            "Állítsd be az ébresztőt 7:30-ra").nativeAction)
+    }
+
     @Test fun serverCallProposalRequiresExactUserRequest() {
         val proposal = JSONObject().put("action", JSONObject()
             .put("name", JarvisAiTools.CALL_FUNCTION).put("target", "+441234567890"))
