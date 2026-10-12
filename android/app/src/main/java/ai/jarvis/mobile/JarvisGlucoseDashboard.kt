@@ -99,7 +99,7 @@ internal fun JarvisGlucoseDashboard(
                             require(bytes.size <= 5_000_000)
                             val csv = bytes.toString(Charsets.UTF_8)
                             JarvisGlucoseData.importLibreView(csv, readings.toList())
-                        } ?: error("Cannot read file")
+                        } ?: throw IllegalArgumentException("Cannot read file")
                     }
                 }
                 data.onSuccess { result ->
