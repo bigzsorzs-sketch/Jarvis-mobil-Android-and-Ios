@@ -189,7 +189,9 @@ fun JarvisApp(context: Context) {
         }
         // A named installed app opens through a user-originated, exact-label
         // request, never an AI-chosen package/activity name.
-        val appSelection = JarvisInstalledApps.choose(command, JarvisInstalledApps.list(context))
+        val appSelection = if (JarvisInstalledApps.requestedLabel(command) != null)
+            JarvisInstalledApps.choose(command, JarvisInstalledApps.list(context))
+        else AppSelection.NotARequest
         if (appSelection is AppSelection.Found ||
             appSelection is AppSelection.Ambiguous ||
             (appSelection is AppSelection.Missing &&
