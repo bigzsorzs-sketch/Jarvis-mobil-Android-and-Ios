@@ -1,5 +1,5 @@
-// The model may only propose one navigation action; no device actions happen on this server.
-// The Android client always validates the returned route and original user intent.
+// The model may only propose one allowlisted action; no device actions happen on this server.
+// Android validates proposals against the original user instruction and handles review.
 export const JARVIS_ROUTES = [
   "Főoldal", "Munka", "Navigáció", "Vércukor", "Számlák", "Email",
   "Üzenetek", "Névjegyek", "Naptár", "Jegyzetek", "Ébresztő",
