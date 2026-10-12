@@ -8,13 +8,15 @@
 4. A Navigáció és Térkép menüpont közvetlenül az Android térképalkalmazását nyitja.
 5. Az alsó `+` gomb **Kamera / Fényképek / Fájlok** választót ad. A kiválasztott fájl a telefon alkalmazásspecifikus cache tárhelyére ténylegesen, streameléssel kerül be; maximum 20 kép és **összesen 1 GiB**. A felhasználó eltávolíthatja a csatolmányokat a listából.
 6. Az Engedélyközpont duplikált kép- és dokumentumválasztói eltávolítva. A fájlválasztók csak a kiválasztott fájlokhoz férnek hozzá, nem a teljes tárhelyhez.
+7. A bal felső menügomb a főoldalról és az aloldalakról is eltávolítva. Nincs oldalról behúzható menü; minden korábbi eszköz a **Munka** fülről érhető el. A főoldal felső váltója középen marad, a témakapcsoló jobbra.
 
 ## Ezt teszteld a telefonon
 
 - Világos/sötét váltás: azonnal változik-e, és újraindítás után megmarad-e?
 - A gömb és az energiahullámok álló helyzetben mozdulatlanok-e? Beszédnél együtt mozognak-e?
 - Főoldal: a beírt kérés nem navigál Chat aloldalra, hanem a választ helyben mutatja-e?
-- Menü: Navigáció érintésre rögtön a telepített térképapp indul-e?
+- A főoldalon és a Rendszerállapot oldalon sincs bal felső menügomb; oldalirányú húzás sem nyit menüt?
+- Munka: mind a 14 eszköz elérhető-e; a Navigáció és Térkép érintésre rögtön a telepített térképapp indul-e?
 - + gomb: Kamera, Fényképek, Fájlok; 20 kép után nem enged-e többet; az együttes méret nem lehet nagyobb 1 GiB-nál?
 - Az Engedélyközpontban nincsenek már párhuzamos kép/fájlkiválasztó kártyák?
 - Vissza gomb, állapot- és navigációs sáv színei, billentyűzet és gesztusvezérlés mindkét témában.

@@ -2,6 +2,10 @@
 
 Separate **native mobile** Jarvis repository, independent from the Windows Electron app. This is a first **functional Basic prototype**, not a production release.
 
+## Android 0.1.8-dev — simplified home and tools navigation
+
+The top-left menu button is removed from Home and every subpage, including System Status. All previous tools are available under **Munka**, including permissions/settings; Navigation and Map still open the installed map app. The centered Jarvis/Munka switch, theme toggle, system Back navigation and bottom prompt/attachment bar remain available. See [Android test scenarios](docs/JARVIS_ANDROID_0.1.8_TEST.md).
+
 ## Android 0.1.7-dev — voice-first Jarvis home (internal only)
 
 The approved light white/cyan design is implemented as **native Jetpack Compose**, not a static screenshot. Home shows a reactive Jarvis orb (animated wave ribbons and center waveform), a two-line drawer button, Chat/Munka switch, and a bottom prompt bar with dictated command, tools access and opt-in 15-minute voice session button. The drawer includes every requested Basic tool; routes open real Android screens or truthful external-app handoff explanations. One-shot home prompts run through the **same existing local executor as Chat**, not a pretend AI bot.

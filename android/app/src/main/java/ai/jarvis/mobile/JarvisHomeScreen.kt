@@ -50,7 +50,6 @@ internal fun JarvisHomeScreen(
     context: Context,
     isDark: Boolean,
     onToggleTheme: () -> Unit,
-    onMenu: () -> Unit,
     onNavigate: (String) -> Unit,
     onCommand: (String) -> Unit,
     history: List<Pair<String, String>>,
@@ -147,26 +146,10 @@ internal fun JarvisHomeScreen(
         ),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Row(
+        Box(
             modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 12.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+            contentAlignment = Alignment.Center
         ) {
-            Surface(
-                shape = CircleShape, color = JarvisPalette.panel, shadowElevation = 3.dp
-            ) {
-                IconButton(onClick = onMenu) {
-                    Column(
-                        modifier = Modifier.width(23.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Box(Modifier.fillMaxWidth().height(2.5.dp)
-                            .background(JarvisInk, RoundedCornerShape(4.dp)))
-                        Box(Modifier.fillMaxWidth(0.72f).height(2.5.dp)
-                            .background(JarvisInk, RoundedCornerShape(4.dp)))
-                    }
-                }
-            }
             Row(
                 modifier = Modifier.background(
                     if (isDark) Color(0xFF202B42) else Color(0xFFE9EEF6),
@@ -188,7 +171,8 @@ internal fun JarvisHomeScreen(
                 }
             }
             Surface(
-                shape = CircleShape, color = Color.White, shadowElevation = 3.dp
+                modifier = Modifier.align(Alignment.CenterEnd),
+                shape = CircleShape, color = JarvisPalette.panel, shadowElevation = 3.dp
             ) {
                 IconButton(onClick = onToggleTheme) {
                     Text(if (isDark) "☀" else "☾", fontSize = 26.sp, color = JarvisInk)
@@ -196,7 +180,7 @@ internal fun JarvisHomeScreen(
             }
         }
         if (!keyboardVisible) {
-            // The orb and tagline deliberately collapse when the keyboard opens.
+            // The orb and heading deliberately collapse when the keyboard opens.
             // This reserves a guaranteed bottom area for the text composer.
             Spacer(Modifier.height(18.dp))
             JarvisVoiceOrb()

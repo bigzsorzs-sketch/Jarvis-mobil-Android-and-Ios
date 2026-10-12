@@ -1,21 +1,15 @@
 package ai.jarvis.mobile
 
 import android.content.Context
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-/** Every displayed drawer entry has a real destination; no decorative dead buttons. */
+/** Every tool in the Munka page has a real destination. */
 internal data class JarvisTool(val name: String, val route: String, val glyph: String)
 internal object JarvisToolCatalog {
     val all = listOf(
@@ -39,62 +33,25 @@ internal object JarvisToolCatalog {
 }
 
 @Composable
-internal fun JarvisDrawer(selected: String, onSelect: (String) -> Unit) {
-    val dark = LocalJarvisDark.current
-    ModalDrawerSheet(
-        modifier = Modifier.widthIn(max = 320.dp),
-        drawerContainerColor = JarvisPalette.background
-    ) {
-        Column(Modifier.fillMaxWidth().padding(top = 24.dp, start = 22.dp, bottom = 20.dp)) {
-            Text("Jarvis", color = JarvisPalette.mainText, fontSize = 31.sp, fontWeight = FontWeight.Bold)
-            Text("Egy agy. Mindenhez.", color = JarvisPalette.subtleText, fontSize = 14.sp)
-        }
-        HorizontalDivider(color = if (dark) Color(0xFF25344E) else Color(0xFFE7ECF5))
-        LazyColumn(
-            modifier = Modifier.fillMaxHeight(),
-            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
-            verticalArrangement = Arrangement.spacedBy(2.dp)
-        ) {
-            items(JarvisToolCatalog.all, key = { it.name }) { item ->
-                NavigationDrawerItem(
-                    label = {
-                        Text(
-                            item.name, fontSize = 15.sp,
-                            color = if (selected == item.route) JarvisPalette.accent else JarvisPalette.mainText,
-                            fontWeight = if (selected == item.route) FontWeight.SemiBold else FontWeight.Normal
-                        )
-                    },
-                    icon = {
-                        Box(Modifier.width(28.dp), contentAlignment = Alignment.Center) {
-                            Text(item.glyph, fontSize = 23.sp,
-                                color = if (selected == item.route) JarvisPalette.accent else JarvisPalette.mainText)
-                        }
-                    },
-                    selected = selected == item.route,
-                    colors = NavigationDrawerItemDefaults.colors(
-                        selectedContainerColor = if (dark) Color(0xFF172F56) else Color(0xFFDDEAFF),
-                        unselectedContainerColor = Color.Transparent
-                    ),
-                    onClick = { onSelect(item.route) },
-                    modifier = Modifier.height(47.dp)
-                )
-            }
-        }
-    }
-}
-
-@Composable
 internal fun JarvisToolLanding(context: Context, page: String, onOpen: (String) -> Unit) {
     var message by remember(page) { mutableStateOf("") }
     Text(page, fontSize = 27.sp, fontWeight = FontWeight.Bold, color = JarvisPalette.mainText)
     Spacer(Modifier.height(12.dp))
     when (page) {
         "Munka" -> {
-            Text("Munkához tartozó eszközök. Az AI-alapú feladatautomatizálás még nincs bekötve.",
-                color = JarvisPalette.subtleText)
-            Button(onClick = { onOpen("Számlák") }) { Text("Számlázás") }
-            OutlinedButton(onClick = { onOpen("Naptár") }) { Text("Naptár") }
-            OutlinedButton(onClick = { onOpen("Jegyzetek") }) { Text("Jegyzetek") }
+            Text("Eszközök", color = JarvisPalette.subtleText)
+            JarvisToolCatalog.all.filterNot {
+                it.route == "Főoldal" || it.route == "Munka"
+            }.forEach { item ->
+                OutlinedButton(
+                    onClick = { onOpen(item.route) },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(item.glyph, fontSize = 21.sp)
+                    Spacer(Modifier.width(12.dp))
+                    Text(item.name, modifier = Modifier.weight(1f))
+                }
+            }
         }
         "Navigáció" -> {
             Text("Hangos útvonaltervezés: a mentett címek alapján a telepített térképalkalmazás indul.",

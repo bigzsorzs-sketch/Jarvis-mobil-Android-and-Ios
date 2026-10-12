@@ -34,7 +34,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
 import androidx.core.view.WindowInsetsControllerCompat
-import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -90,10 +89,16 @@ fun JarvisApp(context: Context) {
     var page by remember { mutableStateOf(
         if (onboardingPrefs.getBoolean("permissions_reviewed", false)) "Főoldal" else "Engedélyek"
     ) }
-    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
-    val drawerScope = rememberCoroutineScope()
     val conversation = remember { mutableStateListOf<Pair<String, String>>() }
     var pendingCall by remember { mutableStateOf<VoiceCalling.Target?>(null) }
+    fun openTool(destination: String) {
+        if (destination == "Navigáció" || destination == "Térkép") {
+            if (!openMap(context)) {
+                conversation.add("Navigáció" to "Nem találok telepített térképalkalmazást.")
+                page = "Főoldal"
+            }
+        } else page = destination
+    }
     fun executeHome(command: String) {
         if (command.isBlank()) return
         val answer = JarvisCommandExecutor.run(
@@ -103,9 +108,8 @@ fun JarvisApp(context: Context) {
         conversation.add(command to answer)
         if (conversation.size > 50) conversation.removeAt(0)
     }
-    BackHandler(enabled = drawerState.isOpen || page != "Főoldal") {
-        if (drawerState.isOpen) drawerScope.launch { drawerState.close() }
-        else page = "Főoldal"
+    BackHandler(enabled = page != "Főoldal") {
+        page = "Főoldal"
     }
     SideEffect {
         (context as? Activity)?.window?.let { window ->
@@ -158,27 +162,13 @@ fun JarvisApp(context: Context) {
 
     val onHome = page == "Főoldal"
     CompositionLocalProvider(LocalJarvisDark provides isDark) {
-    MaterialTheme(colorScheme = if (!isDark) lightColorScheme(
-        primary = Color(0xFF075FF1), background = Color.White,
-        surface = Color.White, onSurface = Color(0xFF08142E)
-    ) else darkColorScheme(
-        primary = Cyan, background = Night, surface = Panel,
-        onSurface = White, onBackground = White, onPrimary = Night
-    )) {
-        ModalNavigationDrawer(
-            drawerState = drawerState,
-            drawerContent = {
-                JarvisDrawer(page) { selected ->
-                    if (selected == "Navigáció" || selected == "Térkép") {
-                        if (!openMap(context)) {
-                            conversation.add("Navigáció" to "Nem találok telepített térképalkalmazást.")
-                            page = "Főoldal"
-                        }
-                    } else page = selected
-                    drawerScope.launch { drawerState.close() }
-                }
-            }
-        ) {
+        MaterialTheme(colorScheme = if (!isDark) lightColorScheme(
+            primary = Color(0xFF075FF1), background = Color.White,
+            surface = Color.White, onSurface = Color(0xFF08142E)
+        ) else darkColorScheme(
+            primary = Cyan, background = Night, surface = Panel,
+            onSurface = White, onBackground = White, onPrimary = Night
+        )) {
             Column(
                 Modifier.fillMaxSize()
                     .windowInsetsPadding(WindowInsets.safeDrawing)
@@ -190,8 +180,7 @@ fun JarvisApp(context: Context) {
                         context = context,
                         isDark = isDark,
                         onToggleTheme = toggleTheme,
-                        onMenu = { drawerScope.launch { drawerState.open() } },
-                        onNavigate = { page = it },
+                        onNavigate = { openTool(it) },
                         onCommand = { command -> executeHome(command) },
                         history = conversation,
                         pendingCall = pendingCall,
@@ -210,9 +199,6 @@ fun JarvisApp(context: Context) {
                         Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        TextButton(onClick = { drawerScope.launch { drawerState.open() } }) {
-                            Text("☰", color = Cyan, fontSize = 25.sp)
-                        }
                         Text(page, color = White, fontSize = 19.sp,
                             fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
                         TextButton(onClick = toggleTheme) {
@@ -260,13 +246,12 @@ fun JarvisApp(context: Context) {
                             "Továbbiak" -> MoreScreen(context, notes, {
                                 securePrefs.write("notes", JSONArray(notes).toString())
                             }, { page = it })
-                            else -> JarvisToolLanding(context, page, onOpen = { page = it })
+                            else -> JarvisToolLanding(context, page, onOpen = { openTool(it) })
                         }
                     }
                 }
             }
         }
-    }
     }
 }
 
