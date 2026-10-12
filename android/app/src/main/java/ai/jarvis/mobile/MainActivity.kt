@@ -127,6 +127,14 @@ fun JarvisApp(context: Context) {
     }
     fun executeHome(command: String) {
         if (command.isBlank()) return
+        // The same strictly validated local action registry is available from
+        // typed commands even when the AI service is offline.
+        val native = JarvisNativeActions.identify(command)
+        if (native != null) {
+            conversation.add(command to JarvisNativeActions.execute(context, native, command))
+            if (conversation.size > 50) conversation.removeAt(0)
+            return
+        }
         val localDraft = JarvisMessageIntent.parse(command)
         if (localDraft != null && !JarvisAiGateway.configured(context)) {
             prepareMessageReview(localDraft)
