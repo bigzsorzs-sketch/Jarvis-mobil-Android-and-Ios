@@ -1,12 +1,10 @@
 package ai.jarvis.mobile
 
 import android.Manifest
-import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
-import android.speech.RecognizerIntent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -41,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 
 private val JarvisBlue = Color(0xFF075FF1)
 private val JarvisInk: Color @Composable get() = JarvisPalette.mainText
@@ -78,6 +77,10 @@ internal fun JarvisHomeScreen(
     val handsFree = HandsFreeStatus.running
     val chatListState = rememberLazyListState()
     val chatScope = rememberCoroutineScope()
+    val dictation = remember(context) { JarvisDictation(context) }
+    DisposableEffect(dictation) {
+        onDispose { dictation.stop() }
+    }
     // New messages and completed AI answers stay at the bottom, like a messenger.
     // Loading older pages does not jump back to the newest turn.
     LaunchedEffect(history.lastOrNull()) {
@@ -101,7 +104,7 @@ internal fun JarvisHomeScreen(
         try {
             ContextCompat.startForegroundService(
                 context,
-                Intent(context, HandsFreeService::class.java).setAction(HandsFreeService.START)
+                Intent(context, HandsFreeService::class.java).setAction(HandsFreeService.START_TAP)
             )
             issue = ""
         } catch (_: Exception) {
@@ -117,15 +120,29 @@ internal fun JarvisHomeScreen(
                     PackageManager.PERMISSION_GRANTED, grants)) startVoice()
         else issue = "A kéz nélküli módhoz mikrofonengedély szükséges."
     }
-    val dictate = rememberLauncherForActivityResult(
-        ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        if (result.resultCode == Activity.RESULT_OK) {
-            val heard = result.data
-                ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
-                ?.firstOrNull()
-            if (!heard.isNullOrBlank()) submit(heard)
+    fun startDictation() {
+        chatScope.launch {
+            // Only one Android SpeechRecognizer may own the microphone at a time.
+            if (HandsFreeStatus.running) {
+                context.startService(Intent(context, HandsFreeService::class.java)
+                    .setAction(HandsFreeService.STOP))
+                delay(650)
+            }
+            dictation.start(
+                partial = { recognized -> text = recognized },
+                complete = { recognized ->
+                    text = recognized
+                    submit(recognized)
+                },
+                status = { feedback -> issue = feedback }
+            )
         }
+    }
+    val dictatePermission = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) startDictation()
+        else issue = "A diktáláshoz engedélyezd a mikrofont."
     }
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
@@ -333,22 +350,13 @@ internal fun JarvisHomeScreen(
             IconButton(
                 modifier = Modifier.testTag("jarvis-home-send"),
                 onClick = {
-                if (text.isNotBlank()) {
-                    submit(text)
-                } else {
-                    try {
-                        if (HandsFreeStatus.running) context.startService(
-                            Intent(context, HandsFreeService::class.java)
-                                .setAction(HandsFreeService.STOP))
-                        dictate.launch(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,
-                                RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "hu-HU")
-                            putExtra(RecognizerIntent.EXTRA_PROMPT, "Mondd a Jarvis parancsot")
-                        })
-                    } catch (_: Exception) { issue = "Nincs kompatibilis beszédfelismerő." }
+                    if (text.isNotBlank()) submit(text)
+                    else if (ContextCompat.checkSelfPermission(
+                            context, Manifest.permission.RECORD_AUDIO) ==
+                        PackageManager.PERMISSION_GRANTED) startDictation()
+                    else dictatePermission.launch(Manifest.permission.RECORD_AUDIO)
                 }
-            }) {
+            ) {
                 Text(if (text.isBlank()) "🎙" else "➤",
                     fontSize = 23.sp, color = JarvisInk)
             }
