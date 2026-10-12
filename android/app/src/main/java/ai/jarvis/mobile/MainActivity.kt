@@ -286,6 +286,18 @@ fun JarvisApp(context: Context) {
             if (conversation.size > 50) conversation.removeAt(0)
         }
     }
+    val pendingInstalled = HandsFreeNavigation.installedApp
+    LaunchedEffect(pendingInstalled, appIsForeground) {
+        if (pendingInstalled != null && appIsForeground) {
+            HandsFreeNavigation.installedApp = null
+            val age = android.os.SystemClock.elapsedRealtime() - pendingInstalled.createdAtMs
+            val response = if (age in 0..30_000L)
+                JarvisInstalledApps.openRequested(context, pendingInstalled.original)
+            else "Lejárt a korábbi alkalmazásmegnyitási kérés. Nem történt indítás."
+            conversation.add("Hangos alkalmazásmegnyitás" to response)
+            if (conversation.size > 50) conversation.removeAt(0)
+        }
+    }
     val pendingNative = HandsFreeNavigation.nativeAction
     LaunchedEffect(pendingNative, appIsForeground) {
         if (pendingNative != null && appIsForeground) {
