@@ -483,6 +483,15 @@ class HandsFreeService : Service(), RecognitionListener {
             speak(it)
             return
         }
+        JarvisCapabilities.replyIfAsked(command)?.let {
+            speak(it)
+            return
+        }
+        JarvisCapabilities.localPageToOpen(command)?.let { route ->
+            HandsFreeNavigation.destination = route
+            speak("A Jarvis $route oldalát megnyitom, amint az alkalmazás előtérbe kerül.")
+            return
+        }
         val action = BasicCommandRouter.classify(command)
         when (action) {
             BasicAction.OPEN_GLUCOSE, BasicAction.OPEN_INVOICES,
