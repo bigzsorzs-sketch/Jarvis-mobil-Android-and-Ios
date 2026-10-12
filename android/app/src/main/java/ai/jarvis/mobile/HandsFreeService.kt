@@ -470,7 +470,11 @@ class HandsFreeService : Service(), RecognitionListener {
         aiJob?.cancel()
         aiJob = null
         activeVoiceCommand = command
-        when (val read = JarvisReadAloudCommand.parse(command)) {
+        // Existing authorized notification/glucose/billing readers take priority.
+        val readAloud = if (JarvisGlucoseVoice.isQuery(command) ||
+            BillingVoice.isCandidate(command) || VoiceIntentParser.isReadMessage(command))
+            null else JarvisReadAloudCommand.parse(command)
+        when (val read = readAloud) {
             ReadAloudRequest.LastAnswer -> {
                 if (!privateVoiceAllowed()) {
                     speak("Oldd fel a telefont a korábbi válasz felolvasásához.")
@@ -501,7 +505,7 @@ class HandsFreeService : Service(), RecognitionListener {
             }
             null -> Unit
         }
-        if (JarvisReadAloudCommand.parse(command) != null) return
+        if (readAloud != null) return
         if (JarvisGlucoseVoice.isQuery(command)) {
             if (!privateVoiceAllowed()) {
                 speak("A telefon zárolva van. A személyes egészségügyi adatokhoz előbb oldd fel.")
