@@ -9,11 +9,13 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 
-/** One-time tester pairing. The provider API key never reaches this form. */
+/** Temporary device-local OpenRouter testing without a hosted Jarvis server. */
 @Composable
 internal fun JarvisAiSettings(context: Context) {
+    var selectedMode by remember { mutableStateOf(JarvisAiGateway.mode(context)) }
+    var savedMode by remember { mutableStateOf(JarvisAiGateway.mode(context)) }
     var endpoint by remember { mutableStateOf(JarvisAiGateway.baseUrl(context)) }
-    var accessCode by remember { mutableStateOf("") }
+    var credential by remember { mutableStateOf("") }
     var status by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     var paired by remember { mutableStateOf(JarvisAiGateway.configured(context)) }
@@ -21,51 +23,114 @@ internal fun JarvisAiSettings(context: Context) {
 
     Text("AI-agy – tesztkapcsolat", style = MaterialTheme.typography.titleLarge)
     Spacer(Modifier.height(12.dp))
-    Text("A saját AI-szervered HTTPS-címét és a személyes tesztelői kódodat kell egyszer megadni. A kód titkosítva marad a telefonon; az OpenRouter API-kulcs nem kerül a telefonra.")
+    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        FilterChip(
+            selected = selectedMode == JarvisAiGateway.DIRECT_TEST,
+            onClick = {
+                selectedMode = JarvisAiGateway.DIRECT_TEST
+                credential = ""
+                status = ""
+            },
+            label = { Text("Közvetlen OpenRouter") }
+        )
+        FilterChip(
+            selected = selectedMode == JarvisAiGateway.SERVER,
+            onClick = {
+                selectedMode = JarvisAiGateway.SERVER
+                credential = ""
+                status = ""
+            },
+            label = { Text("Saját szerver") }
+        )
+    }
+    Spacer(Modifier.height(8.dp))
+
+    if (selectedMode == JarvisAiGateway.DIRECT_TEST) {
+        Text("Tesztmód: nincs szükség szervercímre. Az OpenRouter-kulcsodat egyszer kell megadni, a telefon titkosított tárhelyére mentjük.")
+        Spacer(Modifier.height(8.dp))
+        OutlinedTextField(
+            value = credential,
+            onValueChange = { credential = it },
+            singleLine = true,
+            label = { Text("OpenRouter API-kulcs") },
+            visualTransformation = PasswordVisualTransformation(),
+            modifier = Modifier.fillMaxWidth()
+        )
+        Spacer(Modifier.height(8.dp))
+        Text(
+            "A kulcs nem kerül az APK-ba vagy a GitHubra. Teszteléshez korlátozott keretű, visszavonható kulcsot használj. " +
+                "Mindkét telefonra külön meg kell adni a saját kulcsot.",
+            style = MaterialTheme.typography.bodySmall
+        )
+    } else {
+        Text("Szerveres mód: HTTPS-cím és saját tesztelői kód. Az OpenRouter-kulcs a szerveren marad.")
+        Spacer(Modifier.height(8.dp))
+        OutlinedTextField(
+            value = endpoint, onValueChange = { endpoint = it },
+            singleLine = true, label = { Text("AI-szerver HTTPS-címe") },
+            modifier = Modifier.fillMaxWidth()
+        )
+        Spacer(Modifier.height(8.dp))
+        OutlinedTextField(
+            value = credential, onValueChange = { credential = it },
+            singleLine = true, label = { Text("Személyes tesztelői kód") },
+            visualTransformation = PasswordVisualTransformation(),
+            modifier = Modifier.fillMaxWidth()
+        )
+    }
+
     Spacer(Modifier.height(12.dp))
-    OutlinedTextField(
-        value = endpoint, onValueChange = { endpoint = it },
-        singleLine = true, label = { Text("AI-szerver HTTPS-címe") },
-        placeholder = { Text("https://ai.pelda.hu") },
-        modifier = Modifier.fillMaxWidth()
+    Text(
+        if (paired && selectedMode == savedMode) "AI-hozzáférés mentve ezen a telefonon."
+        else "Ehhez a módhoz még nincs beállított AI-hozzáférés."
     )
-    Spacer(Modifier.height(8.dp))
-    OutlinedTextField(
-        value = accessCode, onValueChange = { accessCode = it },
-        singleLine = true, label = { Text("Személyes tesztelői kód") },
-        visualTransformation = PasswordVisualTransformation(),
-        modifier = Modifier.fillMaxWidth()
-    )
-    Spacer(Modifier.height(8.dp))
-    Text(if (paired) "A hozzáférés mentve ezen a telefonon." else "Nincs beállított AI-hozzáférés.")
     Spacer(Modifier.height(10.dp))
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Button(onClick = {
-            val error = JarvisAiGateway.save(context, endpoint, accessCode)
-            status = error ?: "Beállítás mentve. A próbakérdéssel ellenőrizheted."
-            paired = JarvisAiGateway.configured(context)
-            if (error == null) accessCode = ""
+            val error = if (selectedMode == JarvisAiGateway.DIRECT_TEST)
+                JarvisAiGateway.saveDirect(context, credential)
+            else JarvisAiGateway.save(context, endpoint, credential)
+            status = error ?: "Mentve. Nyomd meg az AI-próbakérdés gombot!"
+            if (error == null) {
+                credential = ""
+                savedMode = selectedMode
+                paired = JarvisAiGateway.configured(context)
+            }
         }) { Text("Mentés") }
         OutlinedButton(onClick = {
             JarvisAiGateway.clear(context)
-            accessCode = ""
+            credential = ""
             endpoint = ""
+            selectedMode = JarvisAiGateway.DIRECT_TEST
+            savedMode = JarvisAiGateway.DIRECT_TEST
             paired = false
-            status = "A hozzáférést töröltem erről a készülékről."
+            status = "A helyben tárolt hozzáférést töröltem."
         }) { Text("Leválasztás") }
     }
+
     Spacer(Modifier.height(10.dp))
-    Button(onClick = {
-        scope.launch {
-            busy = true
-            try { status = JarvisAiGateway.ask(context, "Válaszolj röviden magyarul: működik a Jarvis AI-kapcsolat?") }
-            finally { busy = false }
-        }
-    }, enabled = paired && !busy) { Text(if (busy) "Kapcsolódás..." else "AI-próbakérdés") }
+    Button(
+        onClick = {
+            scope.launch {
+                busy = true
+                try {
+                    status = JarvisAiGateway.ask(
+                        context,
+                        "Válaszolj röviden magyarul: működik a Jarvis AI-kapcsolat?"
+                    )
+                } finally { busy = false }
+            }
+        },
+        enabled = paired && selectedMode == savedMode && !busy
+    ) { Text(if (busy) "Kapcsolódás..." else "AI-próbakérdés") }
+
     if (status.isNotEmpty()) {
         Spacer(Modifier.height(10.dp))
         Text(status)
     }
     Spacer(Modifier.height(10.dp))
-    Text("Minden tesztelő saját kódot kap. A szokásos telefonparancsok helyben futnak; az általános kérdéseket a Jarvis AI-szervere válaszolja meg.")
+    Text(
+        "A szokásos telefonparancsok helyben futnak. Az általános kérdéseket a kiválasztott AI-kapcsolat válaszolja meg.",
+        style = MaterialTheme.typography.bodySmall
+    )
 }
