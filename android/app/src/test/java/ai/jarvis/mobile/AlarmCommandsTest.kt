@@ -17,5 +17,8 @@ class AlarmCommandsTest {
         assertNull(AlarmCommands.parseAlarmTime("Állíts ébresztőt holnap 7:30-ra"))
         assertNull(AlarmCommands.parseAlarmTime("Ébresztő 28:99"))
         assertNull(AlarmCommands.parseAlarmTime("Útvonal 6:00-ra"))
+        assertNull(AlarmCommands.parseAlarmTime("Ne állítsd be az ébresztőt 7:30-ra"))
+        assertNull(AlarmCommands.parseAlarmTime("Állítsd be az ébresztőt 7:30-ra majd nyisd meg a naptárat"))
+        assertNull(AlarmCommands.parseAlarmTime("Állítsd be az ébresztőt 7:30-ra és nyisd meg a naptárat"))
     }
 }

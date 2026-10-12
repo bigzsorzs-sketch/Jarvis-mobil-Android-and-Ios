@@ -16,6 +16,11 @@ internal object AlarmCommands {
     /** Android's generic clock intent cannot schedule a specific calendar date. */
     fun parseAlarmTime(command: String): AlarmTime? {
         val text = normal(command)
+        // Never schedule an alarm from a negation, question or a partial
+        // multi-step instruction. A verified workflow parses each step alone.
+        if (Regex("""\b(ne|nem|dont|never|soha|do not)\b""").containsMatchIn(text) ||
+            Regex("""\b(majd|aztan|and then)\b""").containsMatchIn(text) ||
+            Regex("""\b(es|and)\s+(nyisd|hivd|kuldd|torold|allitsd|navigalj)\b""").containsMatchIn(text)) return null
         if (listOf("torold", "torles", "kapcsold ki", "kikapcsol", "nyisd meg", "mutasd").any { it in text }) return null
         if (hasUnsupportedDate(command)) return null
         if (!listOf("ebreszt", "ebressz", "kelts", "alarm", "set alarm").any { it in text }) return null

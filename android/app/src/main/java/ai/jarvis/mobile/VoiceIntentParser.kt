@@ -40,6 +40,12 @@ internal object VoiceIntentParser {
         return n in setOf("igen", "mehet", "yes", "hivd fel", "call now")
     }
 
+    /** A multi-step workflow must not accept message-send or call words as consent. */
+    fun isSequenceYes(raw: String): Boolean {
+        val n = normalize(raw).trimEnd('.', '!', ',')
+        return n in setOf("igen", "mehet", "yes", "start", "hajtsd vegre", "execute")
+    }
+
     fun isNo(raw: String): Boolean {
         val n = normalize(raw).trimEnd('.', '!', ',')
         return n in setOf("nem", "megse", "ne kuldd", "torold", "cancel", "no")

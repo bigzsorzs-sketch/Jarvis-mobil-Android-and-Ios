@@ -14,7 +14,8 @@ internal data class JarvisAiOutcome(
     val route: String? = null,
     val deviceAction: String? = null,
     val callTarget: String? = null,
-    val messageDraft: OutgoingMessage? = null
+    val messageDraft: OutgoingMessage? = null,
+    val nativeAction: String? = null
 )
 
 internal object JarvisAiTools {
@@ -22,6 +23,7 @@ internal object JarvisAiTools {
     const val PHONE_FUNCTION = "open_phone_app"
     const val CALL_FUNCTION = "prepare_phone_call"
     const val MESSAGE_FUNCTION = "prepare_message_draft"
+    const val NATIVE_FUNCTION = "select_native_tool"
 
     // Use the same menu inventory as the actual UI; no fabricated tools.
     val allowedRoutes: List<String>
@@ -96,6 +98,29 @@ internal object JarvisAiTools {
                     .put("enum", JSONArray(listOf("whatsapp", "messenger")))))
                 .put("required", JSONArray().put("platform"))
                 .put("additionalProperties", false)))
+
+    /** The AI selects a supported capability, but supplies no device arguments. */
+    fun nativeToolDefinition(): JSONObject = JSONObject()
+        .put("type", "function")
+        .put("function", JSONObject()
+            .put("name", NATIVE_FUNCTION)
+            .put("description", "Propose exactly one supported Android action requested explicitly " +
+                "by the user: navigate, set/cancel Jarvis alarm, compose email, open Gmail " +
+                "search or the UC sign-in page. The phone independently checks the " +
+                "original user instruction and handles the real operation.")
+            .put("parameters", JSONObject()
+                .put("type", "object")
+                .put("properties", JSONObject().put("action", JSONObject()
+                    .put("type", "string")
+                    .put("enum", JSONArray(JarvisNativeActions.supported))))
+                .put("required", JSONArray().put("action"))
+                .put("additionalProperties", false)))
+
+    fun validateNative(action: String, originalInput: String): JarvisAiOutcome =
+        if (JarvisNativeActions.validate(action, originalInput))
+            JarvisAiOutcome("A parancsot Androidon ellenőrzöm.", nativeAction = action)
+        else
+            JarvisAiOutcome("Az eszközkérés nem egyezik a parancsoddal. Nem történt művelet.")
 
     fun validateMessage(suggestedPlatform: String, originalInput: String): JarvisAiOutcome {
         val message = JarvisMessageIntent.validateAiProposal(suggestedPlatform, originalInput)
@@ -200,6 +225,10 @@ internal object JarvisAiTools {
             } catch (_: Exception) {
                 return JarvisAiOutcome("Az AI érvénytelen eszközparamétereket adott.")
             }
+            if (function.optString("name") == NATIVE_FUNCTION) {
+                if (args.length() != 1 || args.opt("action") !is String) return JarvisAiOutcome("Érvénytelen AI-művelet.")
+                return validateNative(args.optString("action"), originalInput)
+            }
             if (function.optString("name") == MESSAGE_FUNCTION) {
                 if (args.length() != 1 || args.opt("platform") !is String) {
                     return JarvisAiOutcome("Érvénytelen AI-üzenetparaméterek. Nem történt művelet.")
@@ -223,6 +252,9 @@ internal object JarvisAiTools {
         if (JarvisMessageIntent.parse(originalInput) != null) {
             return JarvisAiOutcome("Az AI nem adott ellenőrzött üzenetpiszkozatot. Nem történt küldés.")
         }
+        if (JarvisNativeActions.identify(originalInput) != null) {
+            return JarvisAiOutcome("Az AI nem adott ellenőrzött Android-parancsot. Nem történt végrehajtás.")
+        }
         return JarvisAiOutcome(message.optString("content", "").trim()
             .ifEmpty { "Az AI üres választ küldött." })
     }
@@ -233,6 +265,10 @@ internal object JarvisAiTools {
         if (action != null) {
             if (action.length() != 2 || action.opt("name") !is String) {
                 return JarvisAiOutcome("Érvénytelen szerveres eszközkérés; semmit sem hajtottam végre.")
+            }
+            if (action.optString("name") == NATIVE_FUNCTION) {
+                if (action.opt("action") !is String) return JarvisAiOutcome("Érvénytelen szerveres Android-művelet.")
+                return validateNative(action.optString("action"), originalInput)
             }
             if (action.optString("name") == MESSAGE_FUNCTION) {
                 if (action.opt("platform") !is String) {
@@ -258,6 +294,9 @@ internal object JarvisAiTools {
         }
         if (JarvisMessageIntent.parse(originalInput) != null) {
             return JarvisAiOutcome("A szerver nem adott ellenőrzött üzenetpiszkozatot. Nem történt küldés.")
+        }
+        if (JarvisNativeActions.identify(originalInput) != null) {
+            return JarvisAiOutcome("A szerver nem adott ellenőrzött Android-parancsot. Nem történt végrehajtás.")
         }
         return JarvisAiOutcome(body.optString("reply", "").trim()
             .ifEmpty { "Az AI üres választ küldött." })

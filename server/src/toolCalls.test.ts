@@ -35,7 +35,7 @@ test("multiple calls, malformed JSON and wrong types fail closed", () => {
 
 test("can propose exactly one whitelisted external Android app only", () => {
   assert.deepEqual(PHONE_ACTIONS, ["calendar", "alarms", "email", "maps", "dialer"]);
-  assert.equal(JARVIS_TOOLS.length, 4);
+  assert.equal(JARVIS_TOOLS.length, 5);
   assert.deepEqual(verifiedToolCall([call("open_phone_app", { route: "maps" })]), {
     name: "open_phone_app", route: "maps"
   });
@@ -45,7 +45,7 @@ test("can propose exactly one whitelisted external Android app only", () => {
 });
 
 test("one call can be proposed but neither made nor redirected to another action", () => {
-  assert.equal(JARVIS_TOOLS.length, 4);
+  assert.equal(JARVIS_TOOLS.length, 5);
   assert.deepEqual(verifiedToolCall([call("prepare_phone_call", { target: "Eszter" })]), {
     name: "prepare_phone_call", target: "Eszter"
   });
@@ -71,4 +71,17 @@ test("AI may choose only a validated messenger platform, never content", () => {
   assert.equal(verifiedToolCall([call("send_message", { platform: "whatsapp" })]), null);
   assert.equal(verifiedToolCall([call("prepare_message_draft", { platform: "whatsapp" }),
     call("prepare_phone_call", { target: "Someone" })]), null);
+});
+
+test("native proposals carry only one allowlisted action", () => {
+  assert.deepEqual(verifiedToolCall([call("select_native_tool", { action: "navigate" })]),
+    { name: "select_native_tool", action: "navigate" });
+  assert.deepEqual(verifiedToolCall([call("select_native_tool", { action: "set_alarm" })]),
+    { name: "select_native_tool", action: "set_alarm" });
+  assert.equal(verifiedToolCall([call("select_native_tool",
+    { action: "navigate", destination: "not-user-requested" })]), null);
+  assert.equal(verifiedToolCall([call("select_native_tool", { action: "delete_files" })]), null);
+  assert.equal(verifiedToolCall([call("select_native_tool", { action: 100 })]), null);
+  assert.equal(verifiedToolCall([call("select_native_tool", { action: "navigate" }),
+    call("select_native_tool", { action: "set_alarm" })]), null);
 });

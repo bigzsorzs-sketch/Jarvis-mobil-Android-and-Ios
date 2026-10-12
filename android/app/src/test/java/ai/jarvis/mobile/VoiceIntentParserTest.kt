@@ -33,4 +33,13 @@ class VoiceIntentParserTest {
         org.junit.Assert.assertFalse(VoiceIntentParser.isCallYes("nem"))
     }
 
+    @Test fun workflowConsentCannotBeMistakenForSendingOrCalling() {
+        assertTrue(VoiceIntentParser.isSequenceYes("Igen"))
+        assertTrue(VoiceIntentParser.isSequenceYes("Mehet"))
+        assertFalse(VoiceIntentParser.isSequenceYes("Küldd el"))
+        assertFalse(VoiceIntentParser.isSequenceYes("Send"))
+        assertFalse(VoiceIntentParser.isSequenceYes("Call now"))
+        assertFalse(VoiceIntentParser.isSequenceYes("Hívd fel"))
+    }
+
 }

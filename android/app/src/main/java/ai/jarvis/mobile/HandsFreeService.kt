@@ -27,12 +27,16 @@ internal object HandsFreeStatus {
     var outputLevel by mutableFloatStateOf(0f)
 }
 internal data class PendingPhoneApp(val action: String, val createdAtMs: Long)
+internal data class PendingNativeAction(val action: String, val original: String, val createdAtMs: Long)
+internal data class PendingSequence(val plan: JarvisSequencePlan, val createdAtMs: Long)
 internal data class PendingExternalTask(val task: HandoffTask, val createdAtMs: Long)
 
 internal object HandsFreeNavigation {
     var appIsForeground by mutableStateOf(false)
     var destination by mutableStateOf<String?>(null)
     var deviceAction by mutableStateOf<PendingPhoneApp?>(null)
+    var nativeAction by mutableStateOf<PendingNativeAction?>(null)
+    var sequence by mutableStateOf<PendingSequence?>(null)
     var mapTarget by mutableStateOf<String?>(null)
     var mailDraft by mutableStateOf<EmailDraft?>(null)
     var external by mutableStateOf<PendingExternalTask?>(null)
@@ -61,6 +65,8 @@ class HandsFreeService : Service(), RecognitionListener {
     private var replyWindowUntil = 0L
     private var lastMessageKey: String? = null
     private var proposed: Pair<String, String>? = null
+    private var proposedSequence: JarvisSequencePlan? = null
+    private var proposedSequenceUntil = 0L
     private var proposedCall: VoiceCalling.Target? = null
     private var proposedCallUntil = 0L
     private var awaitingExternalDraft: OutgoingMessage? = null
@@ -244,6 +250,23 @@ class HandsFreeService : Service(), RecognitionListener {
             shutdown("A hangfigyelés leállt.")
             return
         }
+        if (proposedSequence != null) {
+            val plan = proposedSequence
+            if (!privateVoiceAllowed() || now > proposedSequenceUntil) {
+                proposedSequence = null
+                speak("A műveletsor jóváhagyása lejárt vagy a telefon zárolva van. Nem indult el.")
+            } else if (VoiceIntentParser.isNo(heard)) {
+                proposedSequence = null
+                speak("Rendben, egyik műveletet sem indítottam.")
+            } else if (VoiceIntentParser.isSequenceYes(heard)) {
+                proposedSequence = null
+                if (plan != null) {
+                    HandsFreeNavigation.sequence = PendingSequence(plan, SystemClock.elapsedRealtime())
+                    speak("Jóváhagytad a két lépést. A Jarvis előtérben, harminc másodpercen belül indítja.")
+                }
+            } else speak("Két művelethez csak az igen vagy nem választ várom.")
+            return
+        }
         if (awaitingExternalDraft != null || externalProposal != null) {
             if (!privateVoiceAllowed()) {
                 awaitingExternalDraft = null
@@ -353,6 +376,36 @@ class HandsFreeService : Service(), RecognitionListener {
             now < replyWindowUntil && VoiceIntentParser.replyDraft(heard) != null -> heard
             else -> { again(600); return }
         }
+        val sequence = JarvisSequence.plan(command)
+        if (sequence != null) {
+            if (!privateVoiceAllowed()) {
+                speak("A telefon lezárva. Két művelethez előbb oldd fel.")
+            } else {
+                proposedSequence = sequence
+                proposedSequenceUntil = now + 40_000L
+                speak("Két művelet: először beállítom a Jarvis-ébresztőt " +
+                    sequence.alarm.hour + " óra " + sequence.alarm.minute +
+                    " percre, majd megnyitom a(z) " + sequence.app +
+                    " alkalmazást. Jóváhagyod? Igen vagy nem.")
+            }
+            return
+        }
+        val recognizedNative = JarvisNativeActions.identify(command)
+        if (recognizedNative != null) {
+            if (!privateVoiceAllowed()) {
+                speak("A telefon lezárva. A művelethez előbb oldd fel.")
+            } else if (recognizedNative == JarvisNativeActions.SET_ALARM ||
+                recognizedNative == JarvisNativeActions.CANCEL_ALARM) {
+                // The Jarvis alarm can be scheduled while the app is in the background.
+                speak(JarvisNativeActions.execute(this, recognizedNative, command))
+            } else {
+                HandsFreeNavigation.nativeAction = PendingNativeAction(
+                    recognizedNative, command, SystemClock.elapsedRealtime())
+                speak("Előkészítettem a kért Android-műveletet. " +
+                    "Előtérben lévő Jarvisból, harminc másodpercen belül nyitható meg.")
+            }
+            return
+        }
         if (VoiceIntentParser.isReadMessage(command)) {
             if (!privateVoiceAllowed()) {
                 lastMessageKey = null
@@ -385,6 +438,19 @@ class HandsFreeService : Service(), RecognitionListener {
                 proposed = item.key to draft
                 confirmUntil = now + 40_000L
                 speak(item.sender + " részére ezt írtad: " + draft + ". Elküldhetem? Mondd, hogy igen vagy nem.")
+            }
+            return
+        }
+        val firstSequence = JarvisSequence.plan(command)
+        if (firstSequence != null) {
+            if (!privateVoiceAllowed()) {
+                speak("A telefon lezárva. Két művelethez előbb oldd fel.")
+            } else {
+                proposedSequence = firstSequence
+                proposedSequenceUntil = now + 40_000L
+                speak("Két lépés: ébresztő " + firstSequence.alarm.hour +
+                    " óra " + firstSequence.alarm.minute + " perc, majd " +
+                    firstSequence.app + " alkalmazás. Jóváhagyod? Igen vagy nem.")
             }
             return
         }
@@ -557,6 +623,20 @@ class HandsFreeService : Service(), RecognitionListener {
                                     speak("Az Android-alkalmazást csak az előtérbe hozott " +
                                         "Jarvisból indíthatom. A kérés harminc másodpercig érvényes.")
                                 }
+                                outcome.nativeAction != null -> {
+                                    val kind = outcome.nativeAction
+                                    if (!privateVoiceAllowed()) {
+                                        speak("A telefon zárolva van. A művelethez oldd fel.")
+                                    } else if (kind == JarvisNativeActions.SET_ALARM ||
+                                        kind == JarvisNativeActions.CANCEL_ALARM) {
+                                        speak(JarvisNativeActions.execute(this@HandsFreeService, kind, command))
+                                    } else {
+                                        HandsFreeNavigation.nativeAction = PendingNativeAction(
+                                            kind, command, SystemClock.elapsedRealtime())
+                                        speak("Az Android-műveletet előkészítettem. " +
+                                            "Előtérben harminc másodpercig érvényes.")
+                                    }
+                                }
                                 outcome.messageDraft != null -> {
                                     if (!privateVoiceAllowed()) {
                                         speak("A telefon lezárva. Üzenethez oldd fel.")
@@ -646,6 +726,8 @@ class HandsFreeService : Service(), RecognitionListener {
         clearProposal()
         proposedCall = null
         proposedCallUntil = 0L
+        proposedSequence = null
+        proposedSequenceUntil = 0L
         awaitingExternalDraft = null
         externalProposal = null
         externalDeadline = 0L

@@ -9,6 +9,8 @@ const JARVIS_FUNCTION = "open_jarvis_page";
 const PHONE_FUNCTION = "open_phone_app";
 const CALL_FUNCTION = "prepare_phone_call";
 const MESSAGE_FUNCTION = "prepare_message_draft";
+const NATIVE_FUNCTION = "select_native_tool";
+export const NATIVE_ACTIONS = ["navigate", "set_alarm", "cancel_alarm", "compose_email", "gmail_search", "uc_portal"] as const;
 export const PHONE_ACTIONS = ["calendar", "alarms", "email", "maps", "dialer"] as const;
 export const JARVIS_TOOLS = [{
   type: "function",
@@ -58,20 +60,31 @@ export const JARVIS_TOOLS = [{
       additionalProperties: false
     }
   }
+}, {
+  type: "function",
+  function: {
+    name: NATIVE_FUNCTION,
+    description: "Request one supported Android operation explicitly named by the user. Android derives all arguments from the original request and validates before acting.",
+    parameters: { type: "object", properties: { action: { type: "string", enum: NATIVE_ACTIONS } }, required: ["action"], additionalProperties: false }
+  }
 }];
 
 type ProviderToolCall = { type?: unknown; function?: { name?: unknown; arguments?: unknown } };
-export function verifiedToolCall(calls: unknown): { name: string; route?: string; target?: string; platform?: string } | null {
+export function verifiedToolCall(calls: unknown): { name: string; route?: string; target?: string; platform?: string; action?: string } | null {
   if (!Array.isArray(calls) || calls.length !== 1) return null;
   const call = calls[0] as ProviderToolCall | null;
   if (!call || call.type !== "function" || (call.function?.name !== JARVIS_FUNCTION && call.function?.name !== PHONE_FUNCTION &&
-       call.function?.name !== CALL_FUNCTION && call.function?.name !== MESSAGE_FUNCTION) ||
+       call.function?.name !== CALL_FUNCTION && call.function?.name !== MESSAGE_FUNCTION && call.function?.name !== NATIVE_FUNCTION) ||
       typeof call.function.arguments !== "string" || call.function.arguments.length > 512) return null;
   let args: unknown;
   try { args = JSON.parse(call.function.arguments); } catch { return null; }
   if (!args || typeof args !== "object" || Array.isArray(args)) return null;
   const entry = args as Record<string, unknown>;
   if (Object.keys(entry).length !== 1) return null;
+  if (call.function.name === NATIVE_FUNCTION) {
+    if (typeof entry.action !== "string" || !NATIVE_ACTIONS.some(action => action === entry.action)) return null;
+    return { name: NATIVE_FUNCTION, action: entry.action };
+  }
   if (call.function.name === MESSAGE_FUNCTION) {
     if (typeof entry.platform !== "string" ||
         !["whatsapp", "messenger"].includes(entry.platform)) return null;
