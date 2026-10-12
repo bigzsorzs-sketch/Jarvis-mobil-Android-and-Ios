@@ -50,7 +50,9 @@ class JarvisReadAloudTest {
         val parts = JarvisSpeechChunks.split(text)
         assertTrue(parts.size > 5)
         assertTrue(parts.all { it.length <= 2600 })
-        assertEquals(text, parts.joinToString("").replace(Regex("\\s+"), " ").trim())
+        assertEquals(text, parts.joinToString(""))
+        val boundaryText = "a".repeat(2600) + " " + "final."
+        assertEquals(boundaryText, JarvisSpeechChunks.split(boundaryText).joinToString(""))
     }
 
     @Test fun extremelyLongWordAndUnicodeRemainValidChunks() {
