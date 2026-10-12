@@ -288,6 +288,14 @@ internal object JarvisTranslations {
         "Nincs térképalkalmazás." to "No map app found.",
         "Térkép megnyitva." to "Map opened.",
         "Email alkalmazás megnyitva." to "Email app opened.",
+        "Indítsd el, majd mondd: Jarvis vagy Hey Jarvis. Az üzeneteket felolvasom, a válaszokat csak az igen/nem megerősítésed után adom át a gyorsválasznak." to "Start listening, then say Jarvis or Hey Jarvis. I can read messages aloud; replies are handed to quick reply only after your yes/no confirmation.",
+        "Időkorlát: 15 perc. A telefon beszédfelismerőjét használja, amely nem egész napos ébresztőszó-motor; egyes készülékeken háttérben leállhat, és a beszédfelismerő szolgáltatója felhőt is használhat." to "Time limit: 15 minutes. This uses Android speech recognition, not an always-on wake-word engine; it may stop in the background, and the recognition provider may use cloud processing.",
+        "A mikrofon aktív állapotát az Android értesítés mutatja. Ott is leállíthatod a figyelést. Az üzenetekhez külön értesítési hozzáférés kell." to "Android shows an active microphone notification. You can stop listening there. Message access requires separate notification permission.",
+        "Jarvis csak megnyitja a kiválasztott alkalmazást. Nem olvas bele, nem nyom meg gombokat és nem küld üzeneteket helyetted. A telepített alkalmazások listája csak a telefonon marad; nem küldöm sem a Jarvis szerverre, sem az AI-szolgáltatónak." to "Jarvis opens the selected app but cannot read its private content, press its buttons or send messages for you. Your installed apps list stays on the phone and is not sent to a Jarvis server or AI provider.",
+        "WhatsApp, Messenger, SMS-alkalmazások és más támogatott appok friss értesítései. A teljes beszélgetéselőzményt Jarvis nem látja. Az üzeneteket nem tölti fel és nem menti tartósan." to "Recent notifications from WhatsApp, Messenger, SMS and other supported apps. Jarvis cannot see complete conversation histories and does not upload or permanently save messages.",
+        "Ez még nem AI-alapú tartalomelemzés. Beszédátirat és a videó értelmezése az AI-agy bekötése után lesz elérhető." to "This is not AI content analysis yet. Speech transcription and video understanding will require a connected AI service.",
+        "A kiválasztott nyelven nem érhető el hangos válasz. Ellenőrizd az Android szövegfelolvasó beállításait." to "Voice output is not available in the selected language. Check Android text-to-speech settings.",
+        "A kiválasztott nyelven nem érhető el beszédfelismerés. Állítsd be az Androidon." to "Speech recognition is not available in the selected language. Configure it in Android settings.",
     )
     // Separate short fragments are needed for labels that contain values.
     private val dynamicPrefixes = listOf(
