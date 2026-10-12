@@ -71,8 +71,10 @@ internal object JarvisAiGateway {
     }
 
     fun mode(context: Context): String {
-        // End-users never receive a direct provider-key workflow in release builds.
-        if (!BuildConfig.DEBUG) return SERVER
+        // Once the shared HTTPS gateway is configured, test users must not
+        // supply personal OpenRouter keys. Keep direct testing for offline dev builds.
+        if (!BuildConfig.DEBUG ||
+            normalizedBaseUrl(BuildConfig.JARVIS_GATEWAY_ORIGIN) != null) return SERVER
         val prefs = SecurePrefs(context)
         val stored = prefs.read(KEY_MODE, "")
         if (stored == DIRECT_TEST || stored == SERVER) return stored
@@ -150,7 +152,9 @@ internal object JarvisAiGateway {
         }
 
     fun saveDirect(context: Context, key: String): String? {
-        if (!BuildConfig.DEBUG) return "Közvetlen OpenRouter-kulcs csak belső tesztalkalmazásban használható."
+        if (!BuildConfig.DEBUG ||
+            normalizedBaseUrl(BuildConfig.JARVIS_GATEWAY_ORIGIN) != null)
+            return "Központi Jarvis-szerver mellett nincs szükség OpenRouter-kulcsra a telefonon."
         val prefs = SecurePrefs(context)
         val clean = key.trim().ifEmpty {
             if (mode(context) == DIRECT_TEST) prefs.read(KEY_DIRECT, "") else ""
