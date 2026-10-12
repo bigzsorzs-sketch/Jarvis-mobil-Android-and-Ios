@@ -232,7 +232,11 @@ fun JarvisApp(context: Context) {
         pendingSequence = null
         pendingSequenceUntilMs = 0L
         // Read-aloud is a device action. It does not ask a model to synthesize audio.
-        when (val read = JarvisReadAloudCommand.parse(command)) {
+        // Dedicated local data readers always take precedence over generic TTS.
+        val readAloud = if (JarvisGlucoseVoice.isQuery(command) ||
+            BillingVoice.isCandidate(command) || VoiceIntentParser.isReadMessage(command))
+            null else JarvisReadAloudCommand.parse(command)
+        when (val read = readAloud) {
             ReadAloudRequest.LastAnswer -> {
                 val previous = conversation.asReversed().firstOrNull {
                     it.second.isNotBlank() && it.second != "AI-válaszra várok…" &&
@@ -271,7 +275,7 @@ fun JarvisApp(context: Context) {
             }
             null -> Unit
         }
-        if (JarvisReadAloudCommand.parse(command) != null) return
+        if (readAloud != null) return
         // Private, on-device data query: never send a glucose request to the LLM.
         if (JarvisGlucoseVoice.isQuery(command)) {
             drawerScope.launch {
