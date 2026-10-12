@@ -60,7 +60,9 @@ internal object JarvisCapabilities {
             "A saját alkalmazásom menüjében ezek érhetők el: $menu. " +
             "Szöveges kérdésekre válaszolhatok és felolvashatom a választ. " +
             "A támogatott helyi parancsokkal oldalakat nyithatok meg, illetve " +
-            "telefonos műveleteket készíthetek elő. Hívás, üzenet és külső alkalmazás " +
+            "telefonos műveleteket készíthetek elő. A telepített appok megnyitását " +
+            "pontos név alapján is kérheted, és a helyi Előzmények oldalon titkosítva " +
+            "mentett Jarvis-beszélgetéseid között kereshetsz. Hívás, üzenet és külső alkalmazás " +
             "esetén engedély vagy jóváhagyás kellhet. " +
             "Az AI-válaszaim önmagukban nem vezérelnek tetszőleges eszközt, " +
             "és nem látom automatikusan a telefon teljes tartalmát."
