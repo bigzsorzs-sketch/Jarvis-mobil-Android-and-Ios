@@ -77,6 +77,35 @@ internal object JarvisAiTools {
         ).any { input.startsWith(it) }
     }
 
+    /**
+     * Prevent the model choosing the wrong (yet allowlisted) destination.
+     * One explicitly named destination per command; no guessed app.
+     */
+    private fun routeMatchesUser(route: String, input: String): Boolean {
+        val normalized = normal(input)
+        val targets = mapOf(
+            "Főoldal" to listOf("fooldal", "kezdolap", "home"),
+            "Munka" to listOf("munka", "eszkoztar", "work"),
+            "Navigáció" to listOf("navig", "terkep", "maps"),
+            "Vércukor" to listOf("vercuk", "glucose", "blood sugar"),
+            "Számlák" to listOf("szaml", "invoice"),
+            "Email" to listOf("email", "gmail", "level", "mail"),
+            "Üzenetek" to listOf("uzenet", "whatsapp", "messenger", "messages"),
+            "Névjegyek" to listOf("nevjegy", "contact", "hivas"),
+            "Naptár" to listOf("naptar", "calendar"),
+            "Jegyzetek" to listOf("jegyzet", "notes"),
+            "Ébresztő" to listOf("ebreszt", "alarm"),
+            "Ismerősök" to listOf("ismeros", "people"),
+            "Beállítások" to listOf("beallitas", "settings", "engedely")
+        )
+        if (Regex("\\b(torol|torold|delete|erase|kuldd|send|fizess|pay)\\b")
+                .containsMatchIn(normalized)) return false
+        val matched = targets.filterValues { stems ->
+            stems.any { stem -> normalized.contains(stem) }
+        }.keys
+        return matched.size == 1 && route in matched
+    }
+
     fun validate(name: String, route: String, originalInput: String): JarvisAiOutcome {
         if (name == PHONE_FUNCTION) {
             return if (JarvisPhoneActions.authorized(route, originalInput))
@@ -87,8 +116,8 @@ internal object JarvisAiTools {
         if (name != FUNCTION_NAME || route !in allowedRoutes) {
             return JarvisAiOutcome("Ezt az AI-eszközparancsot nem támogatom; nem hajtottam végre semmit.")
         }
-        if (!userAskedToOpen(originalInput)) {
-            return JarvisAiOutcome("Nem indítottam el semmit, mert nem volt egyértelmű megnyitási kérés.")
+        if (!userAskedToOpen(originalInput) || !routeMatchesUser(route, originalInput)) {
+            return JarvisAiOutcome("Az eszközkérés nem egyezik egyértelműen a parancsoddal. Nem történt művelet.")
         }
         return JarvisAiOutcome("A kért Jarvis-oldalt az Androiddal nyitom meg: $route.", route)
     }
