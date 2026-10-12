@@ -190,8 +190,12 @@ fun JarvisApp(context: Context) {
     var handoffResult by remember { mutableStateOf("") }
     LaunchedEffect(externalRequest, appIsForeground) {
         if (externalRequest != null && appIsForeground) {
-            handoffResult = ExternalTasks.dispatch(context, externalRequest)
+            // A queued voice handoff cannot silently execute after a long delay.
             HandsFreeNavigation.external = null
+            val ageMs = android.os.SystemClock.elapsedRealtime() - externalRequest.createdAtMs
+            handoffResult = if (ageMs in 0..30_000L)
+                ExternalTasks.dispatch(context, externalRequest.task)
+            else "A korábbi hangos kérés lejárt. Nem indítottam műveletet."
         }
     }
     val requestedEmail = HandsFreeNavigation.mailDraft
