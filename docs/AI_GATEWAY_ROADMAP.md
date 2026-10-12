@@ -1,23 +1,36 @@
-# Jarvis Mobile AI gateway — development only
+# Jarvis Mobile AI gateway — 0.2.0-dev tester integration
 
-This directory is a non-deployed backend skeleton. The Android APK still uses
-local command routing, NOT cloud AI. No provider keys are embedded in the APK.
+## What's implemented
 
-The future /v1/chat endpoint accepts only a signed OIDC bearer token that must
-pass JWKS signature, issuer and audience checks. A separate trusted billing
-system must provision an active subscription in Redis. The server enforces
-per-minute and monthly request counts, chooses a server-approved AI model,
-and sends provider requests using a backend-only OPENROUTER_API_KEY.
+- Android Home sends ordinary typed questions over HTTPS to `POST /v1/chat`.
+- Android hands-free voice questions can use the same AI gateway, and the answer is spoken by Android TTS.
+- Existing device actions, calls and app handoffs remain local and require the existing permissions/confirmations. Generated AI text NEVER executes tools.
+- Android Settings → AI-agy pairs a device with a server HTTPS origin and an independently issued **64-character hexadecimal tester token**. The token is stored by `SecurePrefs` with Android Keystore encryption. No API provider key is in the app or repo.
+- The Node backend authenticates up to 10 explicitly provisioned test subjects using constant-time SHA-256 hash verification. Each subject has separate Redis request quotas. Existing production JWT/OIDC + subscription checks remain supported when OIDC is configured.
+- Server-side OpenRouter key is supplied at runtime only through `OPENROUTER_API_KEY`. Server must have Redis, HTTPS reverse proxy, and a supported Node runtime.
 
-Do not commercially deploy without: authenticated billing webhooks, atomic
-distributed spending / token budgets, pricing and cost metering, secure logging
-that excludes sensitive contents, streaming responses, privacy/legal review,
-credential rotation, abuse detection, HTTPS deployment and security testing.
-The starter limit is a request-count guard, not a guaranteed monetary budget.
+## How to prepare exactly two testers
 
-Configure OPENROUTER_API_KEY and OIDC credentials using the server-side
-deployment secret manager. Never share an API key in chat, commit it into GitHub,
-or put it into the Android or iOS applications.
+1. Rotate any OpenRouter API key ever pasted into chat or committed to a repository. Put the **new** key in your server hosting provider's secret/environment settings, never in `.env.example`, GitHub source or APK.
+2. On a trusted machine generate independent random 256-bit access codes and SHA-256 hashes:
+   ```sh
+   node -e 'const c=require("node:crypto"); for (const name of ["owner","family"]) {const t=c.randomBytes(32).toString("hex"); console.log(name+" CODE="+t+" HASH="+c.createHash("sha256").update(t).digest("hex"));}'
+   ```
+   Keep the CODE values private. In the server's environment secret manager configure `TESTER_TOKEN_SHA256_JSON` as a JSON object mapping `owner` and `family` to their respective HASH values, for example `{"owner":"<owner SHA-256 hash>","family":"<family SHA-256 hash>"}`. Do not put the CODE values into this object.
+3. Configure `OPENROUTER_MODEL`, `REDIS_URL` and `OPENROUTER_API_KEY` in the server environment. Deploy `server/` with Node 22+ and Redis behind an HTTPS domain. Set `HOST=0.0.0.0` only behind a securely configured reverse proxy or isolated network.
+4. Install the Android 0.2.0-dev test APK on both devices. On each: **Beállítások → AI-agy** → same HTTPS server address, but their *own* private CODE. Save and press **AI-próbakérdés**. A successful answer confirms real upstream AI usage.
+5. Invalidate any compromised individual access code by removing/replacing its hash in `TESTER_TOKEN_SHA256_JSON` and restarting the gateway.
 
-Status: not deployed, no user login, no Android AI connector, no Play Store
-release. Repository should be Private before commercial use.
+## Limits and security constraints
+
+- This is a *private testing scheme*, **not** public user registration or complete consumer authentication. Test tokens have no expiry by themselves; revoke or rotate them when a device is lost. Use one token per tester, rate limits and an upstream spending limit on your OpenRouter account.
+- The built-in 12 requests/minute and 1000 requests/month quotas are **request caps**, not guaranteed spending caps; the provider account must also enforce spending limits.
+- Backend `/health` is unauthenticated for service checks; `/v1/chat` needs valid credentials. Treat the entire server and Redis as a private service.
+- Chat history, files, images, microphone recordings, contact data and local health records are **not** sent by this AI client. Only each explicitly submitted question is sent. Response body is currently text only and lacks tool calling, image understanding and conversation memory.
+- Android enforces HTTPS, rejects userinfo/query/fragment/path in configured endpoint, and **does not follow HTTP redirects** with the token.
+- The repository is public. Do not commit secrets. Commercial release still requires real registration/login, billing enforcement, server cost metering, hardened hosting, monitoring, abuse prevention, content policy and privacy/legal review.
+- **Not yet deployed**: the code and build pipeline alone cannot activate AI. Backend host, provider credentials, approved model ID, Redis, HTTPS, and tester codes must actually be configured.
+
+## QA
+
+Run the Android `testDebugUnitTest lintDebug assembleDebug` workflow and the server strict TypeScript check. Then verify both testers on physical phones: success, incorrect token → 401, revoked token → 401, failed network, exhausted quota → 429, background/locked voice boundaries and correct local permission handoffs.
