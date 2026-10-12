@@ -38,9 +38,15 @@ internal object JarvisAiToolPolicy {
             .put("model", JarvisAiGateway.TEST_MODEL)
             .put("messages", JSONArray()
                 .put(JSONObject().put("role", "system").put("content",
-                    JarvisIdentity.systemPrompt + if (languageTag.startsWith("en"))
-                        " Respond in English by default, unless the user asks for another language."
-                    else " Alapértelmezés szerint magyarul válaszolj, kivéve ha a felhasználó más nyelvet kér."))
+                    JarvisIdentity.systemPrompt + when (JarvisLanguage.fromSpeechTag(languageTag)) {
+                        JarvisLanguage.ENGLISH -> " Respond in English by default, unless the user requests another language."
+                        JarvisLanguage.GERMAN -> " Antworte standardmäßig auf Deutsch, außer der Nutzer wünscht eine andere Sprache."
+                        JarvisLanguage.FRENCH -> " Réponds en français par défaut, sauf si l'utilisateur demande une autre langue."
+                        JarvisLanguage.SPANISH -> " Responde en español por defecto, a menos que el usuario pida otro idioma."
+                        JarvisLanguage.ITALIAN -> " Rispondi in italiano per impostazione predefinita, a meno che l'utente non chieda un'altra lingua."
+                        JarvisLanguage.POLISH -> " Odpowiadaj domyślnie po polsku, chyba że użytkownik poprosi o inny język."
+                        else -> " Alapértelmezés szerint magyarul válaszolj, kivéve ha a felhasználó más nyelvet kér."
+                    }))
                 .put(JSONObject().put("role", "user").put("content", question)))
             .put("max_tokens", 800)
             .put("stream", false)
