@@ -39,7 +39,7 @@ class JarvisNavigationInstrumentedTest {
             composeRule.onNodeWithTag("jarvis-subpage-input").assertDoesNotExist()
             composeRule.onNodeWithTag("jarvis-subpage-send").assertDoesNotExist()
             composeRule.onNodeWithText("Kérdezd meg Jarvist").assertDoesNotExist()
-            composeRule.onNodeWithText("Főoldal").performClick()
+            composeRule.onNodeWithTag("jarvis-subpage-home-button").performClick()
         }
         composeRule.onNodeWithTag("jarvis-home-input").assertExists()
         composeRule.onNodeWithTag("jarvis-home-chat-timeline").assertExists()
