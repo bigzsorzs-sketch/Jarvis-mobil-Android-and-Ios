@@ -77,6 +77,23 @@ internal fun JarvisSettingsScreen(
     Spacer(Modifier.height(20.dp))
     SettingsSectionTitle("Telefon-hozzáférés")
     PermissionCenter(context, onDone = {}, showContinue = false, showHeading = false)
+    Spacer(Modifier.height(16.dp))
+    SettingsSectionTitle("Adatvédelem és helyi adatok")
+    JarvisSettingsGroup {
+        JarvisSettingsRow("▣", "Saját adatok kezelése",
+            "Android alkalmazásadatok: helyi jegyzetek, vércukornapló, mentett kapcsolat") {
+            // Android's own Clear storage is an explicit user action and
+            // deletes the Keystore-linked local data; never claim to wipe remotely.
+            openJarvisAppSettings(context)
+        }
+    }
+    Spacer(Modifier.height(8.dp))
+    Text("A Jarvis AI-kérdések felhőbe küldését az AI-agy beállításainál " +
+        "engedélyezheted vagy a Leválasztás gombbal visszavonhatod. " +
+        "Az alkalmazás adatainak törlését az Android Alkalmazásadatok / Tárhely " +
+        "menüjében indíthatod; ez visszavonhatatlanul törli a helyi adatokat.",
+        color = JarvisPalette.subtleText, style = MaterialTheme.typography.bodySmall,
+        modifier = Modifier.padding(12.dp))
     val version = try {
         context.packageManager.getPackageInfo(context.packageName, 0).versionName.orEmpty()
     } catch (_: Exception) { "" }

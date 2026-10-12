@@ -3,6 +3,7 @@ import { createHash, timingSafeEqual } from "node:crypto";
 import { createRemoteJWKSet, jwtVerify } from "jose";
 import { createClient } from "redis";
 import { JARVIS_TOOLS, verifiedToolCall } from "./toolCalls.js";
+import { readLimitedProviderJson } from "./responseLimits.js";
 
 function required(name: string): string {
   const v = process.env[name]?.trim();
@@ -39,6 +40,11 @@ const testerRecords = Object.entries(rawTesters).map(([id, hash]) => {
 });
 if (testerRecords.length > 10 || (!jwks && testerRecords.length === 0)) {
   throw new Error("Configure OIDC or 1–10 tester tokens");
+}
+// Production/public access cannot silently inherit the private-beta token bypass.
+const publicLaunch = process.env.PUBLIC_LAUNCH_ENABLED === "true";
+if (publicLaunch && (!jwks || testerRecords.length > 0)) {
+  throw new Error("Public launch requires complete OIDC and no tester-token bypass");
 }
 function findTester(token: string): string | null {
   if (token.length !== 64 || !/^[a-fA-F0-9]{64}$/.test(token)) return null;
@@ -124,7 +130,7 @@ const server = http.createServer(async (req, res) => {
   try {
     const match = /^Bearer\s+(.+)$/i.exec(req.headers.authorization ?? "");
     if (!match?.[1]) return reply(res, 401, { error: "AUTH_REQUIRED" });
-    let subject = findTester(match[1]);
+    let subject = publicLaunch ? null : findTester(match[1]);
     const tester = subject !== null;
     if (!subject && jwks) {
       try {
@@ -163,9 +169,12 @@ const server = http.createServer(async (req, res) => {
     if (quota !== 0) return reply(res, 429, { error: "USAGE_LIMIT" });
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 25000);
-    let upstream: Response;
+    let modelReply: {
+      choices?: Array<{ message?: { content?: unknown; tool_calls?: unknown } }>;
+      usage?: { total_tokens?: number };
+    };
     try {
-      upstream = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      const upstream = await fetch("https://openrouter.ai/api/v1/chat/completions", {
         method: "POST",
         headers: {
           "Authorization": "Bearer " + secret,
@@ -184,14 +193,12 @@ const server = http.createServer(async (req, res) => {
         }),
         signal: controller.signal
       });
+      if (!upstream.ok) return reply(res, 502, { error: "PROVIDER_ERROR" });
+      modelReply = await readLimitedProviderJson(upstream) as typeof modelReply;
     } finally {
+      // Keep the same deadline for streaming the response body, not just headers.
       clearTimeout(timer);
     }
-    if (!upstream.ok) return reply(res, 502, { error: "PROVIDER_ERROR" });
-    const modelReply = await upstream.json() as {
-      choices?: Array<{ message?: { content?: unknown; tool_calls?: unknown } }>;
-      usage?: { total_tokens?: number };
-    };
     const messageData = modelReply.choices?.[0]?.message;
     const hasToolCalls = messageData && "tool_calls" in messageData &&
       messageData.tool_calls != null;
