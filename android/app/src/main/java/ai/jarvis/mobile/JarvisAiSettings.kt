@@ -91,7 +91,16 @@ internal fun JarvisAiSettings(context: Context) {
             "automatikusan az AI-kérésnek.",
         style = MaterialTheme.typography.bodySmall
     )
-    CheckboxRowCloudConsent(cloudConsent) { cloudConsent = it }
+    CheckboxRowCloudConsent(cloudConsent) { approved ->
+        cloudConsent = approved
+        if (!approved) {
+            // Revocation takes effect immediately, even if the user does not
+            // press Save. Any new cloud AI request is refused by the gateway.
+            JarvisAiGateway.setCloudConsent(context, false)
+            paired = false
+            status = "Az AI-kérdések továbbításához adott hozzájárulást visszavontam."
+        }
+    }
     Spacer(Modifier.height(12.dp))
     Text(
         if (paired && selectedMode == savedMode) "AI-hozzáférés mentve ezen a telefonon."
