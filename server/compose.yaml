@@ -1,0 +1,46 @@
+# Private test deployment on a VPS with public ports 80/443 and a DNS A/AAAA
+# record pointing to that VPS. Secrets live only in ./server/.env (gitignored).
+services:
+  gateway:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      HOST: 0.0.0.0
+      PORT: "8080"
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      - redis
+    networks:
+      - internal
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    networks:
+      - internal
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    env_file: .env
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - gateway
+    networks:
+      - internal
+
+networks:
+  internal:
+
+volumes:
+  redis_data:
+  caddy_data:
+  caddy_config:
