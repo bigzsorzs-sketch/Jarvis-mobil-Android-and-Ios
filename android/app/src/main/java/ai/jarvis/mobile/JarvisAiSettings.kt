@@ -47,6 +47,18 @@ internal fun JarvisAiSettings(context: Context) {
         )
     }
     Spacer(Modifier.height(8.dp))
+    Text(
+        "Jelenleg mentett kapcsolat: " +
+            if (savedMode == JarvisAiGateway.DIRECT_TEST && BuildConfig.DEBUG)
+                "Közvetlen OpenRouter (modell: openai/gpt-4o-mini)"
+            else "Saját Jarvis AI-szerver (/v1/chat)",
+        style = MaterialTheme.typography.bodySmall
+    )
+    if (selectedMode != savedMode) {
+        Text("A módváltás csak Mentés után lép életbe.",
+            style = MaterialTheme.typography.bodySmall)
+    }
+    Spacer(Modifier.height(8.dp))
 
     if (selectedMode == JarvisAiGateway.DIRECT_TEST && BuildConfig.DEBUG) {
         Text("Tesztmód: nincs szükség szervercímre. Az OpenRouter-kulcsodat egyszer kell megadni, a telefon titkosított tárhelyére mentjük.")
@@ -66,7 +78,9 @@ internal fun JarvisAiSettings(context: Context) {
             style = MaterialTheme.typography.bodySmall
         )
     } else {
-        Text("Szerveres mód: HTTPS-cím és saját tesztelői kód. Az OpenRouter-kulcs a szerveren marad.")
+        Text("Szerveres mód: saját Jarvis HTTPS-kiszolgáló és tesztelői kód. " +
+            "A megadott címhez Jarvis a /v1/chat útvonalat hívja. " +
+            "Ide ne az openrouter.ai címet és ne OpenRouter API-kulcsot írj.")
         Spacer(Modifier.height(8.dp))
         OutlinedTextField(
             value = endpoint, onValueChange = { endpoint = it },
