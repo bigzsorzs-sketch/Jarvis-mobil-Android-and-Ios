@@ -68,6 +68,7 @@ internal object JarvisAiTools {
     fun userAskedToOpen(raw: String): Boolean {
         val input = normal(raw).removePrefix("hey jarvis ")
             .removePrefix("jarvis ").trim()
+            .removePrefix("kerlek ").removePrefix("please ").trim()
         return listOf(
             "nyisd ", "nyit ", "nyitnad ", "megnyit ", "megnyitnad ",
             "mutasd ", "mutatnad ", "lepj ", "menj ", "inditsd ",
