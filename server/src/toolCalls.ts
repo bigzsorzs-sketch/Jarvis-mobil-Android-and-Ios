@@ -62,7 +62,7 @@ export function verifiedToolCall(calls: unknown): { name: string; route?: string
   if (call.function.name === CALL_FUNCTION) {
     if (typeof entry.target !== "string" || entry.target.trim() !== entry.target ||
         entry.target.length < 1 || entry.target.length > 70 ||
-        /[\\r\\n\\u0000-\\u001f]/.test(entry.target)) return null;
+        /[\r\n\u0000-\u001f]/.test(entry.target)) return null;
     // Proposal only. The client MUST validate against the original user's input.
     return { name: CALL_FUNCTION, target: entry.target };
   }
