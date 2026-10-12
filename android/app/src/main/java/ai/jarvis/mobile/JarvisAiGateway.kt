@@ -40,6 +40,22 @@ internal object JarvisAiGateway {
             (if (uri.port > 0 && uri.port != 443) ":" + uri.port else "")
     } catch (_: Exception) { null }
 
+    /** A 404 is a routing/model issue, not proof that an access key is invalid.
+     * Never echo credential, full server URL or an untrusted upstream error body.
+     */
+    fun http404Message(direct: Boolean): String =
+        if (direct) {
+            "OpenRouter HTTP 404: a kiválasztott modellhez nem talált használható " +
+                "végpontot. A kulcs ettől még lehet érvényes. Ellenőrizd az OpenRouter " +
+                "modellhozzáférést és az adatvédelmi/szolgáltatói szűrőket. " +
+                "A Jarvis tesztmodellje: " + TEST_MODEL + "."
+        } else {
+            "Jarvis AI-szerver HTTP 404: a beállított HTTPS-kiszolgáló nem találja " +
+                "a /v1/chat útvonalat. Az OpenRouter API-címe NEM saját Jarvis-szerver. " +
+                "Ha közvetlen OpenRouter-kulcsod van, a Beállítások → AI-agy alatt " +
+                "válaszd a Közvetlen OpenRouter tesztmódot."
+        }
+
     fun isValidTesterToken(input: String): Boolean =
         input.matches(Regex("[a-fA-F0-9]{64}"))
 
@@ -188,6 +204,7 @@ internal object JarvisAiGateway {
                     else "A tesztelői kód érvénytelen vagy visszavonták.")
                 402 -> JarvisAiOutcome("Az OpenRouter-egyenleg vagy a kulcshoz tartozó keret nem elegendő.")
                 403 -> JarvisAiOutcome("Az AI-hozzáférés nincs engedélyezve.")
+                404 -> JarvisAiOutcome(http404Message(direct))
                 429 -> JarvisAiOutcome("Elérted az ideiglenes használati limitet. Próbáld később.")
                 301, 302, 303, 307, 308 -> JarvisAiOutcome(
                     "A szerver átirányított; biztonsági okból megszakítottam.")
