@@ -149,7 +149,7 @@ internal fun JarvisBillingScreen(context: Context, repo: BillingRepository, lang
                         }
                     }
                 }
-                OutlinedTextField(description, { description = it.take(700) },
+                OutlinedTextField(description, { description = it.take(200) },
                     label = { Text(t("description")) },
                     modifier = Modifier.fillMaxWidth().testTag("billing-description"))
                 OutlinedTextField(amount, { amount = it.take(20) },
