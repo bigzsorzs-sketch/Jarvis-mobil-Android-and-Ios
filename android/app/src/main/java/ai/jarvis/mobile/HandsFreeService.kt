@@ -26,9 +26,12 @@ internal object HandsFreeStatus {
     var micLevel by mutableFloatStateOf(0f)
     var outputLevel by mutableFloatStateOf(0f)
 }
+internal data class PendingPhoneApp(val action: String, val createdAtMs: Long)
+
 internal object HandsFreeNavigation {
     var appIsForeground by mutableStateOf(false)
     var destination by mutableStateOf<String?>(null)
+    var deviceAction by mutableStateOf<PendingPhoneApp?>(null)
     var mapTarget by mutableStateOf<String?>(null)
     var mailDraft by mutableStateOf<EmailDraft?>(null)
     var external by mutableStateOf<HandoffTask?>(null)
@@ -522,11 +525,20 @@ class HandsFreeService : Service(), RecognitionListener {
                         val outcome = JarvisAiGateway.askStructured(applicationContext, command)
                         if (running) {
                             speaking = false
-                            if (outcome.route != null) {
-                                HandsFreeNavigation.destination = outcome.route
-                                speak("Előkészítettem a kért oldalt: " + outcome.route +
-                                    ". A Jarvis előtérben tudja megnyitni.")
-                            } else speak(outcome.message)
+                            when {
+                                outcome.route != null -> {
+                                    HandsFreeNavigation.destination = outcome.route
+                                    speak("A Jarvis " + outcome.route + " oldalát megnyitom, " +
+                                        "amikor az alkalmazás előtérbe kerül.")
+                                }
+                                outcome.deviceAction != null -> {
+                                    HandsFreeNavigation.deviceAction = PendingPhoneApp(
+                                        outcome.deviceAction, SystemClock.elapsedRealtime())
+                                    speak("Az Android-alkalmazást csak az előtérbe hozott " +
+                                        "Jarvisból indíthatom. A kérés harminc másodpercig érvényes.")
+                                }
+                                else -> speak(outcome.message)
+                            }
                         }
                     }
                 }
