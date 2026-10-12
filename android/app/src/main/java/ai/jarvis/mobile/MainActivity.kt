@@ -49,7 +49,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-data class Reading(val value: String, val stamp: String)
+data class Reading(val value: String, val stamp: String, val source: String = "manual")
 data class Invoice(val client: String, val amount: String, val stamp: String)
 
 class MainActivity : ComponentActivity() {
@@ -592,7 +592,7 @@ fun JarvisApp(context: Context) {
                                 "Névjegyek" -> ContactsScreen(context, onPermissions = {
                                     page = "Engedélyek"
                                 })
-                                "Vércukor" -> GlucoseScreen(readings) {
+                                "Vércukor" -> JarvisGlucoseDashboard(context, readings) {
                                     securePrefs.write("readings", writeReadings(readings))
                                 }
                                 "Számlák" -> InvoiceScreen(context, invoices) {
@@ -621,80 +621,6 @@ private fun SurfaceCard(content: @Composable ColumnScope.() -> Unit) {
         verticalArrangement = Arrangement.spacedBy(9.dp),
         content = content
     )
-}
-
-@Composable
-private fun GlucoseScreen(readings: MutableList<Reading>, persist: () -> Unit) {
-    var input by remember { mutableStateOf("") }
-    var error by remember { mutableStateOf("") }
-    Text("Vércukornapló", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = White)
-    Text("mmol/L · helyi mentés · nem orvosi döntéstámogató eszköz", color = Soft, fontSize = 12.sp)
-    Spacer(Modifier.height(12.dp))
-    SurfaceCard {
-        OutlinedTextField(
-            value = input, onValueChange = { input = it },
-            label = { Text("Mért érték (mmol/L)") },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-            modifier = Modifier.fillMaxWidth()
-        )
-        Button(onClick = {
-            val number = input.replace(',', '.').toDoubleOrNull()
-            if (number == null || number < 1 || number > 35) {
-                error = "Adj meg egy értéket 1 és 35 között."
-            } else {
-                readings.add(0, Reading(number.toString(), timeNow()))
-                persist(); input = ""; error = ""
-            }
-        }) { Text("Mérés mentése") }
-        if (error.isNotEmpty()) Text(error, color = Color(0xFFFFA5A5))
-    }
-    Spacer(Modifier.height(14.dp))
-    val values = readings.take(30).mapNotNull { it.value.toDoubleOrNull() }
-    if (values.isNotEmpty()) {
-        SurfaceCard {
-            Text("Mérési áttekintés", color = White, fontWeight = FontWeight.SemiBold)
-            Text(
-                "Átlag: " + "%.1f".format(Locale.UK, values.average()) +
-                    " · Min: " + "%.1f".format(Locale.UK, values.minOrNull() ?: 0.0) +
-                    " · Max: " + "%.1f".format(Locale.UK, values.maxOrNull() ?: 0.0) + " mmol/L",
-                color = Soft, fontSize = 12.sp
-            )
-            if (values.size >= 2) {
-                val graphColor = Cyan
-                Canvas(Modifier.fillMaxWidth().height(130.dp)) {
-                    val ordered = values.reversed()
-                    val lower = (ordered.minOrNull() ?: 0.0) - 1.0
-                    val upper = (ordered.maxOrNull() ?: 1.0) + 1.0
-                    val stepX = size.width / (ordered.size - 1)
-                    val points = ordered.mapIndexed { i, value ->
-                        Offset(
-                            i * stepX,
-                            (size.height * (1.0 - ((value - lower) / (upper - lower)))).toFloat()
-                        )
-                    }
-                    for (i in 0 until points.lastIndex) {
-                        drawLine(graphColor, points[i], points[i + 1], strokeWidth = 4.dp.toPx())
-                    }
-                    points.forEach { drawCircle(graphColor, 3.dp.toPx(), it) }
-                }
-            }
-            Text("Tájékoztató grafikon. Orvosi döntést nem helyettesít.", color = Soft, fontSize = 11.sp)
-        }
-        Spacer(Modifier.height(10.dp))
-    }
-    if (readings.isEmpty()) Text("Még nincs mentett mérés.", color = Soft)
-    readings.forEachIndexed { index, reading ->
-        SurfaceCard {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text(reading.value + " mmol/L", fontWeight = FontWeight.Bold)
-                    Text(reading.stamp, color = Soft, fontSize = 12.sp)
-                }
-                TextButton(onClick = { readings.removeAt(index); persist() }) { Text("Törlés") }
-            }
-        }
-        Spacer(Modifier.height(8.dp))
-    }
 }
 
 @Composable
@@ -848,10 +774,12 @@ private fun MoreScreen(context: Context, notes: MutableList<String>, persist: ()
 
 private fun timeNow(): String = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.UK).format(Date())
 private fun readReadings(raw: String): List<Reading> = try {
-    val a = JSONArray(raw); (0 until a.length()).map { i -> a.getJSONObject(i).let { Reading(it.optString("v"), it.optString("t")) } }
+    val a = JSONArray(raw); (0 until a.length()).map { i -> a.getJSONObject(i).let {
+        Reading(it.optString("v"), it.optString("t"), it.optString("src", "manual"))
+    } }
 } catch (_: Exception) { emptyList() }
 private fun writeReadings(a: List<Reading>) = JSONArray().apply {
-    a.forEach { put(JSONObject().put("v", it.value).put("t", it.stamp)) }
+    a.forEach { put(JSONObject().put("v", it.value).put("t", it.stamp).put("src", it.source)) }
 }.toString()
 private fun readInvoices(raw: String): List<Invoice> = try {
     val a = JSONArray(raw); (0 until a.length()).map { i -> a.getJSONObject(i).let { Invoice(it.optString("c"), it.optString("a"), it.optString("t")) } }
