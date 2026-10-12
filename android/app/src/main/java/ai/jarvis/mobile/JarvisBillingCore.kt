@@ -33,11 +33,12 @@ internal object BillingValidation {
     fun email(value: String) = value.length <= 254 && emailPattern.matches(value.trim())
     fun pence(value: String): Long? = try {
         val cleaned = value.trim().replace("£", "").replace(",", ".")
-        if (!cleaned.matches(Regex("^[0-9]+(?:\\.[0-9]{1,2})?$"))) return null
-        val amount = BigDecimal(cleaned)
-            .setScale(2, RoundingMode.UNNECESSARY)
-        if (amount <= BigDecimal.ZERO || amount > BigDecimal("1000000")) null
-        else amount.movePointRight(2).longValueExact()
+        if (!cleaned.matches(Regex("^[0-9]+(?:\\.[0-9]{1,2})?$"))) null
+        else {
+            val amount = BigDecimal(cleaned).setScale(2, RoundingMode.UNNECESSARY)
+            if (amount <= BigDecimal.ZERO || amount > BigDecimal("1000000")) null
+            else amount.movePointRight(2).longValueExact()
+        }
     } catch (_: Exception) { null }
     fun money(pence: Long): String = "£" + String.format(Locale.UK, "%,.2f", pence / 100.0)
     fun date(value: String): Boolean = runCatching { LocalDate.parse(value) }.isSuccess
