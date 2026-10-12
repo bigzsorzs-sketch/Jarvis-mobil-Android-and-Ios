@@ -94,6 +94,13 @@ fun JarvisApp(context: Context) {
             JarvisLanguageSettings.save(context, selected)
         }
     }
+    val detectedSpeechLanguage = JarvisSpeechLanguageEvents.detected
+    LaunchedEffect(detectedSpeechLanguage) {
+        if (detectedSpeechLanguage != null) {
+            selectLanguage(detectedSpeechLanguage)
+            JarvisSpeechLanguageEvents.detected = null
+        }
+    }
     val onboardingPrefs = remember { context.getSharedPreferences("jarvis_onboarding_v1", Context.MODE_PRIVATE) }
     var isDark by remember { mutableStateOf(securePrefs.read("ui_dark_mode", "false") == "true") }
     val toggleTheme = {
