@@ -280,7 +280,13 @@ class HandsFreeService : Service(), RecognitionListener {
 
     private fun speak(text: String) {
         val wantedLanguage = recognizedUtteranceLanguage ?: JarvisLanguageSettings.load(applicationContext)
-        tts?.setLanguage(Locale.forLanguageTag(wantedLanguage.tag))
+        val ttsLanguage = tts?.setLanguage(Locale.forLanguageTag(wantedLanguage.tag))
+        if (ttsReady && (ttsLanguage == null || ttsLanguage < TextToSpeech.LANG_AVAILABLE)) {
+            HandsFreeStatus.status = JarvisReadAloudCommand.response(wantedLanguage, "missingTts")
+            activeVoiceCommand = null
+            finishSpokenReply()
+            return
+        }
         HandsFreeStatus.answer = text
         HandsFreeStatus.status = "Jarvis válaszol"
         activeVoiceCommand?.let { request ->
@@ -466,10 +472,14 @@ class HandsFreeService : Service(), RecognitionListener {
         activeVoiceCommand = command
         when (val read = JarvisReadAloudCommand.parse(command)) {
             ReadAloudRequest.LastAnswer -> {
-                val previous = HandsFreeStatus.answer
-                speak(if (previous.isBlank()) JarvisReadAloudCommand.response(
-                    recognizedUtteranceLanguage ?: JarvisLanguageSettings.load(applicationContext),
-                    "noAnswer") else previous)
+                if (!privateVoiceAllowed()) {
+                    speak("Oldd fel a telefont a korábbi válasz felolvasásához.")
+                } else {
+                    val previous = HandsFreeStatus.answer
+                    speak(if (previous.isBlank()) JarvisReadAloudCommand.response(
+                        recognizedUtteranceLanguage ?: JarvisLanguageSettings.load(applicationContext),
+                        "noAnswer") else previous)
+                }
             }
             is ReadAloudRequest.Literal -> {
                 if (privateVoiceAllowed()) speak(read.text)
