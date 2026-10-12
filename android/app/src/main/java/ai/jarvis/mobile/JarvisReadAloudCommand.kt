@@ -98,8 +98,8 @@ internal object JarvisSpeechChunks {
         val result = mutableListOf<String>()
         var start = 0
         while (start < text.length) {
-            while (start < text.length && text[start].isWhitespace()) start++
-            if (start >= text.length) break
+            // Keep every original character, including whitespace at chunk edges.
+            // Dropping whitespace can merge words when reading a long document.
             var end = (start + maxChars).coerceAtMost(text.length)
             if (end < text.length) {
                 val boundary = (end - 1 downTo (start + maxChars / 2))
