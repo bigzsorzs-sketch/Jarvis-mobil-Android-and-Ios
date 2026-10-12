@@ -92,6 +92,7 @@ fun JarvisApp(context: Context) {
         if (onboardingPrefs.getBoolean("permissions_reviewed", false)) "Főoldal" else "Engedélyek"
     ) }
     val conversation = remember { mutableStateListOf<Pair<String, String>>() }
+    var commandRevision by remember { mutableIntStateOf(0) }
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val drawerScope = rememberCoroutineScope()
     var pendingCall by remember { mutableStateOf<VoiceCalling.Target?>(null) }
@@ -133,6 +134,16 @@ fun JarvisApp(context: Context) {
     }
     fun executeHome(command: String) {
         if (command.isBlank()) return
+        // Every newly submitted command invalidates older pending approvals and
+        // any in-flight AI result; a stale network response cannot act later.
+        commandRevision += 1
+        val requestRevision = commandRevision
+        pendingCall = null
+        pendingCallUntilMs = 0L
+        pendingMessage = null
+        pendingMessageUntilMs = 0L
+        pendingSequence = null
+        pendingSequenceUntilMs = 0L
         // The same strictly validated local action registry is available from
         // typed commands even when the AI service is offline.
         val sequence = JarvisSequence.plan(command)
@@ -162,6 +173,12 @@ fun JarvisApp(context: Context) {
             if (conversation.size > 50) conversation.removeAt(0)
             drawerScope.launch {
                 val outcome = JarvisAiGateway.askStructured(context, command)
+                if (requestRevision != commandRevision) {
+                    val oldIndex = conversation.indexOf(pending)
+                    if (oldIndex >= 0) conversation[oldIndex] =
+                        command to "Egy újabb kérés miatt a korábbi AI-parancsot megszakítottam."
+                    return@launch
+                }
                 val answer = when {
                     outcome.route != null -> openTool(outcome.route)
                     outcome.deviceAction != null -> JarvisPhoneActions.execute(context, outcome.deviceAction)
