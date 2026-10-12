@@ -35,7 +35,7 @@ internal object JarvisAiToolPolicy {
 
     fun providerPayload(question: String): JSONObject {
         val payload = JSONObject()
-            .put("model", "openai/gpt-4o-mini")
+            .put("model", JarvisAiGateway.TEST_MODEL)
             .put("messages", JSONArray()
                 .put(JSONObject().put("role", "system").put("content", JarvisIdentity.systemPrompt))
                 .put(JSONObject().put("role", "user").put("content", question)))
