@@ -88,6 +88,8 @@ private val Soft: Color @Composable get() = JarvisPalette.subtleText
 fun JarvisApp(context: Context) {
     val securePrefs = remember { SecurePrefs(context) }
     val billingRepo = remember(context) { BillingRepository(context) }
+    val narrator = remember(context) { JarvisReadAloud(context) }
+    DisposableEffect(narrator) { onDispose { narrator.release() } }
     var language by remember { mutableStateOf(JarvisLanguageSettings.load(context)) }
     val selectLanguage: (JarvisLanguage) -> Unit = { selected ->
         if (language != selected) {
@@ -229,6 +231,47 @@ fun JarvisApp(context: Context) {
         pendingMessageUntilMs = 0L
         pendingSequence = null
         pendingSequenceUntilMs = 0L
+        // Read-aloud is a device action. It does not ask a model to synthesize audio.
+        when (val read = JarvisReadAloudCommand.parse(command)) {
+            ReadAloudRequest.LastAnswer -> {
+                val previous = conversation.asReversed().firstOrNull {
+                    it.second.isNotBlank() && it.second != "AI-válaszra várok…" &&
+                        !it.second.startsWith("Felolvasás elindítva.")
+                }?.second
+                if (previous == null) {
+                    addHistory(command to JarvisReadAloudCommand.response(language, "noAnswer"))
+                } else {
+                    narrator.read(previous, language)
+                    addHistory(command to (narrator.status.ifBlank {
+                        JarvisReadAloudCommand.response(language, "started")
+                    }))
+                }
+            }
+            is ReadAloudRequest.Literal -> {
+                narrator.read(read.text, language)
+                addHistory(command to narrator.status.ifBlank {
+                    JarvisReadAloudCommand.response(language, "started")
+                })
+            }
+            is ReadAloudRequest.Generate -> {
+                drawerScope.launch {
+                    val prompt = JarvisReadAloudCommand.generationPrompt(read.request, language)
+                    val outcome = JarvisAiGateway.askStructured(context, prompt, language.tag)
+                    if (requestRevision == commandRevision) {
+                        // AI answers cannot grant Android actions. Just read plain content.
+                        val actual = outcome.message
+                        addHistory(command to actual)
+                        if (outcome.route == null && outcome.deviceAction == null &&
+                            outcome.nativeAction == null && outcome.messageDraft == null &&
+                            outcome.callTarget == null) {
+                            narrator.read(actual, language)
+                        }
+                    }
+                }
+            }
+            null -> Unit
+        }
+        if (JarvisReadAloudCommand.parse(command) != null) return
         // Private, on-device data query: never send a glucose request to the LLM.
         if (JarvisGlucoseVoice.isQuery(command)) {
             drawerScope.launch {
@@ -511,6 +554,15 @@ fun JarvisApp(context: Context) {
                             onSelectLanguage = selectLanguage,
                             onMenu = { drawerScope.launch { drawerState.open() } },
                             onCommand = { command -> executeHome(command) },
+                            onReadText = { readText ->
+                                if (HandsFreeStatus.running) context.startService(
+                                    Intent(context, HandsFreeService::class.java)
+                                        .setAction(HandsFreeService.STOP))
+                                narrator.read(readText, language)
+                            },
+                            onStopReading = { narrator.stop() },
+                            reading = narrator.isSpeaking,
+                            readingStatus = narrator.status,
                             history = conversation,
                             hasOlderHistory = hasOlderChat,
                             loadingOlderHistory = loadingOlderChat,
