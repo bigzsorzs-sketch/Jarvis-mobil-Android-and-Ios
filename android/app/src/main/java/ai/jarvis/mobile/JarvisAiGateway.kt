@@ -205,7 +205,11 @@ internal object JarvisAiGateway {
         askStructured(context, message).message
 
     /** Only an on-device allowlisted dispatcher can execute the proposed route. */
-    suspend fun askStructured(context: Context, message: String): JarvisAiOutcome =
+    suspend fun askStructured(
+        context: Context,
+        message: String,
+        responseLanguageTag: String? = null
+    ): JarvisAiOutcome =
         withContext(Dispatchers.IO) {
         val question = message.trim()
         if (question.isEmpty() || question.length > MAX_MESSAGE) {
@@ -244,7 +248,8 @@ internal object JarvisAiGateway {
             // Never force function calling for ordinary chat. Some OpenRouter
             // providers support this model for text but return 404 with tools.
             val payload = if (direct) JarvisAiToolPolicy.providerPayload(
-                question, JarvisLanguageSettings.load(context.applicationContext).tag)
+                question, responseLanguageTag?.let { JarvisLanguage.fromSpeechTag(it)?.tag }
+                    ?: JarvisLanguageSettings.load(context.applicationContext).tag)
                 else JSONObject().put("message", question)
 
             connection.outputStream.use { it.write(payload.toString().toByteArray(Charsets.UTF_8)) }
