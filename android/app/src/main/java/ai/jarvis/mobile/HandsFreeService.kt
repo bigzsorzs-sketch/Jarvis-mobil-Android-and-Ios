@@ -396,6 +396,9 @@ class HandsFreeService : Service(), RecognitionListener {
             now < replyWindowUntil && VoiceIntentParser.replyDraft(heard) != null -> heard
             else -> { again(600); return }
         }
+        // A newer local command also invalidates a previous cloud proposal.
+        aiJob?.cancel()
+        aiJob = null
         JarvisCapabilities.localPageToOpen(command)?.let { route ->
             if (!privateVoiceAllowed()) {
                 speak("A telefon zárolva van. Az oldal megnyitásához előbb oldd fel.")
