@@ -32,7 +32,7 @@ internal object BillingVoice {
     fun isOpen(raw: String) = isCandidate(raw) && opening(normalize(raw)) &&
         !sending(normalize(raw)) && !creating(normalize(raw))
 
-    private fun amount(raw: String): Long? {
+    internal fun amount(raw: String): Long? {
         val pattern = Regex(
             "(?iu)(?:£\\s*([0-9]+(?:[.,][0-9]{1,2})?)|" +
                 "([0-9]+(?:[.,][0-9]{1,2})?)\\s*(?:font(?:os|ot|ert)?|" +
