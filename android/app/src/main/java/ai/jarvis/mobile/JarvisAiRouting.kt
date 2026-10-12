@@ -5,7 +5,9 @@ package ai.jarvis.mobile
 internal object JarvisAiRouting {
     fun shouldAskAi(text: String): Boolean {
         val command = text.trim()
-        if (command.isEmpty() || LocalConversation.reply(command) != null) return false
+        if (command.isEmpty() || LocalConversation.reply(command) != null ||
+            JarvisCapabilities.replyIfAsked(command) != null ||
+            JarvisCapabilities.localPageToOpen(command) != null) return false
         if (BasicCommandRouter.classify(command) != BasicAction.UNKNOWN) return false
         return ExternalTasks.parseMessage(command) == null &&
             !ExternalTasks.parseUcJournal(command) &&
