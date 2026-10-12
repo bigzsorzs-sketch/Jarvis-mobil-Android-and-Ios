@@ -280,7 +280,6 @@ class HandsFreeService : Service(), RecognitionListener {
 
     private fun speak(text: String) {
         val wantedLanguage = recognizedUtteranceLanguage ?: JarvisLanguageSettings.load(applicationContext)
-        val previousAnswer = HandsFreeStatus.answer
         tts?.setLanguage(Locale.forLanguageTag(wantedLanguage.tag))
         HandsFreeStatus.answer = text
         HandsFreeStatus.status = "Jarvis válaszol"
