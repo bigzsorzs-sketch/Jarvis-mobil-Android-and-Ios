@@ -1,5 +1,7 @@
 package ai.jarvis.mobile
 
+import ai.jarvis.mobile.LocalizedText as Text
+
 import android.content.Context
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState

@@ -1,5 +1,7 @@
 package ai.jarvis.mobile
 
+import ai.jarvis.mobile.LocalizedText as Text
+
 import android.content.Context
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -8,6 +10,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -53,7 +56,7 @@ internal fun JarvisDrawer(selected: String, onSelect: (String) -> Unit) {
             modifier = Modifier.padding(start = 22.dp, top = 24.dp, bottom = 24.dp))
         HorizontalDivider(color = if (dark) Color(0xFF25344E) else Color(0xFFE7ECF5))
         LazyColumn(
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.weight(1f).testTag("jarvis-drawer-list"),
             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
             verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {

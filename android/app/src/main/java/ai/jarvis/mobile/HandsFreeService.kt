@@ -140,13 +140,13 @@ class HandsFreeService : Service(), RecognitionListener {
         handler.postDelayed(timeout, MAX_MS)
         tts = TextToSpeech(applicationContext) { status ->
             val language = if (status == TextToSpeech.SUCCESS)
-                tts?.setLanguage(Locale.forLanguageTag("hu-HU")) ?: TextToSpeech.LANG_NOT_SUPPORTED
+                tts?.setLanguage(Locale.forLanguageTag(JarvisLanguageSettings.load(applicationContext).tag)) ?: TextToSpeech.LANG_NOT_SUPPORTED
             else TextToSpeech.LANG_NOT_SUPPORTED
             ttsReady = language >= TextToSpeech.LANG_AVAILABLE
             if (!ttsReady) {
                 pendingTtsText = null
                 HandsFreeStatus.status =
-                    "A magyar hangos válasz nem elérhető. Ellenőrizd a telefon szövegfelolvasó beállításait."
+                    "A kiválasztott nyelven nem érhető el hangos válasz. Ellenőrizd az Android szövegfelolvasó beállításait."
                 if (running) again(400)
             } else {
                 tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
@@ -244,7 +244,7 @@ class HandsFreeService : Service(), RecognitionListener {
             }
             recognizer?.startListening(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE, "hu-HU")
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE, JarvisLanguageSettings.load(applicationContext).tag)
                 putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, usingOnDeviceRecognizer)
                 putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
             })

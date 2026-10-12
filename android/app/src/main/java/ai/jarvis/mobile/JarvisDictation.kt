@@ -59,7 +59,7 @@ internal class JarvisDictation(private val context: Context) {
                             "A mikrofonengedély hiányzik vagy visszavonták."
                         SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE,
                         SpeechRecognizer.ERROR_LANGUAGE_NOT_SUPPORTED ->
-                            "A magyar beszédfelismerés nem érhető el. Állítsd be az Androidon."
+                            "A kiválasztott nyelven nem érhető el beszédfelismerés. Állítsd be az Androidon."
                         SpeechRecognizer.ERROR_NETWORK, SpeechRecognizer.ERROR_NETWORK_TIMEOUT ->
                             "A telefon beszédfelismerője hálózati hibát jelzett."
                         else -> "A beszédfelismerés hibát jelzett ($error). Próbáld újra."
@@ -83,7 +83,7 @@ internal class JarvisDictation(private val context: Context) {
             speech.startListening(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,
                     RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE, "hu-HU")
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE, JarvisLanguageSettings.load(context).tag)
                 putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
                 putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
             })

@@ -1,5 +1,7 @@
 package ai.jarvis.mobile
 
+import ai.jarvis.mobile.LocalizedText as Text
+
 import android.content.Context
 import android.content.Intent
 import android.graphics.Paint
@@ -85,6 +87,13 @@ private val Soft: Color @Composable get() = JarvisPalette.subtleText
 @Composable
 fun JarvisApp(context: Context) {
     val securePrefs = remember { SecurePrefs(context) }
+    var language by remember { mutableStateOf(JarvisLanguageSettings.load(context)) }
+    val selectLanguage: (JarvisLanguage) -> Unit = { selected ->
+        if (language != selected) {
+            language = selected
+            JarvisLanguageSettings.save(context, selected)
+        }
+    }
     val onboardingPrefs = remember { context.getSharedPreferences("jarvis_onboarding_v1", Context.MODE_PRIVATE) }
     var isDark by remember { mutableStateOf(securePrefs.read("ui_dark_mode", "false") == "true") }
     val toggleTheme = {
@@ -432,7 +441,10 @@ fun JarvisApp(context: Context) {
     val notes = remember { mutableStateListOf<String>().apply { addAll(readNotes(securePrefs.read("notes", "[]"))) } }
 
     val onHome = page == "Főoldal"
-    CompositionLocalProvider(LocalJarvisDark provides isDark) {
+    CompositionLocalProvider(
+        LocalJarvisDark provides isDark,
+        LocalJarvisLanguage provides language
+    ) {
         MaterialTheme(colorScheme = if (!isDark) lightColorScheme(
             primary = Color(0xFF075FF1), background = Color.White,
             surface = Color.White, onSurface = Color(0xFF08142E)
@@ -464,6 +476,8 @@ fun JarvisApp(context: Context) {
                             context = context,
                             isDark = isDark,
                             onToggleTheme = toggleTheme,
+                            language = language,
+                            onSelectLanguage = selectLanguage,
                             onMenu = { drawerScope.launch { drawerState.open() } },
                             onCommand = { command -> executeHome(command) },
                             history = conversation,
@@ -526,8 +540,9 @@ fun JarvisApp(context: Context) {
                             Text(page, color = White, fontSize = 19.sp,
                                 fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f).testTag("jarvis-subpage-header")
                                     .clickable { drawerScope.launch { drawerState.open() } })
-                            TextButton(onClick = toggleTheme) {
-                                Text(if (isDark) "☀ Világos" else "☾ Sötét", color = Cyan)
+                            JarvisLanguagePicker(language = language, onSelect = selectLanguage)
+                            IconButton(onClick = toggleTheme, modifier = Modifier.testTag("jarvis-subpage-theme-toggle")) {
+                                Text(if (isDark) "☀" else "☾", color = Cyan, fontSize = 23.sp)
                             }
                             TextButton(
                                 modifier = Modifier.testTag("jarvis-subpage-home-button"),
