@@ -74,6 +74,37 @@ class JarvisLanguagesTest {
             JarvisSpeechRecognition.acceptedLanguage("xx-XX", confidence, succeeded, JarvisLanguage.HUNGARIAN))
     }
 
+    @Test fun everyExistingEnglishUiKeyIsTranslatedIntoAllNewLocales() {
+        for (key in JarvisTranslations.fixedTextKeys()) {
+            org.junit.Assert.assertTrue("Untranslated key: " + key, JarvisMoreTranslations.hasFixedText(key))
+        }
+        for (language in JarvisLanguage.entries.filter {
+            it != JarvisLanguage.HUNGARIAN && it != JarvisLanguage.ENGLISH
+        }) {
+            for (key in JarvisTranslations.fixedTextKeys()) {
+                org.junit.Assert.assertTrue("Missing " + language.tag + ": " + key,
+                    JarvisTranslations.text(key, language).isNotBlank())
+            }
+        }
+    }
+
+    @Test fun eachAiPromptUsesRequestedReplyLanguage() {
+        val expected = mapOf(
+            "en-US" to "English",
+            "de-DE" to "Deutsch",
+            "fr-FR" to "français",
+            "es-ES" to "español",
+            "it-IT" to "italiano",
+            "pl-PL" to "polsku",
+            "hu-HU" to "magyarul"
+        )
+        expected.forEach { (tag, marker) ->
+            val payload = JarvisAiToolPolicy.providerPayload("What is 2 plus 2?", tag)
+            val prompt = payload.getJSONArray("messages").getJSONObject(0).getString("content")
+            org.junit.Assert.assertTrue("Missing reply language " + tag, prompt.contains(marker))
+        }
+    }
+
     @Test fun userDataIsNotGuessedOrModified() {
         val note = "A user-created contact: George\n42 £"
         assertEquals(note, JarvisTranslations.text(note, JarvisLanguage.ENGLISH))
