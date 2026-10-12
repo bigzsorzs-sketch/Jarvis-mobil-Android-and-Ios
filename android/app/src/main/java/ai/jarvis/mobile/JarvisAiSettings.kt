@@ -19,12 +19,14 @@ internal fun JarvisAiSettings(context: Context) {
     var status by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     var paired by remember { mutableStateOf(JarvisAiGateway.configured(context)) }
+    var cloudConsent by remember { mutableStateOf(JarvisAiGateway.cloudConsent(context)) }
     val scope = rememberCoroutineScope()
 
-    Text("AI-agy – tesztkapcsolat", style = MaterialTheme.typography.titleLarge)
+    Text(if (BuildConfig.DEBUG) "AI-agy – belső teszt" else "AI-agy – biztonságos szerverkapcsolat",
+        style = MaterialTheme.typography.titleLarge)
     Spacer(Modifier.height(12.dp))
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        FilterChip(
+        if (BuildConfig.DEBUG) FilterChip(
             selected = selectedMode == JarvisAiGateway.DIRECT_TEST,
             onClick = {
                 selectedMode = JarvisAiGateway.DIRECT_TEST
@@ -45,7 +47,7 @@ internal fun JarvisAiSettings(context: Context) {
     }
     Spacer(Modifier.height(8.dp))
 
-    if (selectedMode == JarvisAiGateway.DIRECT_TEST) {
+    if (selectedMode == JarvisAiGateway.DIRECT_TEST && BuildConfig.DEBUG) {
         Text("Tesztmód: nincs szükség szervercímre. Az OpenRouter-kulcsodat egyszer kell megadni, a telefon titkosított tárhelyére mentjük.")
         Spacer(Modifier.height(8.dp))
         OutlinedTextField(
@@ -81,28 +83,44 @@ internal fun JarvisAiSettings(context: Context) {
 
     Spacer(Modifier.height(12.dp))
     Text(
+        "Az AI-nak küldött kérdésed szövege a kiválasztott külső AI-szolgáltatóhoz " +
+            "vagy a privát Jarvis szerveren keresztül a modellszolgáltatóhoz kerül. " +
+            "Ne írj be jelszót, API-kulcsot, orvosi adatot vagy más személyek bizalmas adatait. " +
+            "A helyi névjegyek, üzenetértesítések, fájlok és vércukornapló nem részei " +
+            "automatikusan az AI-kérésnek.",
+        style = MaterialTheme.typography.bodySmall
+    )
+    CheckboxRowCloudConsent(cloudConsent) { cloudConsent = it }
+    Spacer(Modifier.height(12.dp))
+    Text(
         if (paired && selectedMode == savedMode) "AI-hozzáférés mentve ezen a telefonon."
         else "Ehhez a módhoz még nincs beállított AI-hozzáférés."
     )
     Spacer(Modifier.height(10.dp))
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Button(onClick = {
-            val error = if (selectedMode == JarvisAiGateway.DIRECT_TEST)
-                JarvisAiGateway.saveDirect(context, credential)
-            else JarvisAiGateway.save(context, endpoint, credential)
-            status = error ?: "Mentve. Nyomd meg az AI-próbakérdés gombot!"
-            if (error == null) {
-                credential = ""
-                savedMode = selectedMode
-                paired = JarvisAiGateway.configured(context)
+            if (!cloudConsent) {
+                status = "Az AI-szöveg továbbításához külön, önkéntes hozzájárulás szükséges."
+            } else {
+                val error = if (selectedMode == JarvisAiGateway.DIRECT_TEST && BuildConfig.DEBUG)
+                    JarvisAiGateway.saveDirect(context, credential)
+                else JarvisAiGateway.save(context, endpoint, credential)
+                if (error == null) {
+                    JarvisAiGateway.setCloudConsent(context, true)
+                    credential = ""
+                    savedMode = selectedMode
+                    paired = JarvisAiGateway.configured(context)
+                }
+                status = error ?: "Hozzáférés és hozzájárulás mentve. Teszteld az AI-kapcsolatot!"
             }
         }) { Text("Mentés") }
         OutlinedButton(onClick = {
             JarvisAiGateway.clear(context)
             credential = ""
             endpoint = ""
-            selectedMode = JarvisAiGateway.DIRECT_TEST
-            savedMode = JarvisAiGateway.DIRECT_TEST
+            selectedMode = JarvisAiGateway.mode(context)
+            savedMode = JarvisAiGateway.mode(context)
+            cloudConsent = false
             paired = false
             status = "A helyben tárolt hozzáférést töröltem."
         }) { Text("Leválasztás") }
@@ -133,4 +151,14 @@ internal fun JarvisAiSettings(context: Context) {
         "A szokásos telefonparancsok helyben futnak. Az általános kérdéseket a kiválasztott AI-kapcsolat válaszolja meg.",
         style = MaterialTheme.typography.bodySmall
     )
+}
+
+@Composable
+private fun CheckboxRowCloudConsent(checked: Boolean, onChange: (Boolean) -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Checkbox(checked = checked, onCheckedChange = onChange)
+        Text("Hozzájárulok ahhoz, hogy a saját AI-kérdéseim szövegét " +
+            "a kiválasztott külső AI-szolgáltató feldolgozza.",
+            style = MaterialTheme.typography.bodySmall)
+    }
 }
