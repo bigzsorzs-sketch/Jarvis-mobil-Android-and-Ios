@@ -1,0 +1,104 @@
+name: Deploy Jarvis private AI gateway
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: 'Type DEPLOY to confirm private-beta backend deployment'
+        required: true
+        type: string
+permissions:
+  contents: read
+jobs:
+  deploy-private-beta:
+    if: github.ref == 'refs/heads/main' && inputs.confirmation == 'DEPLOY'
+    runs-on: ubuntu-latest
+    environment: private-beta
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Test backend
+        run: cd server && npm install --no-audit --no-fund && npm test
+      - name: Create private runtime env and pinned SSH identity
+        env:
+          DEPLOY_HOST: ${{ secrets.JARVIS_DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.JARVIS_DEPLOY_USER }}
+          DEPLOY_KEY: ${{ secrets.JARVIS_DEPLOY_SSH_PRIVATE_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.JARVIS_DEPLOY_KNOWN_HOSTS }}
+          PROVIDER_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          PROVIDER_MODEL: ${{ vars.OPENROUTER_MODEL }}
+          JARVIS_DOMAIN: ${{ vars.JARVIS_DOMAIN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os, re
+          from pathlib import Path
+          keys = ["DEPLOY_HOST","DEPLOY_USER","DEPLOY_KEY","DEPLOY_KNOWN_HOSTS",
+                  "PROVIDER_KEY","PROVIDER_MODEL","JARVIS_DOMAIN"]
+          vals = {k: os.environ.get(k, "") for k in keys}
+          if any(not v.strip() for v in vals.values()):
+              raise SystemExit("Missing deployment settings")
+          if not re.fullmatch(r"[A-Za-z0-9.-]{2,253}", vals["DEPLOY_HOST"]):
+              raise SystemExit("Invalid deploy host")
+          if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_-]{0,31}", vals["DEPLOY_USER"]):
+              raise SystemExit("Invalid deploy user")
+          if not re.fullmatch(r"[A-Za-z0-9.-]{4,253}", vals["JARVIS_DOMAIN"]):
+              raise SystemExit("Invalid Jarvis domain")
+          if not re.fullmatch(r"[A-Za-z0-9/_.:-]{3,150}", vals["PROVIDER_MODEL"]):
+              raise SystemExit("Invalid model")
+          if any("\n" in vals[k] or "\r" in vals[k] for k in ["PROVIDER_KEY","PROVIDER_MODEL"]):
+              raise SystemExit("Invalid key or model")
+          config = dict(
+            JARVIS_DOMAIN=vals["JARVIS_DOMAIN"], HOST="0.0.0.0", PORT="8080",
+            OPENROUTER_API_KEY=vals["PROVIDER_KEY"],
+            OPENROUTER_MODEL=vals["PROVIDER_MODEL"],
+            REDIS_URL="redis://redis:6379", TESTER_TOKEN_SHA256_JSON="{}",
+            BETA_INVITES_ENABLED="true", PUBLIC_LAUNCH_ENABLED="false"
+          )
+          path = Path("server/.env")
+          path.write_text("".join(k+"="+v+"\n" for k,v in config.items()))
+          path.chmod(0o600)
+          Path("/tmp/jarvis-deploy-ssh-key").write_text(vals["DEPLOY_KEY"] + "\n")
+          Path("/tmp/jarvis-deploy-known-hosts").write_text(vals["DEPLOY_KNOWN_HOSTS"] + "\n")
+          Path("/tmp/jarvis-deploy-ssh-key").chmod(0o600)
+          PY
+      - name: Deploy source and secret runtime config to private VPS
+        env:
+          DEPLOY_HOST: ${{ secrets.JARVIS_DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.JARVIS_DEPLOY_USER }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tar -czf /tmp/jarvis-beta-deploy.tgz \
+            --exclude='server/node_modules' --exclude='server/dist' server
+          ssh -i /tmp/jarvis-deploy-ssh-key -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes -o UserKnownHostsFile=/tmp/jarvis-deploy-known-hosts \
+            "$DEPLOY_USER@$DEPLOY_HOST" 'mkdir -p /opt/jarvis'
+          scp -i /tmp/jarvis-deploy-ssh-key -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes -o UserKnownHostsFile=/tmp/jarvis-deploy-known-hosts \
+            /tmp/jarvis-beta-deploy.tgz "$DEPLOY_USER@$DEPLOY_HOST:/opt/jarvis/release.tgz"
+          ssh -i /tmp/jarvis-deploy-ssh-key -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes -o UserKnownHostsFile=/tmp/jarvis-deploy-known-hosts \
+            "$DEPLOY_USER@$DEPLOY_HOST" \
+            'set -eu; cd /opt/jarvis; tar -xzf release.tgz; chmod 600 server/.env; cd server; docker compose up --build -d; rm -f /opt/jarvis/release.tgz'
+      - name: Verify HTTPS gateway health
+        env:
+          JARVIS_DOMAIN: ${{ vars.JARVIS_DOMAIN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 12); do
+            if curl -fsS --connect-timeout 5 --max-time 10 \
+                "https://$JARVIS_DOMAIN/health" | grep -q '"ok"'; then
+              echo "Private Jarvis gateway healthy"
+              exit 0
+            fi
+            sleep 5
+          done
+          exit 1
+      - name: Remove runner credentials
+        if: always()
+        run: rm -f /tmp/jarvis-deploy-ssh-key /tmp/jarvis-deploy-known-hosts /tmp/jarvis-beta-deploy.tgz server/.env
