@@ -512,17 +512,21 @@ class HandsFreeService : Service(), RecognitionListener {
                 } else if (!privateVoiceAllowed()) {
                     speak("A telefon lezárva. Az AI-kérdéshez előbb oldd fel.")
                 } else {
-                    // Suspend microphone recognition until the answer arrives.
-                    // Cloud output may answer questions, but never calls Android tools.
+                    // The remote model may propose only a validated allowlisted
+                    // Jarvis page. Actual navigation happens in the foreground UI.
                     handler.removeCallbacks(restart)
                     speaking = true
                     HandsFreeStatus.status = "AI-válaszra várok"
                     aiJob?.cancel()
                     aiJob = CoroutineScope(Dispatchers.Main.immediate).launch {
-                        val answer = JarvisAiGateway.ask(applicationContext, command)
+                        val outcome = JarvisAiGateway.askStructured(applicationContext, command)
                         if (running) {
                             speaking = false
-                            speak(answer)
+                            if (outcome.route != null) {
+                                HandsFreeNavigation.destination = outcome.route
+                                speak("Előkészítettem a kért oldalt: " + outcome.route +
+                                    ". A Jarvis előtérben tudja megnyitni.")
+                            } else speak(outcome.message)
                         }
                     }
                 }
