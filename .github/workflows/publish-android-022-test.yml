@@ -64,7 +64,8 @@ jobs:
           - Helyi telefonos parancsokhoz továbbra is Android-hozzáférés és jóváhagyás szükséges.
           - Az OpenRouter API-kulcs NINCS beégetve az APK-ba. Közvetlen módban a tesztelő saját kulcsát egyszer be kell írni a telefonon.
           - **Fontos:** a közvetlen tesztmódhoz nem kell szervercím. Működő, egyenleggel rendelkező OpenRouter-kulcs és internet szükséges. A saját szerver módhoz továbbra is telepített backend kell.
-          - Jarvis immár a saját menüjét listázza és képes bemutatni a jelenleg támogatott eszközöket. A Munka, Ismerősök és Névjegyek oldal megnyitása helyi szöveges/hangos paranccsal is kérhető.\n          - Tesztkiadás, nem éles alkalmazás. Nem biztosít önálló regisztrációt, eszközvezérlést a generatív válaszokból, kép- vagy videó-AI elemzést, illetve beszélgetési memóriát. A közvetlen mód a kulcstulajdonos számláját terheli; használj költségkeretes tesztkulcsot.
+          - Jarvis immár a saját menüjét listázza és képes bemutatni a jelenleg támogatott eszközöket. A Munka, Ismerősök és Névjegyek oldal megnyitása helyi szöveges/hangos paranccsal is kérhető.
+          - Tesztkiadás, nem éles alkalmazás. Nem biztosít önálló regisztrációt, eszközvezérlést a generatív válaszokból, kép- vagy videó-AI elemzést, illetve beszélgetési memóriát. A közvetlen mód a kulcstulajdonos számláját terheli; használj költségkeretes tesztkulcsot.
           - Valódi készülékeken az AI-kapcsolatot és a hangos módot még tesztelni kell. Debug-aláírás eltérése miatt frissítéskor régi adatok törlése lehet szükséges.
 
           Dokumentáció: docs/AI_GATEWAY_ROADMAP.md.
