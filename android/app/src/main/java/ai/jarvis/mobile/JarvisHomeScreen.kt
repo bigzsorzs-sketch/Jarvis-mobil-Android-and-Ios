@@ -56,6 +56,9 @@ internal fun JarvisHomeScreen(
     history: List<Pair<String, String>>,
     pendingCall: VoiceCalling.Target?,
     pendingMessage: OutgoingMessage?,
+    pendingSequence: JarvisSequencePlan?,
+    onSequenceConfirm: () -> Unit,
+    onSequenceDismiss: () -> Unit,
     onMessageConfirm: () -> Unit,
     onMessageDismiss: () -> Unit,
     onCallConfirm: () -> Unit,
@@ -199,6 +202,24 @@ internal fun JarvisHomeScreen(
             Spacer(Modifier.height(12.dp))
             Text(issue, color = Color(0xFFAA2732), fontSize = 12.sp,
                 modifier = Modifier.padding(horizontal = 16.dp))
+        }
+        if (pendingSequence != null) {
+            AlertDialog(
+                onDismissRequest = onSequenceDismiss,
+                title = { Text("Két művelet jóváhagyása") },
+                text = {
+                    Text("1. Jarvis-ébresztő " +
+                        String.format("%02d:%02d", pendingSequence.alarm.hour, pendingSequence.alarm.minute) +
+                        "\n2. Android-alkalmazás megnyitása: " + pendingSequence.app +
+                        "\n\nA második lépés csak sikeres ébresztőbeállítás után indul.")
+                },
+                confirmButton = {
+                    TextButton(onClick = onSequenceConfirm) { Text("Mindkét lépés indítása") }
+                },
+                dismissButton = {
+                    TextButton(onClick = onSequenceDismiss) { Text("Mégse") }
+                }
+            )
         }
         if (pendingMessage != null) {
             AlertDialog(
