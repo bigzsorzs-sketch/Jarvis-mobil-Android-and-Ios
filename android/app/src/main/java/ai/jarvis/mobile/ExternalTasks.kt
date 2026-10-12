@@ -68,14 +68,25 @@ internal object ExternalTasks {
                 val msg = task.message
                 when (msg.platform) {
                     MessengerPlatform.WHATSAPP -> {
-                        val entry = PeopleDirectory.find(context, msg.recipient)
-                        if (entry == null) {
-                            "Ehhez a névhez még nincs megbízható telefonszám. " +
-                                "Az Ismerősök és becenevek oldalon rendeld hozzá."
-                        } else if (openWhatsapp(context, entry.phone, msg.text)) {
-                            "Megnyitottam a WhatsApp-beszélgetést: " + entry.nickname +
-                                ". Az üzenet nem lett elküldve; ellenőrizd és a WhatsAppban küldd el."
-                        } else "Nem sikerült megnyitni a WhatsApp címzettet."
+                        // Existing locally saved aliases still resolve, but the
+                        // redundant alias editor is removed. New users can use an
+                        // exact system contact with READ_CONTACTS permission.
+                        when (val lookup = VoiceCalling.lookup(context, msg.recipient)) {
+                            is VoiceCalling.Lookup.Found ->
+                                if (openWhatsapp(context, lookup.target.number, msg.text)) {
+                                    "Megnyitottam a WhatsApp-beszélgetést: " +
+                                        lookup.target.label + ". Az üzenetet nem küldtem el; " +
+                                        "ellenőrizd és a WhatsAppban küldd el."
+                                } else "A névjegy számát nem tudtam nemzetközi formátumban megnyitni. " +
+                                    "Ellenőrizd a +44 kezdetű számot a telefon Névjegyek alkalmazásában."
+                            VoiceCalling.Lookup.NoContactsAccess ->
+                                "A címzett kereséséhez engedélyezd a Névjegyek hozzáférést."
+                            VoiceCalling.Lookup.Ambiguous ->
+                                "Több azonos nevű névjegy található. Pontosítsd a címzettet."
+                            VoiceCalling.Lookup.NotFound ->
+                                "Nem találom a címzettet a telefon Névjegyek között. " +
+                                    "Ellenőrizd a nevét a telefon névjegyzékében."
+                        }
                     }
                     MessengerPlatform.MESSENGER -> {
                         if (openMessengerShare(context, msg.text)) {
