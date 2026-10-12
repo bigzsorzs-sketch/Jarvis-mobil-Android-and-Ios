@@ -151,7 +151,7 @@ internal class BillingRepository(context: Context) {
     }
     fun add(clientId: String, description: String, amount: Long, vat: Int,
             dueDate: String, kind: String = "invoice"): BillingInvoice {
-        require(description.isNotBlank() && description.length <= 700)
+        require(description.isNotBlank() && description.length <= 200)
         require(amount in 1..100_000_000L && vat in listOf(0, 5, 20))
         require(BillingValidation.date(dueDate) && kind in listOf("invoice", "quote"))
         var result: BillingInvoice? = null
