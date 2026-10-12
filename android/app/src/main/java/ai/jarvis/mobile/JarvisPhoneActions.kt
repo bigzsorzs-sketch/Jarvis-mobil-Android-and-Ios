@@ -35,8 +35,15 @@ internal object JarvisPhoneActions {
         if (Regex("\\b(torol|torold|delete|remove|erase|send|kuldd|hivas inditasa|fizess)\\b")
                 .containsMatchIn(words)) return false
         val matches = aliases.filterValues { variants ->
-            variants.any { alias -> Regex("(^|\\s)" + Regex.escape(alias) + "(\\s|$)")
-                .containsMatchIn(words) }
+            variants.any { alias ->
+                val pattern = if (alias.contains(" ")) {
+                    "(^|\\s)" + Regex.escape(alias) + "(\\s|$)"
+                } else {
+                    // Hungarian nouns are inflected: naptárat, térképet, ébresztőket.
+                    "(^|\\s)" + Regex.escape(alias) + "[a-z]{0,7}(\\s|$)"
+                }
+                Regex(pattern).containsMatchIn(words)
+            }
         }.keys
         return matches.size == 1 && action in matches
     }
