@@ -29,6 +29,6 @@ test("multiple calls, malformed JSON and wrong types fail closed", () => {
   assert.equal(verifiedToolCall([good, good]), null);
   assert.equal(verifiedToolCall([{ type: "function", function: { name: "open_jarvis_page", arguments: "{" } }]), null);
   assert.equal(verifiedToolCall([{ type: "function", function: { name: "open_jarvis_page", arguments: "[]" } }]), null);
-  assert.equal(verifiedToolCall([{ type: "function", function: { name: "open_jarvis_page", arguments: "{\\"route\\":42}" } }]), null);
+  assert.equal(verifiedToolCall([{ type: "function", function: { name: "open_jarvis_page", arguments: JSON.stringify({ route: 42 }) } }]), null);
   assert.equal(verifiedToolCall(null), null);
 });
