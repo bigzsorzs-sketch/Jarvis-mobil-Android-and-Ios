@@ -23,6 +23,7 @@ internal object JarvisAiTools {
     const val PHONE_FUNCTION = "open_phone_app"
     const val CALL_FUNCTION = "prepare_phone_call"
     const val MESSAGE_FUNCTION = "prepare_message_draft"
+    const val NATIVE_FUNCTION = "select_native_tool"
 
     // Use the same menu inventory as the actual UI; no fabricated tools.
     val allowedRoutes: List<String>
@@ -97,6 +98,29 @@ internal object JarvisAiTools {
                     .put("enum", JSONArray(listOf("whatsapp", "messenger")))))
                 .put("required", JSONArray().put("platform"))
                 .put("additionalProperties", false)))
+
+    /** The AI selects a supported capability, but supplies no device arguments. */
+    fun nativeToolDefinition(): JSONObject = JSONObject()
+        .put("type", "function")
+        .put("function", JSONObject()
+            .put("name", NATIVE_FUNCTION)
+            .put("description", "Propose exactly one supported Android action requested explicitly " +
+                "by the user: navigate, set/cancel Jarvis alarm, compose email, open Gmail " +
+                "search or the UC sign-in page. The phone independently checks the " +
+                "original user instruction and handles the real operation.")
+            .put("parameters", JSONObject()
+                .put("type", "object")
+                .put("properties", JSONObject().put("action", JSONObject()
+                    .put("type", "string")
+                    .put("enum", JSONArray(JarvisNativeActions.supported))))
+                .put("required", JSONArray().put("action"))
+                .put("additionalProperties", false)))
+
+    fun validateNative(action: String, originalInput: String): JarvisAiOutcome =
+        if (JarvisNativeActions.validate(action, originalInput))
+            JarvisAiOutcome("A parancsot Androidon ellenőrzöm.", nativeAction = action)
+        else
+            JarvisAiOutcome("Az eszközkérés nem egyezik a parancsoddal. Nem történt művelet.")
 
     fun validateMessage(suggestedPlatform: String, originalInput: String): JarvisAiOutcome {
         val message = JarvisMessageIntent.validateAiProposal(suggestedPlatform, originalInput)
