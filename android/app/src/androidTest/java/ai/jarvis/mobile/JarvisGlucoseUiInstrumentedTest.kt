@@ -2,6 +2,7 @@ package ai.jarvis.mobile
 
 import android.content.Context
 import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
@@ -29,9 +30,16 @@ class JarvisGlucoseUiInstrumentedTest {
             JarvisToolCatalog.all.indexOfFirst { it.route == "Vércukor" })
         composeRule.onNodeWithText("Vércukor").performClick()
         composeRule.onNodeWithTag("jarvis-subpage-header").assert(hasText("Vércukor"))
-        composeRule.onNodeWithText("NFC és LibreLink").performScrollTo().performClick()
-        composeRule.onNodeWithTag("jarvis-glucose-open-librelink").performScrollTo().assertExists()
-        composeRule.onNodeWithText("Jelentések").performScrollTo().performClick()
+        // Click the actual tab controls, not localized child text. The dashboard
+        // also contains headings with the same labels, and horizontal scrolling
+        // can otherwise make text-based selectors hit the wrong semantics node.
+        composeRule.onNodeWithTag("jarvis-glucose-tab-nfc").performScrollTo().performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("jarvis-glucose-tab-nfc").assertIsSelected()
+        composeRule.onNodeWithTag("jarvis-glucose-open-librelink").assertExists()
+        composeRule.onNodeWithTag("jarvis-glucose-tab-reports").performScrollTo().performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("jarvis-glucose-tab-reports").assertIsSelected()
         composeRule.onNodeWithText("Nincs elegendő szenzoradat").assertExists()
         composeRule.onNodeWithTag("jarvis-language-switcher").performClick()
         composeRule.onNodeWithTag("jarvis-language-en-GB").performClick()
