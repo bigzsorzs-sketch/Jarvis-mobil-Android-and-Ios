@@ -1,5 +1,11 @@
 # Jarvis Mobile — Android (Kotlin) & iOS (Swift)
 
+## Android 0.2.1-dev — direct OpenRouter AI for personal testing
+
+Settings → AI-agy now offers **Közvetlen OpenRouter**, where each tester can enter a personal, low-spending-limit OpenRouter API key once. This removes the need for the undeployed Jarvis HTTPS server during small private tests. The key is stored locally with Android Keystore-backed encryption and is sent only directly to OpenRouter via HTTPS. There is **no API key embedded in the APK, GitHub source code or release**. The original **Saját szerver** connection mode remains available. This direct mode is not suitable for an uncontrolled public launch: phone owners can access/extract their own credentials, and each request can incur API charges. Previous keys shared in messages or otherwise exposed must be rotated. No voice transcript or private device data is automatically uploaded; explicit text questions are sent to the selected provider.
+
+
+
 ## Android 0.2.0-dev — AI test pairing (not yet deployed)
 
 The Android app now supports separately paired owner/family test accounts through a self-hosted HTTPS AI gateway; typed and voice questions go to the backend. Provider credentials stay exclusively on the server. The server needs deployment, real secrets and tester code provisioning before the APK can give AI answers. No public login, image AI or agentic device control. See [tester gateway guide](docs/AI_GATEWAY_ROADMAP.md) and GitHub Actions for an installable debug build.
