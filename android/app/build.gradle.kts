@@ -14,8 +14,8 @@ android {
         applicationId = "ai.jarvis.mobile"
         minSdk = 26
         targetSdk = 36
-        versionCode = 19
-        versionName = "0.2.8-dev"
+        versionCode = 20
+        versionName = "0.2.9-dev"
     }
     signingConfigs {
         if (releaseStore != null) {
