@@ -14,6 +14,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
@@ -352,7 +353,10 @@ internal fun JarvisGlucoseDashboard(
                             GText("nfcSettings", color = JarvisPalette.mainText)
                         }
                     }
-                    Button(onClick = { JarvisLibreNfc.openOfficialApp(context) }) {
+                    Button(
+                        onClick = { JarvisLibreNfc.openOfficialApp(context) },
+                        modifier = Modifier.testTag("jarvis-glucose-open-librelink")
+                    ) {
                         GText("libreLink", color = Color.White)
                     }
                     GText("nfcGuide", color = glucoseMuted, size = 13)
