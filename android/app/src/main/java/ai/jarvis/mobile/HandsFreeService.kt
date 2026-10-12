@@ -75,6 +75,7 @@ class HandsFreeService : Service(), RecognitionListener {
     private var errors = 0
     private var startedAt = 0L
     private var awaitingCommand = false
+    private var tapActivated = false
     private var replyWindowUntil = 0L
     private var lastMessageKey: String? = null
     private var proposed: Pair<String, String>? = null
@@ -96,7 +97,8 @@ class HandsFreeService : Service(), RecognitionListener {
         }
         if (intent?.action !in setOf(START, START_TAP) || running) return START_NOT_STICKY
         // Tap-to-talk is distinct from optional hands-free wake-word listening.
-        awaitingCommand = intent?.action == START_TAP
+        tapActivated = intent?.action == START_TAP
+        awaitingCommand = tapActivated
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED
             || !SpeechRecognizer.isRecognitionAvailable(this)) {
             HandsFreeStatus.status = "Mikrofonengedély vagy Android beszédfelismerő hiányzik."
@@ -177,7 +179,10 @@ class HandsFreeService : Service(), RecognitionListener {
                             speaking = false
                             HandsFreeStatus.speaking = false
                             HandsFreeStatus.outputLevel = 0f
-                            if (running) again(450)
+                            if (running) {
+                                if (tapActivated) awaitingCommand = true
+                                again(450)
+                            }
                         }
                     }
                     @Deprecated("Deprecated in Java")
@@ -283,7 +288,10 @@ class HandsFreeService : Service(), RecognitionListener {
             speaking = false
             HandsFreeStatus.speaking = false
             HandsFreeStatus.outputLevel = 0f
-            if (running) again(400)
+            if (running) {
+                if (tapActivated) awaitingCommand = true
+                again(400)
+            }
         }, 1500)
     }
     private fun privateVoiceAllowed(): Boolean {
@@ -867,6 +875,7 @@ class HandsFreeService : Service(), RecognitionListener {
         externalProposal = null
         externalDeadline = 0L
         awaitingCommand = false
+        tapActivated = false
         lastMessageKey = null
         handler.removeCallbacks(restart)
         handler.removeCallbacks(timeout)
