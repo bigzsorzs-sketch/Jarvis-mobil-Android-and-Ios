@@ -22,9 +22,11 @@ internal object BasicCommandRouter {
         if (input.isBlank()) return BasicAction.UNKNOWN
         // A topic question is NOT an instruction to open an app or trigger a tool.
         // Example: "Mit tudsz a vércukornaplóról?" must reach conversational AI.
+        val questionText = input.removePrefix("hey jarvis,").removePrefix("hey jarvis ")
+            .removePrefix("jarvis,").removePrefix("jarvis ").trimStart()
         if (listOf("mit ", "milyen ", "hogyan ", "miért ", "miert ",
                 "mikor ", "mennyi ", "mi ", "what ", "why ", "how ",
-                "when ", "which ").any { input.startsWith(it) }) {
+                "when ", "which ").any { questionText.startsWith(it) }) {
             return BasicAction.UNKNOWN
         }
         return when {
