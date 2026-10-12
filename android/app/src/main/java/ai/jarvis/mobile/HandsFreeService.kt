@@ -575,6 +575,20 @@ class HandsFreeService : Service(), RecognitionListener {
                                     speak("Az Android-alkalmazást csak az előtérbe hozott " +
                                         "Jarvisból indíthatom. A kérés harminc másodpercig érvényes.")
                                 }
+                                outcome.nativeAction != null -> {
+                                    val kind = outcome.nativeAction
+                                    if (!privateVoiceAllowed()) {
+                                        speak("A telefon zárolva van. A művelethez oldd fel.")
+                                    } else if (kind == JarvisNativeActions.SET_ALARM ||
+                                        kind == JarvisNativeActions.CANCEL_ALARM) {
+                                        speak(JarvisNativeActions.execute(this@HandsFreeService, kind, command))
+                                    } else {
+                                        HandsFreeNavigation.nativeAction = PendingNativeAction(
+                                            kind, command, SystemClock.elapsedRealtime())
+                                        speak("Az Android-műveletet előkészítettem. " +
+                                            "Előtérben harminc másodpercig érvényes.")
+                                    }
+                                }
                                 outcome.messageDraft != null -> {
                                     if (!privateVoiceAllowed()) {
                                         speak("A telefon lezárva. Üzenethez oldd fel.")
