@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { JARVIS_ROUTES, JARVIS_TOOLS, verifiedToolCall } from "./toolCalls.js";
+import { JARVIS_ROUTES, JARVIS_TOOLS, PHONE_ACTIONS, verifiedToolCall } from "./toolCalls.js";
 
 const call = (name: string, args: unknown) => ({
   type: "function", function: { name, arguments: JSON.stringify(args) }
@@ -31,4 +31,15 @@ test("multiple calls, malformed JSON and wrong types fail closed", () => {
   assert.equal(verifiedToolCall([{ type: "function", function: { name: "open_jarvis_page", arguments: "[]" } }]), null);
   assert.equal(verifiedToolCall([{ type: "function", function: { name: "open_jarvis_page", arguments: JSON.stringify({ route: 42 }) } }]), null);
   assert.equal(verifiedToolCall(null), null);
+});
+
+test("can propose exactly one whitelisted external Android app only", () => {
+  assert.deepEqual(PHONE_ACTIONS, ["calendar", "alarms", "email", "maps", "dialer"]);
+  assert.equal(JARVIS_TOOLS.length, 2);
+  assert.deepEqual(verifiedToolCall([call("open_phone_app", { route: "maps" })]), {
+    name: "open_phone_app", route: "maps"
+  });
+  assert.equal(verifiedToolCall([call("open_phone_app", { route: "DELETE" })]), null);
+  assert.equal(verifiedToolCall([call("open_phone_app", { route: "maps", text: "secret" })]), null);
+  assert.equal(verifiedToolCall([call("make_call", { route: "dialer" })]), null);
 });

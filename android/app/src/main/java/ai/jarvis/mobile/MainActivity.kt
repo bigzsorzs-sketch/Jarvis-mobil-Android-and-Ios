@@ -122,7 +122,11 @@ fun JarvisApp(context: Context) {
             if (conversation.size > 50) conversation.removeAt(0)
             drawerScope.launch {
                 val outcome = JarvisAiGateway.askStructured(context, command)
-                val answer = outcome.route?.let { openTool(it) } ?: outcome.message
+                val answer = when {
+                    outcome.route != null -> openTool(outcome.route)
+                    outcome.deviceAction != null -> JarvisPhoneActions.execute(context, outcome.deviceAction)
+                    else -> outcome.message
+                }
                 val index = conversation.indexOf(pending)
                 if (index >= 0) conversation[index] = command to answer
             }
@@ -175,6 +179,17 @@ fun JarvisApp(context: Context) {
             if (VoiceNavigation.open(context, requestedMap)) {
                 HandsFreeNavigation.mapTarget = null
             }
+        }
+    }
+    val requestedPhoneApp = HandsFreeNavigation.deviceAction
+    LaunchedEffect(requestedPhoneApp, appIsForeground) {
+        if (requestedPhoneApp != null && appIsForeground) {
+            // One-time, short-lived voice handoff: never launch something hours later.
+            HandsFreeNavigation.deviceAction = null
+            val fresh = android.os.SystemClock.elapsedRealtime() - requestedPhoneApp.createdAtMs < 30_000
+            val answer = if (fresh) JarvisPhoneActions.execute(context, requestedPhoneApp.action)
+                else "A korábbi hangparancs lejárt. Nem indítottam el alkalmazást."
+            conversation.add("Jarvis művelet" to answer)
         }
     }
     val voiceDestination = HandsFreeNavigation.destination

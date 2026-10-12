@@ -9,10 +9,15 @@ import java.util.Locale
  * The AI never receives a general Android command executor, file access,
  * message sender, settings writer or arbitrary Intent.
  */
-internal data class JarvisAiOutcome(val message: String, val route: String? = null)
+internal data class JarvisAiOutcome(
+    val message: String,
+    val route: String? = null,
+    val deviceAction: String? = null
+)
 
 internal object JarvisAiTools {
     const val FUNCTION_NAME = "open_jarvis_page"
+    const val PHONE_FUNCTION = "open_phone_app"
 
     // Use the same menu inventory as the actual UI; no fabricated tools.
     val allowedRoutes: List<String>
@@ -36,6 +41,21 @@ internal object JarvisAiTools {
                 .put("required", JSONArray().put("route"))
                 .put("additionalProperties", false)))
 
+    fun phoneToolDefinition(): JSONObject = JSONObject()
+        .put("type", "function")
+        .put("function", JSONObject()
+            .put("name", PHONE_FUNCTION)
+            .put("description", "Only open the Android Calendar, Alarms, Email composer, Maps " +
+                "or Dialer if the user explicitly commands to open that specific app. " +
+                "No sending, calling, editing, deleting or background actions.")
+            .put("parameters", JSONObject()
+                .put("type", "object")
+                .put("properties", JSONObject().put("route", JSONObject()
+                    .put("type", "string")
+                    .put("enum", JSONArray(JarvisPhoneActions.supported))))
+                .put("required", JSONArray().put("route"))
+                .put("additionalProperties", false)))
+
     private fun normal(raw: String): String =
         Normalizer.normalize(raw.lowercase(Locale.ROOT), Normalizer.Form.NFD)
             .replace(Regex("\\p{M}+"), "")
@@ -48,6 +68,7 @@ internal object JarvisAiTools {
     fun userAskedToOpen(raw: String): Boolean {
         val input = normal(raw).removePrefix("hey jarvis ")
             .removePrefix("jarvis ").trim()
+            .removePrefix("kerlek ").removePrefix("please ").trim()
         return listOf(
             "nyisd ", "nyit ", "nyitnad ", "megnyit ", "megnyitnad ",
             "mutasd ", "mutatnad ", "lepj ", "menj ", "inditsd ",
@@ -56,12 +77,47 @@ internal object JarvisAiTools {
         ).any { input.startsWith(it) }
     }
 
+    /**
+     * Prevent the model choosing the wrong (yet allowlisted) destination.
+     * One explicitly named destination per command; no guessed app.
+     */
+    private fun routeMatchesUser(route: String, input: String): Boolean {
+        val normalized = normal(input)
+        val targets = mapOf(
+            "Főoldal" to listOf("fooldal", "kezdolap", "home"),
+            "Munka" to listOf("munka", "eszkoztar", "work"),
+            "Navigáció" to listOf("navig", "terkep", "maps"),
+            "Vércukor" to listOf("vercuk", "glucose", "blood sugar"),
+            "Számlák" to listOf("szaml", "invoice"),
+            "Email" to listOf("email", "gmail", "level", "mail"),
+            "Üzenetek" to listOf("uzenet", "whatsapp", "messenger", "messages"),
+            "Névjegyek" to listOf("nevjegy", "contact", "hivas"),
+            "Naptár" to listOf("naptar", "calendar"),
+            "Jegyzetek" to listOf("jegyzet", "notes"),
+            "Ébresztő" to listOf("ebreszt", "alarm"),
+            "Ismerősök" to listOf("ismeros", "people"),
+            "Beállítások" to listOf("beallitas", "settings", "engedely")
+        )
+        if (Regex("\\b(torol|torold|delete|erase|kuldd|send|fizess|pay)\\b")
+                .containsMatchIn(normalized)) return false
+        val matched = targets.filterValues { stems ->
+            stems.any { stem -> normalized.contains(stem) }
+        }.keys
+        return matched.size == 1 && route in matched
+    }
+
     fun validate(name: String, route: String, originalInput: String): JarvisAiOutcome {
+        if (name == PHONE_FUNCTION) {
+            return if (JarvisPhoneActions.authorized(route, originalInput))
+                JarvisAiOutcome("A kért Android-alkalmazás megnyitását előkészítettem.",
+                    deviceAction = route)
+            else JarvisAiOutcome("A telefonos parancs nincs egyértelműen engedélyezve. Nem történt művelet.")
+        }
         if (name != FUNCTION_NAME || route !in allowedRoutes) {
             return JarvisAiOutcome("Ezt az AI-eszközparancsot nem támogatom; nem hajtottam végre semmit.")
         }
-        if (!userAskedToOpen(originalInput)) {
-            return JarvisAiOutcome("Nem indítottam el semmit, mert nem volt egyértelmű megnyitási kérés.")
+        if (!userAskedToOpen(originalInput) || !routeMatchesUser(route, originalInput)) {
+            return JarvisAiOutcome("Az eszközkérés nem egyezik egyértelműen a parancsoddal. Nem történt művelet.")
         }
         return JarvisAiOutcome("A kért Jarvis-oldalt az Androiddal nyitom meg: $route.", route)
     }

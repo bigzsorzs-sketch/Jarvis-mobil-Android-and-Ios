@@ -56,6 +56,17 @@ class JarvisAiToolsTest {
             "Nyisd meg a naptárat").route)
     }
 
+    @Test fun aiCannotOpenWrongYetExistingJarvisPage() {
+        val wrong = providerWith(toolCall(JarvisAiTools.FUNCTION_NAME,
+            JSONObject().put("route", "Email")))
+        assertNull(JarvisAiTools.fromProvider(wrong, "Nyisd meg a térképet").route)
+        assertNull(JarvisAiTools.fromProvider(wrong, "Nyisd meg az emailt és a naptárat").route)
+        val correct = providerWith(toolCall(JarvisAiTools.FUNCTION_NAME,
+            JSONObject().put("route", "Ismerősök")))
+        assertEquals("Ismerősök", JarvisAiTools.fromProvider(correct,
+            "Nyisd meg az ismerősöket").route)
+    }
+
     @Test fun ordinaryTextNeverBecomesAnExecutableToolCall() {
         val text = JSONObject().put("choices", JSONArray().put(JSONObject().put("message",
             JSONObject().put("content", "Nyisd meg a törlés menüt"))))

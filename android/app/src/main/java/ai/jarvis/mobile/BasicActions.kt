@@ -26,7 +26,10 @@ internal object BasicCommandRouter {
             .removePrefix("jarvis,").removePrefix("jarvis ").trimStart()
         if (listOf("mit ", "milyen ", "hogyan ", "miért ", "miert ",
                 "mikor ", "mennyi ", "mi ", "what ", "why ", "how ",
-                "when ", "which ").any { questionText.startsWith(it) }) {
+                "when ", "which ", "tudsz ", "tudnál ", "tudnal ",
+                "képes ", "kepes ", "lehet ", "can you ", "could you ",
+                "meg tudod ", "van-e ", "van e ", "ne ", "nem ",
+                "don't ", "do not ", "never ").any { questionText.startsWith(it) }) {
             return BasicAction.UNKNOWN
         }
         return when {
