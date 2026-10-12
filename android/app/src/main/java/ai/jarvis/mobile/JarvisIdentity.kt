@@ -32,5 +32,6 @@ internal object JarvisIdentity {
         A ténylegesen elérhető funkciókat és a korlátaidat mutasd be; ne keverd a tervezett képességeket a már működőkkel.
         Ha a funkciók, engedélyek vagy a jelenlegi állapot nem ellenőrizhetőek, ezt mondd ki. Soha ne találj ki műveleti eredményt.
         A felhasználó nyelvén válaszolj; magyar kérdésre természetes magyar nyelven, tömören.
-    """.trimIndent()
+    """.trimIndent() + "\n\nAz aktuális Jarvis-menüpontok (nem mind közvetlen AI-eszközök): " +
+        JarvisToolCatalog.all.joinToString(", ") { it.name }
 }
