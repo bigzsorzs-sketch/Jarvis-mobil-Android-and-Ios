@@ -142,6 +142,7 @@ internal fun JarvisGlucoseDashboard(
             horizontalArrangement = Arrangement.spacedBy(7.dp)) {
             listOf("overview", "log", "reports", "settings", "nfc").forEach { t ->
                 FilterChip(selected = tab == t, onClick = { tab = t },
+                    modifier = Modifier.testTag("jarvis-glucose-tab-$t"),
                     label = { GText(t, color = JarvisPalette.mainText) })
             }
         }
