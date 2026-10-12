@@ -34,7 +34,7 @@ class JarvisNavigationInstrumentedTest {
             val input = if (home) "jarvis-home-input" else "jarvis-subpage-input"
             val send = if (home) "jarvis-home-send" else "jarvis-subpage-send"
             composeRule.onNodeWithTag(input).performTextClearance()
-                .performTextInput("Nyisd meg a " + tool.name + " oldalt")
+            composeRule.onNodeWithTag(input).performTextInput("Nyisd meg a " + tool.name + " oldalt")
             composeRule.onNodeWithTag(send).performClick()
             composeRule.onNodeWithTag("jarvis-subpage-header").assert(hasText(tool.route))
             home = false

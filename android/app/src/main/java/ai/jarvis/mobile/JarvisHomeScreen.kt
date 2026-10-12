@@ -110,6 +110,9 @@ internal fun JarvisHomeScreen(
         }
     }
 
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+    // Reserve room for chat and the composer on compact phones.
+    val orbHeight = (maxHeight * 0.30f).coerceIn(80.dp, 285.dp)
     Column(
         modifier = Modifier.fillMaxSize().background(
             Brush.verticalGradient(
@@ -137,7 +140,7 @@ internal fun JarvisHomeScreen(
             // The orb and heading deliberately collapse when the keyboard opens.
             // This reserves a guaranteed bottom area for the text composer.
             Spacer(Modifier.height(18.dp))
-            JarvisVoiceOrb()
+            JarvisVoiceOrb(Modifier.height(orbHeight))
             Text("Jarvis", fontSize = 37.sp, fontWeight = FontWeight.Bold,
                 color = JarvisInk,
                 modifier = Modifier.testTag("jarvis-home-drawer-trigger").clickable(
@@ -327,6 +330,7 @@ internal fun JarvisHomeScreen(
                 }
             }
         }
+    }
     }
 }
 

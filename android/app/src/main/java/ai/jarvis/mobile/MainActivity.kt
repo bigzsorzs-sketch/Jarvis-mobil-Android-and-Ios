@@ -412,7 +412,7 @@ fun JarvisApp(context: Context) {
                 drawerState = drawerState,
                 drawerContent = {
                     JarvisDrawer(page) { selected ->
-                        openTool(selected)
+                        openTool(selected, asPage = true)
                         drawerScope.launch { drawerState.close() }
                     }
                 }
@@ -547,7 +547,7 @@ fun JarvisApp(context: Context) {
                                 "Továbbiak" -> MoreScreen(context, notes, {
                                     securePrefs.write("notes", JSONArray(notes).toString())
                                 }, { page = it })
-                                else -> JarvisToolLanding(context, page, onOpen = { openTool(it) })
+                                else -> JarvisToolLanding(context, page, onOpen = { openTool(it, asPage = true) })
                             }
                         }
                     }
