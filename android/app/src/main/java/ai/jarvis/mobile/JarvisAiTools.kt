@@ -184,7 +184,13 @@ internal object JarvisAiTools {
         if (Regex("\\b(torol|torold|delete|erase|kuldd|send|fizess|pay)\\b")
                 .containsMatchIn(normalized)) return false
         val matched = targets.filterValues { stems ->
-            stems.any { stem -> normalized.contains(stem) }
+            stems.any { stem ->
+                // Match a whole word or a Hungarian suffix after the stem.
+                // "bankszámla" must NOT accidentally request Jarvis "Számlák".
+                val pattern = Regex("(^|\\s)" + Regex.escape(stem) +
+                    "[a-z]{0,12}(\\s|$)")
+                pattern.containsMatchIn(normalized)
+            }
         }.keys
         return matched.size == 1 && route in matched
     }
