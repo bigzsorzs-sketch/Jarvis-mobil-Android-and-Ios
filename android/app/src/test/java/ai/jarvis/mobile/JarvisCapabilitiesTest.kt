@@ -30,7 +30,8 @@ class JarvisCapabilitiesTest {
         val answer = JarvisCapabilities.replyIfAsked("Mondj magadról, mire vagy képes")!!
         assertTrue(answer.startsWith("Jarvis vagyok"))
         assertTrue(answer.contains("Vércukor"))
-        assertTrue(answer.contains("Ismerősök"))
+        assertTrue(answer.contains("Névjegyek"))
+        assertFalse(answer.contains("Ismerősök"))
         assertTrue(answer.contains("nem vezérelnek tetszőleges eszközt"))
     }
 
@@ -60,7 +61,7 @@ class JarvisCapabilitiesTest {
 
     @Test fun handlesOnlyExplicitAllowlistedPageNavigation() {
         assertEquals("Munka", JarvisCapabilities.localPageToOpen("Nyisd meg a Munka eszköztárat"))
-        assertEquals("Ismerősök", JarvisCapabilities.localPageToOpen("Mutasd az ismerősöket"))
+        assertNull(JarvisCapabilities.localPageToOpen("Mutasd az ismerősöket"))
         assertEquals("Névjegyek", JarvisCapabilities.localPageToOpen("Nyisd meg a névjegyeket"))
         assertNull(JarvisCapabilities.localPageToOpen("Mit tudsz az ismerősökről?"))
         assertNull(JarvisCapabilities.localPageToOpen("Nyisd meg a bankszámlámat"))
