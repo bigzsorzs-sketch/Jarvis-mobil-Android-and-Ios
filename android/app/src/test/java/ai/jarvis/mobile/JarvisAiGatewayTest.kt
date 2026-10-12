@@ -25,6 +25,13 @@ class JarvisAiGatewayTest {
         assertFalse(JarvisAiGateway.isValidTesterToken("f".repeat(63)))
     }
 
+    @Test fun checksOpenRouterKeyWithoutEmbeddingOne() {
+        assertTrue(JarvisAiGateway.isValidOpenRouterKey("sk-or-" + "x".repeat(40)))
+        assertFalse(JarvisAiGateway.isValidOpenRouterKey("not-an-api-key"))
+        assertFalse(JarvisAiGateway.isValidOpenRouterKey("sk-or-" + "a".repeat(201)))
+        assertFalse(JarvisAiGateway.isValidOpenRouterKey("sk-or-" + "a".repeat(20) + " "))
+    }
+
     @Test fun routesQuestionsButNotLocalCommands() {
         assertTrue(JarvisAiRouting.shouldAskAi("Magyarázd el a napfogyatkozást"))
         assertFalse(JarvisAiRouting.shouldAskAi("Szia"))
