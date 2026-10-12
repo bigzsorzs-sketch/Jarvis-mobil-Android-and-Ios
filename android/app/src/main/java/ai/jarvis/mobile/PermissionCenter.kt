@@ -72,21 +72,6 @@ internal fun PermissionCenter(
         Spacer(Modifier.height(16.dp))
     }
     JarvisSettingsGroup {
-        JarvisSettingsRow("✓", "Engedélyek megadása", "Android-felugró ablakok") {
-            val permissions = buildList {
-                add(Manifest.permission.RECORD_AUDIO)
-                add(Manifest.permission.READ_CONTACTS)
-                if (telephony) add(Manifest.permission.CALL_PHONE)
-                add(Manifest.permission.ACCESS_COARSE_LOCATION)
-                add(Manifest.permission.ACCESS_FINE_LOCATION)
-                if (Build.VERSION.SDK_INT >= 33) add(Manifest.permission.POST_NOTIFICATIONS)
-            }
-            val missing = RuntimePermissionPolicy.missing(permissions,
-                permissions.filter { hasPermission(context, it) }.toSet())
-            if (missing.isEmpty()) openJarvisAppSettings(context)
-            else request.launch(missing.toTypedArray())
-        }
-        SettingsDivider()
         JarvisSettingsRow("🎙", "Mikrofon",
             if (hasPermission(context, Manifest.permission.RECORD_AUDIO)) "Engedélyezve" else "Nincs engedély") {
             grant(Manifest.permission.RECORD_AUDIO)
@@ -118,6 +103,14 @@ internal fun PermissionCenter(
     }
     Spacer(Modifier.height(16.dp))
     SettingsSectionTitle("Különleges hozzáférések")
+    Text("Az értesítési hozzáférés Android-szinten más alkalmazások értesítéseit is " +
+        "láthatóvá teszi. Jarvis csak az ismert üzenetalkalmazások friss értesítéseit " +
+        "dolgozza fel; legfeljebb 30 előnézetet tart ideiglenesen a memóriában. " +
+        "Az üzeneteket nem továbbítja az AI-nak. A hozzáférést az Android " +
+        "beállításaiban bármikor kikapcsolhatod.",
+        style = MaterialTheme.typography.bodySmall,
+        color = JarvisPalette.subtleText)
+    Spacer(Modifier.height(8.dp))
     JarvisSettingsGroup {
         JarvisSettingsRow("▢", "Értesítési hozzáférés",
             (if (listener) "Engedélyezve" else "Kikapcsolva") + " · más alkalmazások") {
