@@ -519,7 +519,10 @@ fun JarvisApp(context: Context) {
                             TextButton(onClick = toggleTheme) {
                                 Text(if (isDark) "☀ Világos" else "☾ Sötét", color = Cyan)
                             }
-                            TextButton(onClick = { page = "Főoldal" }) {
+                            TextButton(
+                                modifier = Modifier.testTag("jarvis-subpage-home-button"),
+                                onClick = { page = "Főoldal" }
+                            ) {
                                 Text("Főoldal", color = Cyan)
                             }
                         }
