@@ -26,6 +26,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -478,7 +479,7 @@ fun JarvisApp(context: Context) {
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(page, color = White, fontSize = 19.sp,
-                                fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f)
+                                fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f).testTag("jarvis-subpage-header")
                                     .clickable { drawerScope.launch { drawerState.open() } })
                             TextButton(onClick = toggleTheme) {
                                 Text(if (isDark) "☀ Világos" else "☾ Sötét", color = Cyan)
