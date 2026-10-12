@@ -32,7 +32,9 @@ internal object BillingValidation {
     private val emailPattern = Regex("^[A-Za-z0-9._%+\\-]+@[A-Za-z0-9.\\-]+\\.[A-Za-z]{2,}$")
     fun email(value: String) = value.length <= 254 && emailPattern.matches(value.trim())
     fun pence(value: String): Long? = try {
-        val amount = BigDecimal(value.trim().replace("£", "").replace(",", "."))
+        val cleaned = value.trim().replace("£", "").replace(",", ".")
+        if (!cleaned.matches(Regex("^[0-9]+(?:\\.[0-9]{1,2})?$"))) return null
+        val amount = BigDecimal(cleaned)
             .setScale(2, RoundingMode.UNNECESSARY)
         if (amount <= BigDecimal.ZERO || amount > BigDecimal("1000000")) null
         else amount.movePointRight(2).longValueExact()
