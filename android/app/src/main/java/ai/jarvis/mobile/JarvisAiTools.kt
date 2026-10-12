@@ -263,6 +263,10 @@ internal object JarvisAiTools {
             if (action.length() != 2 || action.opt("name") !is String) {
                 return JarvisAiOutcome("Érvénytelen szerveres eszközkérés; semmit sem hajtottam végre.")
             }
+            if (action.optString("name") == NATIVE_FUNCTION) {
+                if (action.opt("action") !is String) return JarvisAiOutcome("Érvénytelen szerveres Android-művelet.")
+                return validateNative(action.optString("action"), originalInput)
+            }
             if (action.optString("name") == MESSAGE_FUNCTION) {
                 if (action.opt("platform") !is String) {
                     return JarvisAiOutcome("Érvénytelen szerveres üzenetparaméterek.")
