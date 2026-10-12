@@ -194,6 +194,11 @@ fun JarvisApp(context: Context) {
             if (conversation.size > 50) conversation.removeAt(0)
             return
         }
+        val systemPanel = JarvisSystemPanels.identify(command)
+        if (systemPanel != null) {
+            addHistory(command to JarvisSystemPanels.open(context, systemPanel, command))
+            return
+        }
         // A named installed app opens through a user-originated, exact-label
         // request, never an AI-chosen package/activity name.
         val appSelection = if (JarvisInstalledApps.requestedLabel(command) != null)
@@ -324,6 +329,17 @@ fun JarvisApp(context: Context) {
             else "A kétlépéses hangparancs lejárt. Semmit nem hajtottam végre."
             addHistory("Hangos műveletsor" to outcome)
             if (conversation.size > 50) conversation.removeAt(0)
+        }
+    }
+    val pendingPanel = HandsFreeNavigation.systemPanel
+    LaunchedEffect(pendingPanel, appIsForeground) {
+        if (pendingPanel != null && appIsForeground) {
+            HandsFreeNavigation.systemPanel = null
+            val age = android.os.SystemClock.elapsedRealtime() - pendingPanel.createdAtMs
+            val response = if (age in 0..30_000L)
+                JarvisSystemPanels.open(context, pendingPanel.kind, pendingPanel.original)
+            else "Lejárt a rendszerbeállítás kérés. Semmi nem történt."
+            addHistory("Hangos beállítások" to response)
         }
     }
     val pendingInstalled = HandsFreeNavigation.installedApp
