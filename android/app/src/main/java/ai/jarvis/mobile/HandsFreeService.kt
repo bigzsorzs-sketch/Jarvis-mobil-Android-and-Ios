@@ -27,12 +27,14 @@ internal object HandsFreeStatus {
     var outputLevel by mutableFloatStateOf(0f)
 }
 internal data class PendingPhoneApp(val action: String, val createdAtMs: Long)
+internal data class PendingNativeAction(val action: String, val original: String, val createdAtMs: Long)
 internal data class PendingExternalTask(val task: HandoffTask, val createdAtMs: Long)
 
 internal object HandsFreeNavigation {
     var appIsForeground by mutableStateOf(false)
     var destination by mutableStateOf<String?>(null)
     var deviceAction by mutableStateOf<PendingPhoneApp?>(null)
+    var nativeAction by mutableStateOf<PendingNativeAction?>(null)
     var mapTarget by mutableStateOf<String?>(null)
     var mailDraft by mutableStateOf<EmailDraft?>(null)
     var external by mutableStateOf<PendingExternalTask?>(null)
@@ -352,6 +354,22 @@ class HandsFreeService : Service(), RecognitionListener {
             awaitingCommand -> { awaitingCommand = false; heard }
             now < replyWindowUntil && VoiceIntentParser.replyDraft(heard) != null -> heard
             else -> { again(600); return }
+        }
+        val recognizedNative = JarvisNativeActions.identify(command)
+        if (recognizedNative != null) {
+            if (!privateVoiceAllowed()) {
+                speak("A telefon lezárva. A művelethez előbb oldd fel.")
+            } else if (recognizedNative == JarvisNativeActions.SET_ALARM ||
+                recognizedNative == JarvisNativeActions.CANCEL_ALARM) {
+                // The Jarvis alarm can be scheduled while the app is in the background.
+                speak(JarvisNativeActions.execute(this, recognizedNative, command))
+            } else {
+                HandsFreeNavigation.nativeAction = PendingNativeAction(
+                    recognizedNative, command, SystemClock.elapsedRealtime())
+                speak("Előkészítettem a kért Android-műveletet. " +
+                    "Előtérben lévő Jarvisból, harminc másodpercen belül nyitható meg.")
+            }
+            return
         }
         if (VoiceIntentParser.isReadMessage(command)) {
             if (!privateVoiceAllowed()) {
