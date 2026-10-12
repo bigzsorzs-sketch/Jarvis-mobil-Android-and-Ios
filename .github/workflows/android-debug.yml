@@ -35,6 +35,9 @@ jobs:
           gradle-version: "8.11.1"
       - name: Run Kotlin tests, debug and release lint, debug APK, and unsigned release smoke build
         shell: bash
+        env:
+          # Public HTTPS server origin, NOT the OpenRouter secret.
+          JARVIS_GATEWAY_ORIGIN: ${{ vars.JARVIS_GATEWAY_ORIGIN }}
         run: |
           # The PR runner has no signing keys. Verify release compilation and
           # AAB creation without publishing unsigned artifacts as production.
