@@ -24,7 +24,7 @@ internal object JarvisAiGateway {
     private const val KEY_CONSENT = "ai_cloud_text_consent_v1"
     private const val MAX_MESSAGE = 8000
     private const val OPENROUTER_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions"
-    private const val TEST_MODEL = "openai/gpt-4o-mini"
+    internal const val TEST_MODEL = "openai/gpt-4o-mini"
 
     const val DIRECT_TEST = "direct"
     const val SERVER = "server"
@@ -181,21 +181,10 @@ internal object JarvisAiGateway {
             connection.setRequestProperty("Accept", "application/json")
             connection.setRequestProperty("Authorization", "Bearer $credential")
 
-            val payload = if (direct) JSONObject().apply {
-                put("model", TEST_MODEL)
-                put("messages", org.json.JSONArray()
-                    .put(JSONObject().put("role", "system")
-                        .put("content", JarvisIdentity.systemPrompt))
-                    .put(JSONObject().put("role", "user").put("content", question)))
-                put("tools", org.json.JSONArray().put(JarvisAiTools.toolDefinition())
-                    .put(JarvisAiTools.phoneToolDefinition())
-                    .put(JarvisAiTools.callToolDefinition())
-                    .put(JarvisAiTools.messageToolDefinition())
-                    .put(JarvisAiTools.nativeToolDefinition()))
-                put("tool_choice", "auto")
-                put("max_tokens", 800)
-                put("stream", false)
-            } else JSONObject().put("message", question)
+            // Never force function calling for ordinary chat. Some OpenRouter
+            // providers support this model for text but return 404 with tools.
+            val payload = if (direct) JarvisAiToolPolicy.providerPayload(question)
+                else JSONObject().put("message", question)
 
             connection.outputStream.use { it.write(payload.toString().toByteArray(Charsets.UTF_8)) }
             when (val status = connection.responseCode) {
@@ -214,7 +203,12 @@ internal object JarvisAiGateway {
                     else "A tesztelői kód érvénytelen vagy visszavonták.")
                 402 -> JarvisAiOutcome("Az OpenRouter-egyenleg vagy a kulcshoz tartozó keret nem elegendő.")
                 403 -> JarvisAiOutcome("Az AI-hozzáférés nincs engedélyezve.")
-                404 -> JarvisAiOutcome(http404Message(direct))
+                404 -> JarvisAiOutcome(
+                    if (direct && JarvisAiToolPolicy.selectedTools(question).length() > 0)
+                        "Az OpenRouter nem talált eszközhívásra alkalmas modellt ehhez a kéréshez. " +
+                            "Az Android-műveletet nem hajtottam végre. A támogatott helyi parancsok " +
+                            "AI-kapcsolat nélkül is használhatók."
+                    else http404Message(direct))
                 429 -> JarvisAiOutcome("Elérted az ideiglenes használati limitet. Próbáld később.")
                 301, 302, 303, 307, 308 -> JarvisAiOutcome(
                     "A szerver átirányított; biztonsági okból megszakítottam.")
