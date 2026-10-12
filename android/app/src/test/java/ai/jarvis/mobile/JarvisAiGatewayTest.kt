@@ -32,6 +32,19 @@ class JarvisAiGatewayTest {
         assertFalse(JarvisAiGateway.isValidOpenRouterKey("sk-or-" + "a".repeat(20) + " "))
     }
 
+    @Test fun signedReleaseMayUseExplicitPersonalOpenRouterMode() {
+        assertEquals(JarvisAiGateway.DIRECT_TEST,
+            JarvisAiGateway.chooseMode(JarvisAiGateway.DIRECT_TEST, true))
+        assertEquals(JarvisAiGateway.DIRECT_TEST,
+            JarvisAiGateway.chooseMode(JarvisAiGateway.DIRECT_TEST, false))
+        assertEquals(JarvisAiGateway.SERVER,
+            JarvisAiGateway.chooseMode(JarvisAiGateway.SERVER, false))
+        assertEquals(JarvisAiGateway.SERVER,
+            JarvisAiGateway.chooseMode("", true))
+        assertEquals(JarvisAiGateway.DIRECT_TEST,
+            JarvisAiGateway.chooseMode("", false))
+    }
+
     @Test fun http404ExplainsRoutingNotInvalidSecrets() {
         val direct = JarvisAiGateway.http404Message(true)
         assertTrue(direct.contains("OpenRouter HTTP 404"))
