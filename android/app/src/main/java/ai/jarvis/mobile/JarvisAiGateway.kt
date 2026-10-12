@@ -70,19 +70,25 @@ internal object JarvisAiGateway {
         SecurePrefs(context).write(KEY_CONSENT, approved.toString())
     }
 
+    /**
+     * A personal, user-entered OpenRouter connection works in both signed release
+     * and debug builds. Never ship a provider credential in BuildConfig or APK.
+     * Explicitly saved mode always wins; existing paired server users remain paired.
+     */
     fun mode(context: Context): String {
-        // Once the shared HTTPS gateway is configured, test users must not
-        // supply personal OpenRouter keys. Keep direct testing for offline dev builds.
-        if (!BuildConfig.DEBUG ||
-            normalizedBaseUrl(BuildConfig.JARVIS_GATEWAY_ORIGIN) != null) return SERVER
         val prefs = SecurePrefs(context)
         val stored = prefs.read(KEY_MODE, "")
-        if (stored == DIRECT_TEST || stored == SERVER) return stored
-        // Existing 0.2.0 installations used backend-only mode.
-        return if (normalizedBaseUrl(prefs.read(KEY_URL, "")) != null &&
-            isValidTesterToken(prefs.read(KEY_TOKEN, ""))) SERVER
-            else if (normalizedBaseUrl(BuildConfig.JARVIS_GATEWAY_ORIGIN) != null) SERVER
-            else DIRECT_TEST
+        val hasServer = (
+            normalizedBaseUrl(prefs.read(KEY_URL, "")) != null &&
+            isValidTesterToken(prefs.read(KEY_TOKEN, ""))
+        ) || normalizedBaseUrl(BuildConfig.JARVIS_GATEWAY_ORIGIN) != null
+        return chooseMode(stored, hasServer)
+    }
+
+    internal fun chooseMode(stored: String, hasServer: Boolean): String = when (stored) {
+        DIRECT_TEST -> DIRECT_TEST
+        SERVER -> SERVER
+        else -> if (hasServer) SERVER else DIRECT_TEST
     }
 
     fun configured(context: Context): Boolean {
@@ -152,9 +158,8 @@ internal object JarvisAiGateway {
         }
 
     fun saveDirect(context: Context, key: String): String? {
-        if (!BuildConfig.DEBUG ||
-            normalizedBaseUrl(BuildConfig.JARVIS_GATEWAY_ORIGIN) != null)
-            return "Központi Jarvis-szerver mellett nincs szükség OpenRouter-kulcsra a telefonon."
+        // Manual key entry is also supported in release APKs. Keystore encryption
+        // and explicit cloud consent remain mandatory; never bundle a shared key.
         val prefs = SecurePrefs(context)
         val clean = key.trim().ifEmpty {
             if (mode(context) == DIRECT_TEST) prefs.read(KEY_DIRECT, "") else ""
