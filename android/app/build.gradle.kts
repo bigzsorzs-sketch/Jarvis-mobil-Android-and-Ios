@@ -10,8 +10,8 @@ android {
         applicationId = "ai.jarvis.mobile"
         minSdk = 26
         targetSdk = 35
-        versionCode = 15
-        versionName = "0.2.4-dev"
+        versionCode = 16
+        versionName = "0.2.5-dev"
     }
     buildTypes {
         release {

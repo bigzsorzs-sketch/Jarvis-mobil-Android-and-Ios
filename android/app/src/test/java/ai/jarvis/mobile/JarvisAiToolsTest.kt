@@ -83,4 +83,43 @@ class JarvisAiToolsTest {
         assertNull(JarvisAiTools.fromServer(JSONObject().put("action", "run shell"),
             "Nyisd meg a Munka oldalt").route)
     }
+    @Test fun aiCanOnlyPrepareOneMatchingCallAndNeverExecutesIt() {
+        val tool = toolCall(JarvisAiTools.CALL_FUNCTION, JSONObject().put("target", "Eszter"))
+        val accepted = JarvisAiTools.fromProvider(providerWith(tool), "Fel tudnád hívni Esztert?")
+        assertEquals("Esztert", accepted.callTarget)
+        assertNull(accepted.route)
+        assertNull(accepted.deviceAction)
+        assertNull(JarvisAiTools.fromProvider(providerWith(tool), "Mit tudsz Eszterről?").callTarget)
+        assertNull(JarvisAiTools.fromProvider(providerWith(tool), "Ne hívd fel Esztert").callTarget)
+        assertNull(JarvisAiTools.fromProvider(providerWith(tool,tool), "Hívd fel Esztert").callTarget)
+        assertNull(JarvisAiTools.fromProvider(providerWith(toolCall(JarvisAiTools.CALL_FUNCTION,
+            JSONObject().put("target", "Mari"))), "Hívd fel Esztert").callTarget)
+        assertNull(JarvisAiTools.fromProvider(providerWith(toolCall(JarvisAiTools.CALL_FUNCTION,
+            JSONObject().put("target", "Eszter").put("execute", true))),
+            "Hívd fel Esztert").callTarget)
+    }
+
+    @Test fun plainLanguageModelResponseCannotClaimCallSuccess() {
+        val body = JSONObject().put("choices", JSONArray().put(JSONObject().put(
+            "message", JSONObject().put("content", "Hívlak most."))))
+        val outcome = JarvisAiTools.fromProvider(body, "Fel tudnád hívni Esztert?")
+        assertNull(outcome.callTarget)
+        assertTrue(outcome.message.contains("Nem indítottam hívást"))
+        val server = JarvisAiTools.fromServer(JSONObject().put("reply", "Már hívom."),
+            "Fel tudnád hívni Esztert?")
+        assertNull(server.callTarget)
+        assertTrue(server.message.contains("Nem indítottam hívást"))
+    }
+
+    @Test fun serverCallProposalRequiresExactUserRequest() {
+        val proposal = JSONObject().put("action", JSONObject()
+            .put("name", JarvisAiTools.CALL_FUNCTION).put("target", "+441234567890"))
+        assertEquals("+441234567890", JarvisAiTools.fromServer(proposal,
+            "Call +441234567890").callTarget)
+        assertNull(JarvisAiTools.fromServer(proposal, "Call +441234567899").callTarget)
+        assertNull(JarvisAiTools.fromServer(JSONObject().put("action", JSONObject()
+            .put("name", JarvisAiTools.CALL_FUNCTION).put("route", "dialer")),
+            "Call +441234567890").callTarget)
+    }
+
 }

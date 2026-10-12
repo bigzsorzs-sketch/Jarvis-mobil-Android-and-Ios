@@ -34,6 +34,12 @@ internal object VoiceIntentParser {
         return n in setOf("igen", "igen kuldd", "kuldd el", "elkuldheted", "mehet", "yes", "send")
     }
 
+    /** Call confirmation must not mistake 'send' or 'küldd el' for consent to call. */
+    fun isCallYes(raw: String): Boolean {
+        val n = normalize(raw).trimEnd('.', '!', ',')
+        return n in setOf("igen", "mehet", "yes", "hivd fel", "call now")
+    }
+
     fun isNo(raw: String): Boolean {
         val n = normalize(raw).trimEnd('.', '!', ',')
         return n in setOf("nem", "megse", "ne kuldd", "torold", "cancel", "no")

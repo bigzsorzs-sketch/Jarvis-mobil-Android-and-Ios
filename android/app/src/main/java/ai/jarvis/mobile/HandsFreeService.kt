@@ -299,7 +299,7 @@ class HandsFreeService : Service(), RecognitionListener {
             } else if (VoiceIntentParser.isNo(heard)) {
                 proposedCall = null
                 speak("Rendben, a hívást nem indítottam el.")
-            } else if (VoiceIntentParser.isYes(heard)) {
+            } else if (VoiceIntentParser.isCallYes(heard)) {
                 val target = proposedCall
                 proposedCall = null
                 speak(if (target != null && VoiceCalling.place(this, target))
@@ -536,6 +536,28 @@ class HandsFreeService : Service(), RecognitionListener {
                                         outcome.deviceAction, SystemClock.elapsedRealtime())
                                     speak("Az Android-alkalmazást csak az előtérbe hozott " +
                                         "Jarvisból indíthatom. A kérés harminc másodpercig érvényes.")
+                                }
+                                outcome.callTarget != null -> {
+                                    if (!privateVoiceAllowed()) {
+                                        speak("A hívás előkészítéséhez előbb oldd fel a telefont.")
+                                    } else if (!VoiceCalling.canCall(this@HandsFreeService)) {
+                                        speak("A híváshoz engedélyezd a Telefon hozzáférést.")
+                                    } else when (val match = VoiceCalling.lookup(
+                                            this@HandsFreeService, outcome.callTarget)) {
+                                        is VoiceCalling.Lookup.Found -> {
+                                            proposedCall = match.target
+                                            proposedCallUntil = SystemClock.elapsedRealtime() + 30_000L
+                                            speak("Fel szeretnéd hívni " + match.target.label +
+                                                " névjegyet? A szám: " + match.target.number +
+                                                ". Mondj igent vagy nemet.")
+                                        }
+                                        VoiceCalling.Lookup.NoContactsAccess ->
+                                            speak("A névjegy kereséséhez engedélyezd a Névjegyek hozzáférést.")
+                                        VoiceCalling.Lookup.Ambiguous ->
+                                            speak("Több azonos nevű címzett van. Pontosítsd a nevet.")
+                                        VoiceCalling.Lookup.NotFound ->
+                                            speak("Nem találtam a címzettet. Hívást nem indítottam.")
+                                    }
                                 }
                                 else -> speak(outcome.message)
                             }

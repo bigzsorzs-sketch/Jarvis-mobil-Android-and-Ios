@@ -12,12 +12,14 @@ import java.util.Locale
 internal data class JarvisAiOutcome(
     val message: String,
     val route: String? = null,
-    val deviceAction: String? = null
+    val deviceAction: String? = null,
+    val callTarget: String? = null
 )
 
 internal object JarvisAiTools {
     const val FUNCTION_NAME = "open_jarvis_page"
     const val PHONE_FUNCTION = "open_phone_app"
+    const val CALL_FUNCTION = "prepare_phone_call"
 
     // Use the same menu inventory as the actual UI; no fabricated tools.
     val allowedRoutes: List<String>
@@ -55,6 +57,32 @@ internal object JarvisAiTools {
                     .put("enum", JSONArray(JarvisPhoneActions.supported))))
                 .put("required", JSONArray().put("route"))
                 .put("additionalProperties", false)))
+
+    /** A call can only be proposed. Android resolves the original user's target,
+     * shows the real phone number, and requires a separate user confirmation.
+     */
+    fun callToolDefinition(): JSONObject = JSONObject()
+        .put("type", "function")
+        .put("function", JSONObject()
+            .put("name", CALL_FUNCTION)
+            .put("description", "Prepare exactly one telephone call only when the user " +
+                "explicitly requests calling a named contact or phone number. " +
+                "The Android device checks the target and must obtain confirmation " +
+                "before making any call. Never claim a call started.")
+            .put("parameters", JSONObject()
+                .put("type", "object")
+                .put("properties", JSONObject().put("target", JSONObject()
+                    .put("type", "string").put("minLength", 1).put("maxLength", 70)))
+                .put("required", JSONArray().put("target"))
+                .put("additionalProperties", false)))
+
+    fun validateCall(suggested: String, originalInput: String): JarvisAiOutcome {
+        val requested = VoiceCalling.extractAiRequest(originalInput)
+        if (!VoiceCalling.matchesAiTarget(requested, suggested)) {
+            return JarvisAiOutcome("A hívás címzettje nem egyezik a parancsoddal. Nem indítottam hívást.")
+        }
+        return JarvisAiOutcome("A hívás jóváhagyásra vár.", callTarget = requested)
+    }
 
     private fun normal(raw: String): String =
         Normalizer.normalize(raw.lowercase(Locale.ROOT), Normalizer.Form.NFD)
@@ -144,10 +172,19 @@ internal object JarvisAiTools {
             } catch (_: Exception) {
                 return JarvisAiOutcome("Az AI érvénytelen eszközparamétereket adott.")
             }
+            if (function.optString("name") == CALL_FUNCTION) {
+                if (args.length() != 1 || !args.has("target") || args.opt("target") !is String) {
+                    return JarvisAiOutcome("Érvénytelen hívási paraméterek; hívás nem indult.")
+                }
+                return validateCall(args.optString("target"), originalInput)
+            }
             if (args.length() != 1 || !args.has("route") || args.opt("route") !is String) {
                 return JarvisAiOutcome("Az AI ismeretlen eszközparamétereket adott; nem hajtottam végre semmit.")
             }
             return validate(function.optString("name"), args.optString("route"), originalInput)
+        }
+        if (VoiceCalling.extractAiRequest(originalInput) != null) {
+            return JarvisAiOutcome("Az AI nem adott ellenőrzött hívási parancsot. Nem indítottam hívást.")
         }
         return JarvisAiOutcome(message.optString("content", "").trim()
             .ifEmpty { "Az AI üres választ küldött." })
@@ -157,14 +194,25 @@ internal object JarvisAiTools {
     fun fromServer(body: JSONObject, originalInput: String): JarvisAiOutcome {
         val action = body.optJSONObject("action")
         if (action != null) {
-            if (action.length() != 2 || !action.has("name") || !action.has("route") ||
-                action.opt("name") !is String || action.opt("route") !is String) {
+            if (action.length() != 2 || action.opt("name") !is String) {
+                return JarvisAiOutcome("Érvénytelen szerveres eszközkérés; semmit sem hajtottam végre.")
+            }
+            if (action.optString("name") == CALL_FUNCTION) {
+                if (action.opt("target") !is String) {
+                    return JarvisAiOutcome("Érvénytelen hívási paraméterek; hívás nem indult.")
+                }
+                return validateCall(action.optString("target"), originalInput)
+            }
+            if (action.opt("route") !is String) {
                 return JarvisAiOutcome("Érvénytelen szerveres eszközkérés; semmit sem hajtottam végre.")
             }
             return validate(action.optString("name"), action.optString("route"), originalInput)
         }
         // Fail closed on unexpected action types, not a string masquerading as a tool call.
         if (body.has("action")) return JarvisAiOutcome("Hibás szerveres eszközkérés.")
+        if (VoiceCalling.extractAiRequest(originalInput) != null) {
+            return JarvisAiOutcome("A szerver nem adott ellenőrzött hívási parancsot. Nem indítottam hívást.")
+        }
         return JarvisAiOutcome(body.optString("reply", "").trim()
             .ifEmpty { "Az AI üres választ küldött." })
     }
