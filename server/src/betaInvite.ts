@@ -1,5 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
-import type { RedisClientType } from "redis";
+import { createClient } from "redis";
+type InviteRedis = ReturnType<typeof createClient>;
 
 export const INVITE_BYTES = 24;
 export const SESSION_BYTES = 32;
@@ -15,7 +16,7 @@ export function isInviteCode(input: unknown): input is string {
 export function createInviteCode(): string { return randomBytes(INVITE_BYTES).toString("hex"); }
 
 /** Store only a hash of the high-entropy, one-time invitation. */
-export async function saveInvite(redis: RedisClientType, invite: string, id: string): Promise<void> {
+export async function saveInvite(redis: InviteRedis, invite: string, id: string): Promise<void> {
   if (!isInviteCode(invite) || !allowedId.test(id)) throw new Error("Invalid invitation");
   const ok = await redis.set("beta:invite:" + hex(invite), id, {
     NX: true, EX: INVITE_TTL_SECONDS
@@ -24,7 +25,7 @@ export async function saveInvite(redis: RedisClientType, invite: string, id: str
 }
 
 /** Atomic one-use redemption. A compromised invite cannot be used twice. */
-export async function redeemInvite(redis: RedisClientType, input: unknown):
+export async function redeemInvite(redis: InviteRedis, input: unknown):
     Promise<{ token: string; expiresIn: number } | null> {
   if (!isInviteCode(input)) return null;
   const id = await redis.getDel("beta:invite:" + hex(input));
@@ -35,7 +36,7 @@ export async function redeemInvite(redis: RedisClientType, input: unknown):
 }
 
 /** Revocation: delete beta:session:<SHA256(token)> in Redis. */
-export async function betaSessionSubject(redis: RedisClientType, token: string):
+export async function betaSessionSubject(redis: InviteRedis, token: string):
     Promise<string | null> {
   if (!/^[0-9a-f]{64}$/.test(token)) return null;
   const id = await redis.get("beta:session:" + hex(token));
