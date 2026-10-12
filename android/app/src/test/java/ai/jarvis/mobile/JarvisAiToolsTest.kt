@@ -25,7 +25,7 @@ class JarvisAiToolsTest {
     }
 
     @Test fun userIntentGateIsIndependentOfAiInstructions() {
-        assertTrue(JarvisAiTools.userAskedToOpen("Jarvis, nyisd meg az ismerőseimet"))
+        assertTrue(JarvisAiTools.userAskedToOpen("Jarvis, nyisd meg a névjegyeket"))
         assertTrue(JarvisAiTools.userAskedToOpen("Show me the invoices page"))
         assertFalse(JarvisAiTools.userAskedToOpen("Mi az a számlázás?"))
         assertFalse(JarvisAiTools.userAskedToOpen("Ne nyisd meg az üzeneteket"))
@@ -37,10 +37,10 @@ class JarvisAiToolsTest {
 
     @Test fun oneValidProviderToolCallProposesNavigation() {
         val body = providerWith(toolCall(JarvisAiTools.FUNCTION_NAME,
-            JSONObject().put("route", "Ismerősök")))
-        assertEquals("Ismerősök", JarvisAiTools.fromProvider(
-            body, "Nyisd meg az ismerősöket").route)
-        assertNull(JarvisAiTools.fromProvider(body, "Mit tudsz az ismerősökről?").route)
+            JSONObject().put("route", "Névjegyek")))
+        assertEquals("Névjegyek", JarvisAiTools.fromProvider(
+            body, "Nyisd meg a névjegyeket").route)
+        assertNull(JarvisAiTools.fromProvider(body, "Mit tudsz a névjegyekről?").route)
     }
 
     @Test fun multipleCallsExtraParametersAndWrongTypesAreRejected() {
@@ -62,9 +62,12 @@ class JarvisAiToolsTest {
         assertNull(JarvisAiTools.fromProvider(wrong, "Nyisd meg a térképet").route)
         assertNull(JarvisAiTools.fromProvider(wrong, "Nyisd meg az emailt és a naptárat").route)
         val correct = providerWith(toolCall(JarvisAiTools.FUNCTION_NAME,
+            JSONObject().put("route", "Névjegyek")))
+        assertEquals("Névjegyek", JarvisAiTools.fromProvider(correct,
+            "Nyisd meg a névjegyeket").route)
+        val removed = providerWith(toolCall(JarvisAiTools.FUNCTION_NAME,
             JSONObject().put("route", "Ismerősök")))
-        assertEquals("Ismerősök", JarvisAiTools.fromProvider(correct,
-            "Nyisd meg az ismerősöket").route)
+        assertNull(JarvisAiTools.fromProvider(removed, "Nyisd meg az ismerősöket").route)
     }
 
     @Test fun ordinaryTextNeverBecomesAnExecutableToolCall() {
