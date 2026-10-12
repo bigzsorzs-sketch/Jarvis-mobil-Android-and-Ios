@@ -8,6 +8,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performScrollToIndex
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.assertEquals
 import org.junit.Rule
@@ -28,6 +29,9 @@ class JarvisLanguageSwitchInstrumentedTest {
             composeRule.onNodeWithTag("jarvis-language-en-GB").performClick()
             composeRule.onNodeWithText("Ask Jarvis").assertExists()
             composeRule.onNodeWithTag("jarvis-home-drawer-trigger").performClick()
+            composeRule.onNodeWithTag("jarvis-drawer-list").performScrollToIndex(
+                JarvisToolCatalog.all.indexOfFirst { it.route == "Beállítások" }
+            )
             composeRule.onNodeWithText("Settings").performClick()
             composeRule.onNodeWithTag("jarvis-subpage-header").assert(hasText("Settings"))
             composeRule.onNodeWithText("General").assertExists()
