@@ -78,7 +78,9 @@ internal object JarvisAiGateway {
         if (stored == DIRECT_TEST || stored == SERVER) return stored
         // Existing 0.2.0 installations used backend-only mode.
         return if (normalizedBaseUrl(prefs.read(KEY_URL, "")) != null &&
-            isValidTesterToken(prefs.read(KEY_TOKEN, ""))) SERVER else DIRECT_TEST
+            isValidTesterToken(prefs.read(KEY_TOKEN, ""))) SERVER
+            else if (normalizedBaseUrl(BuildConfig.JARVIS_GATEWAY_ORIGIN) != null) SERVER
+            else DIRECT_TEST
     }
 
     fun configured(context: Context): Boolean {
@@ -96,7 +98,56 @@ internal object JarvisAiGateway {
         }
     }
 
-    fun baseUrl(context: Context): String = SecurePrefs(context).read(KEY_URL, "")
+    /** The public HTTPS origin can be preconfigured at build time; no secret is embedded. */
+    fun baseUrl(context: Context): String {
+        val stored = SecurePrefs(context).read(KEY_URL, "")
+        return stored.ifBlank { normalizedBaseUrl(BuildConfig.JARVIS_GATEWAY_ORIGIN).orEmpty() }
+    }
+
+    /** One-time tester invitation exchange. The provider key stays on the host;
+     * only a revocable, device-local tester session is stored with SecurePrefs.
+     */
+    suspend fun activateInvitation(context: Context, server: String, invitation: String): String? =
+        withContext(Dispatchers.IO) {
+            val base = normalizedBaseUrl(server)
+                ?: return@withContext "A Jarvis HTTPS-szerverének címe még nincs beállítva."
+            val code = invitation.trim().lowercase()
+            if (!code.matches(Regex("[0-9a-f]{48}"))) {
+                return@withContext "Érvénytelen meghívó: 48 hexadecimális karakter szükséges."
+            }
+            var conn: HttpURLConnection? = null
+            try {
+                conn = URL("$base/v1/activate").openConnection() as HttpURLConnection
+                conn.requestMethod = "POST"
+                conn.instanceFollowRedirects = false
+                conn.connectTimeout = 10000
+                conn.readTimeout = 15000
+                conn.doOutput = true
+                conn.setRequestProperty("Content-Type", "application/json; charset=utf-8")
+                conn.setRequestProperty("Accept", "application/json")
+                conn.outputStream.use { it.write(JSONObject().put("invitation", code)
+                    .toString().toByteArray(Charsets.UTF_8)) }
+                when (conn.responseCode) {
+                    200 -> {
+                        val answer = conn.inputStream.use {
+                            JarvisNetworkSafety.readUtf8Limited(it)
+                        }
+                        val token = JSONObject(answer).optString("token")
+                        if (!isValidTesterToken(token)) {
+                            "A szerver érvénytelen hozzáférést adott. Nem mentettem."
+                        } else save(context.applicationContext, base, token)
+                    }
+                    401 -> "A meghívó lejárt, hibás vagy már felhasználták. Kérj újat."
+                    404 -> "A megadott szerveren a Jarvis privát tesztaktiválás még nem működik."
+                    429 -> "Túl sok aktiválási kísérlet. Próbáld később."
+                    else -> "Nem sikerült a tesztaktiválás (HTTP " + conn.responseCode + ")."
+                }
+            } catch (_: Exception) {
+                "Nem sikerült csatlakozni a Jarvis privát szerveréhez."
+            } finally {
+                conn?.disconnect()
+            }
+        }
 
     fun saveDirect(context: Context, key: String): String? {
         if (!BuildConfig.DEBUG) return "Közvetlen OpenRouter-kulcs csak belső tesztalkalmazásban használható."
@@ -158,7 +209,7 @@ internal object JarvisAiGateway {
         val prefs = SecurePrefs(context.applicationContext)
         val direct = mode(context) == DIRECT_TEST
         val credential = if (direct) prefs.read(KEY_DIRECT, "") else prefs.read(KEY_TOKEN, "")
-        val base = if (direct) null else normalizedBaseUrl(prefs.read(KEY_URL, ""))
+        val base = if (direct) null else normalizedBaseUrl(baseUrl(context))
         if ((direct && !isValidOpenRouterKey(credential)) ||
             (!direct && (base == null || !isValidTesterToken(credential)))) {
             return@withContext JarvisAiOutcome(if (direct) {
