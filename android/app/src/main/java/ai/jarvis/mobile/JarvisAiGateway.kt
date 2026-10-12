@@ -9,61 +9,97 @@ import java.net.URI
 import java.net.URL
 
 /**
- * HTTPS-only AI gateway. The provider's OPENROUTER_API_KEY lives on the backend,
- * never in this APK. Each tester stores an independent random access token
- * encrypted using Android Keystore through SecurePrefs.
+ * Two AI connection modes:
+ * - DIRECT_TEST: personal OpenRouter key in Android Keystore-backed encrypted prefs.
+ *   No shared key is embedded in APK/repository; use limited, revocable TEST keys.
+ * - SERVER: separate tester token; provider key stays on the private backend.
  *
- * Only explicit messages go to the AI. No contacts, device data, files or
- * conversation history are uploaded by this client.
+ * Sends only explicitly submitted question text. AI replies never invoke tools.
  */
 internal object JarvisAiGateway {
+    private const val KEY_MODE = "ai_connection_mode"
+    private const val KEY_DIRECT = "ai_direct_openrouter_key"
     private const val KEY_URL = "ai_gateway_base_url"
     private const val KEY_TOKEN = "ai_gateway_access_token"
     private const val MAX_MESSAGE = 8000
+    private const val OPENROUTER_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions"
+    private const val TEST_MODEL = "openai/gpt-4o-mini"
 
-    // Users may configure a trusted HTTPS deployment URL. A redirect is NEVER
-    // followed so a bearer token cannot leak to a new host via Location.
-    fun normalizedBaseUrl(input: String): String? {
-        return try {
-            val uri = URI(input.trim().trimEnd('/'))
-            if (uri.scheme != "https" || uri.host.isNullOrBlank() ||
-                !uri.host.matches(Regex("[A-Za-z0-9.-]+")) ||
-                uri.userInfo != null || uri.rawQuery != null || uri.rawFragment != null ||
-                (uri.rawPath != "" && uri.rawPath != "/") ||
-                uri.port > 65535 || uri.port == 0) null
-            else "https://" + uri.host.lowercase() +
-                (if (uri.port > 0 && uri.port != 443) ":" + uri.port else "")
-        } catch (_: Exception) { null }
-    }
+    const val DIRECT_TEST = "direct"
+    const val SERVER = "server"
+
+    fun normalizedBaseUrl(input: String): String? = try {
+        val uri = URI(input.trim().trimEnd('/'))
+        if (uri.scheme != "https" || uri.host.isNullOrBlank() ||
+            !uri.host.matches(Regex("[A-Za-z0-9.-]+")) ||
+            uri.userInfo != null || uri.rawQuery != null || uri.rawFragment != null ||
+            (uri.rawPath != "" && uri.rawPath != "/") ||
+            uri.port > 65535 || uri.port == 0) null
+        else "https://" + uri.host.lowercase() +
+            (if (uri.port > 0 && uri.port != 443) ":" + uri.port else "")
+    } catch (_: Exception) { null }
 
     fun isValidTesterToken(input: String): Boolean =
         input.matches(Regex("[a-fA-F0-9]{64}"))
 
+    /** Structural check only; only OpenRouter can verify if a key is active. */
+    fun isValidOpenRouterKey(input: String): Boolean =
+        input.matches(Regex("sk-or-[A-Za-z0-9_-]{20,200}"))
+
+    fun mode(context: Context): String {
+        val prefs = SecurePrefs(context)
+        val stored = prefs.read(KEY_MODE, "")
+        if (stored == DIRECT_TEST || stored == SERVER) return stored
+        // Existing 0.2.0 installations used backend-only mode.
+        return if (normalizedBaseUrl(prefs.read(KEY_URL, "")) != null &&
+            isValidTesterToken(prefs.read(KEY_TOKEN, ""))) SERVER else DIRECT_TEST
+    }
+
     fun configured(context: Context): Boolean {
         val prefs = SecurePrefs(context)
-        return normalizedBaseUrl(prefs.read(KEY_URL, "")) != null &&
-            isValidTesterToken(prefs.read(KEY_TOKEN, ""))
+        return if (mode(context) == DIRECT_TEST) {
+            isValidOpenRouterKey(prefs.read(KEY_DIRECT, ""))
+        } else {
+            normalizedBaseUrl(prefs.read(KEY_URL, "")) != null &&
+                isValidTesterToken(prefs.read(KEY_TOKEN, ""))
+        }
     }
 
     fun baseUrl(context: Context): String = SecurePrefs(context).read(KEY_URL, "")
+
+    fun saveDirect(context: Context, key: String): String? {
+        val clean = key.trim()
+        if (!isValidOpenRouterKey(clean)) {
+            return "Érvénytelen OpenRouter-kulcs formátum. Ellenőrizd, hogy a kulcs teljes-e."
+        }
+        val prefs = SecurePrefs(context)
+        prefs.write(KEY_DIRECT, clean)
+        prefs.write(KEY_MODE, DIRECT_TEST)
+        // Switching off backend also removes stored family/tester credentials.
+        prefs.write(KEY_TOKEN, "")
+        return null
+    }
 
     fun save(context: Context, url: String, token: String): String? {
         val base = normalizedBaseUrl(url)
             ?: return "Adj meg egy HTTPS-címet, például https://ai.sajatdomain.hu"
         if (!isValidTesterToken(token.trim())) {
-            return "Érvénytelen tesztelői hozzáférési kód (64 hexadecimális karakter)."
+            return "Érvénytelen tesztelői kód (64 hexadecimális karakter)."
         }
         val prefs = SecurePrefs(context)
         prefs.write(KEY_URL, base)
         prefs.write(KEY_TOKEN, token.trim())
+        prefs.write(KEY_MODE, SERVER)
+        prefs.write(KEY_DIRECT, "")
         return null
     }
 
     fun clear(context: Context) {
-        // Replace the encrypted token; it is never written to plain preferences.
         val prefs = SecurePrefs(context)
+        prefs.write(KEY_DIRECT, "")
         prefs.write(KEY_TOKEN, "")
         prefs.write(KEY_URL, "")
+        prefs.write(KEY_MODE, DIRECT_TEST)
     }
 
     suspend fun ask(context: Context, message: String): String = withContext(Dispatchers.IO) {
@@ -72,14 +108,22 @@ internal object JarvisAiGateway {
             return@withContext "A kérdés üres vagy túl hosszú."
         }
         val prefs = SecurePrefs(context.applicationContext)
-        val base = normalizedBaseUrl(prefs.read(KEY_URL, ""))
-        val token = prefs.read(KEY_TOKEN, "")
-        if (base == null || !isValidTesterToken(token)) {
-            return@withContext "Az AI-agy nincs csatlakoztatva. A Beállítások → AI-agy alatt add meg a szerver HTTPS-címét és a saját tesztelői kódodat."
+        val direct = mode(context) == DIRECT_TEST
+        val credential = if (direct) prefs.read(KEY_DIRECT, "") else prefs.read(KEY_TOKEN, "")
+        val base = if (direct) null else normalizedBaseUrl(prefs.read(KEY_URL, ""))
+        if ((direct && !isValidOpenRouterKey(credential)) ||
+            (!direct && (base == null || !isValidTesterToken(credential)))) {
+            return@withContext if (direct) {
+                "Az AI-agy nincs beállítva. A Beállítások → AI-agy alatt add meg az OpenRouter API-kulcsodat."
+            } else {
+                "A szerverkapcsolat nincs beállítva. Add meg a HTTPS-címet és a tesztelői kódot."
+            }
         }
+
         var connection: HttpURLConnection? = null
         try {
-            connection = URL("$base/v1/chat").openConnection() as HttpURLConnection
+            val endpoint = if (direct) OPENROUTER_ENDPOINT else "$base/v1/chat"
+            connection = URL(endpoint).openConnection() as HttpURLConnection
             connection.requestMethod = "POST"
             connection.instanceFollowRedirects = false
             connection.connectTimeout = 10000
@@ -87,23 +131,38 @@ internal object JarvisAiGateway {
             connection.doOutput = true
             connection.setRequestProperty("Content-Type", "application/json; charset=utf-8")
             connection.setRequestProperty("Accept", "application/json")
-            connection.setRequestProperty("Authorization", "Bearer $token")
-            val bytes = JSONObject().put("message", question).toString().toByteArray(Charsets.UTF_8)
-            connection.outputStream.use { it.write(bytes) }
-            when (connection.responseCode) {
+            connection.setRequestProperty("Authorization", "Bearer $credential")
+
+            val payload = if (direct) JSONObject().apply {
+                put("model", TEST_MODEL)
+                put("messages", org.json.JSONArray().put(
+                    JSONObject().put("role", "user").put("content", question)
+                ))
+                put("max_tokens", 800)
+                put("stream", false)
+            } else JSONObject().put("message", question)
+
+            connection.outputStream.use { it.write(payload.toString().toByteArray(Charsets.UTF_8)) }
+            when (val status = connection.responseCode) {
                 200 -> {
-                    val answer = connection.inputStream.bufferedReader().use { it.readText() }
-                    val reply = JSONObject(answer).optString("reply").trim()
-                    if (reply.isNotEmpty()) reply else "Az AI-szerver üres választ küldött."
+                    val response = connection.inputStream.bufferedReader().use { it.readText() }
+                    val body = JSONObject(response)
+                    val answer = if (direct) {
+                        body.optJSONArray("choices")?.optJSONObject(0)?.optJSONObject("message")
+                            ?.optString("content", "")?.trim()
+                    } else body.optString("reply", "").trim()
+                    if (answer.isNullOrBlank()) "Az AI üres választ küldött." else answer
                 }
-                401 -> "A tesztelői hozzáférés érvénytelen vagy visszavonták."
-                403 -> "Ehhez a felhasználóhoz nincs engedélyezve az AI-hozzáférés."
-                429 -> "Elérted az ideiglenes AI-használati limitet. Próbáld meg később."
-                301, 302, 303, 307, 308 -> "A szerver átirányítást kért, amit biztonsági okból elutasítottam."
-                else -> "Az AI-szerver jelenleg nem elérhető (HTTP ${connection.responseCode})."
+                401 -> if (direct) "Az OpenRouter API-kulcs érvénytelen vagy visszavonták."
+                    else "A tesztelői kód érvénytelen vagy visszavonták."
+                402 -> "Az OpenRouter-egyenleg vagy a kulcshoz tartozó keret nem elegendő."
+                403 -> "Az AI-hozzáférés nincs engedélyezve."
+                429 -> "Elérted az ideiglenes használati limitet. Próbáld később."
+                301, 302, 303, 307, 308 -> "A szerver átirányított; biztonsági okból megszakítottam."
+                else -> "Az AI-szolgáltató hibát jelzett (HTTP $status)."
             }
         } catch (_: Exception) {
-            "Nem sikerült kapcsolódni az AI-szerverhez. Ellenőrizd az internetet, a szervercímet és hogy a szerver fut-e."
+            "Nem sikerült kapcsolódni az AI-hoz. Ellenőrizd az internetet és a megadott kulcsot."
         } finally {
             connection?.disconnect()
         }
