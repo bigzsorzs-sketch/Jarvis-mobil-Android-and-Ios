@@ -5,6 +5,7 @@ import { createClient } from "redis";
 import { JARVIS_TOOLS, verifiedToolCall } from "./toolCalls.js";
 import { shouldOfferToolCalls } from "./toolRouting.js";
 import { readLimitedProviderJson } from "./responseLimits.js";
+import { betaSessionSubject, redeemInvite } from "./betaInvite.js";
 
 function required(name: string): string {
   const v = process.env[name]?.trim();
@@ -39,13 +40,14 @@ const testerRecords = Object.entries(rawTesters).map(([id, hash]) => {
       !/^[a-fA-F0-9]{64}$/.test(hash)) throw new Error("Invalid tester token hash");
   return { id, digest: Buffer.from(hash, "hex") };
 });
-if (testerRecords.length > 10 || (!jwks && testerRecords.length === 0)) {
-  throw new Error("Configure OIDC or 1–10 tester tokens");
+const betaInvites = process.env.BETA_INVITES_ENABLED === "true";
+if (testerRecords.length > 10 || (!jwks && testerRecords.length === 0 && !betaInvites)) {
+  throw new Error("Configure OIDC, 1–10 legacy tester tokens, or explicit beta invitations");
 }
 // Production/public access cannot silently inherit the private-beta token bypass.
 const publicLaunch = process.env.PUBLIC_LAUNCH_ENABLED === "true";
-if (publicLaunch && (!jwks || testerRecords.length > 0)) {
-  throw new Error("Public launch requires complete OIDC and no tester-token bypass");
+if (publicLaunch && (!jwks || testerRecords.length > 0 || betaInvites)) {
+  throw new Error("Public launch requires complete OIDC and no beta tester bypass");
 }
 function findTester(token: string): string | null {
   if (token.length !== 64 || !/^[a-fA-F0-9]{64}$/.test(token)) return null;
@@ -124,6 +126,19 @@ const server = http.createServer(async (req, res) => {
     reply(res, 200, { status: "ok" });
     return;
   }
+  if (req.method === "POST" && req.url === "/v1/activate") {
+    if (!betaInvites || publicLaunch) return reply(res, 404, { error: "NOT_FOUND" });
+    try {
+      // Avoid turning the service into an anonymous registration endpoint.
+      // Only pre-created high-entropy, single-use invitations are valid.
+      const input = await readInput(req) as { invitation?: unknown } | null;
+      const activated = await redeemInvite(redis, input?.invitation);
+      if (!activated) return reply(res, 401, { error: "INVALID_OR_EXPIRED_INVITATION" });
+      return reply(res, 200, activated);
+    } catch {
+      return reply(res, 400, { error: "ACTIVATION_UNAVAILABLE" });
+    }
+  }
   if (req.method !== "POST" || req.url !== "/v1/chat") {
     reply(res, 404, { error: "NOT_FOUND" });
     return;
@@ -132,6 +147,9 @@ const server = http.createServer(async (req, res) => {
     const match = /^Bearer\s+(.+)$/i.exec(req.headers.authorization ?? "");
     if (!match?.[1]) return reply(res, 401, { error: "AUTH_REQUIRED" });
     let subject = publicLaunch ? null : findTester(match[1]);
+    if (!subject && betaInvites && !publicLaunch) {
+      subject = await betaSessionSubject(redis, match[1]);
+    }
     const tester = subject !== null;
     if (!subject && jwks) {
       try {

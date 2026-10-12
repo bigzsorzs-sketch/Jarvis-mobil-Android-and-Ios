@@ -6,6 +6,12 @@ plugins {
 // Release credentials are supplied only by protected CI environment variables.
 // Without them developer builds remain unsigned; never generate a new release key.
 val releaseStore = System.getenv("ANDROID_SIGNING_STORE_FILE")?.takeIf { it.isNotBlank() }
+val jarvisGatewayOrigin = (System.getenv("JARVIS_GATEWAY_ORIGIN") ?: "").trim().trimEnd('/')
+// A public origin is configuration, NEVER an embedded shared API credential.
+require(jarvisGatewayOrigin.isEmpty() ||
+    jarvisGatewayOrigin.matches(Regex("""https://[A-Za-z0-9.-]+(?::[0-9]{2,5})?"""))) {
+    "JARVIS_GATEWAY_ORIGIN must be a public HTTPS origin without paths or credentials"
+}
 
 android {
     namespace = "ai.jarvis.mobile"
@@ -14,8 +20,9 @@ android {
         applicationId = "ai.jarvis.mobile"
         minSdk = 26
         targetSdk = 36
-        versionCode = 24
-        versionName = "0.2.13-dev"
+        versionCode = 25
+        versionName = "0.2.14"
+        buildConfigField("String", "JARVIS_GATEWAY_ORIGIN", "\"$jarvisGatewayOrigin\"")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     signingConfigs {
@@ -30,6 +37,7 @@ android {
     }
     buildTypes {
         debug {
+            versionNameSuffix = "-dev"
             isMinifyEnabled = false
         }
         release {
