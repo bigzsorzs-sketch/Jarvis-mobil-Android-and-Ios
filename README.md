@@ -1,5 +1,9 @@
 # Jarvis Mobile — Android (Kotlin) & iOS (Swift)
 
+## Android 0.2.2-dev — Jarvis identity and tool awareness
+
+Jarvis' AI system messages identify the Jarvis Mobile app separately from its underlying AI provider. A local offline self-description reads the real Android menu catalog, so questions such as "Ki vagy?", "Mire vagy képes?" or "Listázd az összes eszközöd" no longer return generic AI-provider descriptions. Existing local commands remain deterministic; explicit page-opening requests now also reach the Munka, Ismerősök and Névjegyek pages in text and voice. Topic questions no longer inadvertently open an app. The LLM still cannot independently execute arbitrary Android actions or access private accounts. See the Android debug APK workflow and regression tests; physical-device testing is still required.
+
 ## Android 0.2.1-dev — direct OpenRouter AI for personal testing
 
 Settings → AI-agy now offers **Közvetlen OpenRouter**, where each tester can enter a personal, low-spending-limit OpenRouter API key once. This removes the need for the undeployed Jarvis HTTPS server during small private tests. The key is stored locally with Android Keystore-backed encryption and is sent only directly to OpenRouter via HTTPS. There is **no API key embedded in the APK, GitHub source code or release**. The original **Saját szerver** connection mode remains available. This direct mode is not suitable for an uncontrolled public launch: phone owners can access/extract their own credentials, and each request can incur API charges. Previous keys shared in messages or otherwise exposed must be rotated. No voice transcript or private device data is automatically uploaded; explicit text questions are sent to the selected provider.

@@ -21,5 +21,9 @@ class BasicCommandRouterTest {
     @Test fun unknownCommandsDoNotPretendToSucceed() {
         assertEquals(BasicAction.UNKNOWN, BasicCommandRouter.classify(" "))
         assertEquals(BasicAction.UNKNOWN, BasicCommandRouter.classify("Mennyi a legfrissebb tőzsdei árfolyam?"))
+        assertEquals(BasicAction.UNKNOWN, BasicCommandRouter.classify("Mit tudsz a vércukornaplóról?"))
+        assertEquals(BasicAction.UNKNOWN, BasicCommandRouter.classify("Hogyan működik a számlázás?"))
+        assertEquals(BasicAction.UNKNOWN, BasicCommandRouter.classify("What are Gmail permissions?"))
+        assertEquals(BasicAction.UNKNOWN, BasicCommandRouter.classify("Jarvis, mit tudsz a vércukorról?"))
     }
 }

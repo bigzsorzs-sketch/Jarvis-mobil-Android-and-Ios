@@ -20,6 +20,15 @@ internal object BasicCommandRouter {
     fun classify(raw: String): BasicAction {
         val input = raw.trim().lowercase(Locale.ROOT)
         if (input.isBlank()) return BasicAction.UNKNOWN
+        // A topic question is NOT an instruction to open an app or trigger a tool.
+        // Example: "Mit tudsz a vércukornaplóról?" must reach conversational AI.
+        val questionText = input.removePrefix("hey jarvis,").removePrefix("hey jarvis ")
+            .removePrefix("jarvis,").removePrefix("jarvis ").trimStart()
+        if (listOf("mit ", "milyen ", "hogyan ", "miért ", "miert ",
+                "mikor ", "mennyi ", "mi ", "what ", "why ", "how ",
+                "when ", "which ").any { questionText.startsWith(it) }) {
+            return BasicAction.UNKNOWN
+        }
         return when {
             listOf("vércukor", "vercukor", "cukornapl", "glucose", "blood sugar").any { it in input } -> BasicAction.OPEN_GLUCOSE
             listOf("száml", "szaml", "invoice", "billing").any { it in input } -> BasicAction.OPEN_INVOICES

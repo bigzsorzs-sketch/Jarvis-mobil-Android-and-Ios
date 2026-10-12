@@ -14,6 +14,11 @@ internal object JarvisCommandExecutor {
         val text = command.trim()
         if (text.isEmpty()) return "Nem kaptam parancsot."
         LocalConversation.reply(text)?.let { return it }
+        JarvisCapabilities.replyIfAsked(text)?.let { return it }
+        JarvisCapabilities.localPageToOpen(text)?.let { route ->
+            onNavigate(route)
+            return "Megnyitottam a Jarvis $route oldalát."
+        }
         return when {
             ExternalTasks.parseMessage(text) != null ->
                 ExternalTasks.dispatch(context, HandoffTask.Message(ExternalTasks.parseMessage(text)!!))
