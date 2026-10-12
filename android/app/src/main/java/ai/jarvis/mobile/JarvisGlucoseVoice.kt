@@ -14,7 +14,7 @@ internal object JarvisGlucoseVoice {
         Regex("""\b(nez(d)? meg|mennyi|mutasd|ellenorizd|mi)[a-z\s]{0,35}\b(cukrom|vercukrom|vercukorszintem|glukozom)\b"""),
         Regex("""\b(cukrom|vercukrom|vercukorszintem|glukozom)[a-z\s]{0,35}\b(mennyi|most|nezd|mutasd|erteke)\b"""),
         Regex("""\b(check|show|tell me|what is|what's)[a-z\s]{0,35}\b(my glucose|my blood sugar|my sugar level)\b"""),
-        Regex("""\b(wie hoch|pruf|zeige)[a-z\s]{0,35}\b(mein blutzucker|meine glukose)\b"""),
+        Regex("""\b(wie hoch|pruf|zeige)[a-z\s]{0,35}\b(mein blutzucker|meinen blutzucker|meine glukose)\b"""),
         Regex("""\b(verifie|montre|combien)[a-z\s]{0,35}\b(ma glycemie|mon taux de sucre)\b"""),
         Regex("""\b(comprueba|muestra|cuanto)[a-z\s]{0,35}\b(mi glucosa|mi azucar)\b"""),
         Regex("""\b(controlla|mostra|quanto)[a-z\s]{0,35}\b(la mia glicemia|mio zucchero)\b"""),
