@@ -41,14 +41,14 @@ internal object VoiceCalling {
      */
     fun extractAiRequest(input: String): String? {
         val withoutWake = input.trim()
-            .replace(Regex("""(?iu)^(?:(?:hey|hej|szia|ok)\\s+)?jarvis\\s*[,!:]?\\s*"""), "")
-            .replace(Regex("""(?iu)^k[eé]rlek\\s+"""), "")
+            .replace(Regex("""(?iu)^(?:(?:hey|hej|szia|ok)\s+)?jarvis\s*[,!:]?\s*"""), "")
+            .replace(Regex("""(?iu)^k[eé]rlek\s+"""), "")
         val match = Regex(
-            """(?iu)^(?:h[ií]vd\\s+fel|t[aá]rcs[aá]zd|telefon[aá]lj|call|fel\\s+tudn[aá]d\\s+h[ií]vni|felh[ií]vn[aá]d|szeretn[eé]m\\s+ha\\s+felh[ií]vn[aá]d)\\s+(?:(?:a|az)\\s+)?(.+?)\\s*[.!?]?$"""
+            """(?iu)^(?:h[ií]vd\s+fel|t[aá]rcs[aá]zd|telefon[aá]lj|call|fel\s+tudn[aá]d\s+h[ií]vni|felh[ií]vn[aá]d|szeretn[eé]m\s+ha\s+felh[ií]vn[aá]d)\s+(?:(?:a|az)\s+)?(.+?)\s*[.!?]?$"""
         ).matchEntire(withoutWake) ?: return null
         val target = match.groupValues[1].trim()
         if (target.isBlank() || target.length > 70 ||
-            Regex("""(?iu)\\b(?:és|and|majd|aztán|then)\\b""").containsMatchIn(target)) return null
+            Regex("""(?iu)\b(?:és|and|majd|aztán|then)\b""").containsMatchIn(target)) return null
         return target
     }
 
