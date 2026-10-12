@@ -26,12 +26,11 @@ internal fun JarvisAiSettings(context: Context) {
     var cloudConsent by remember { mutableStateOf(JarvisAiGateway.cloudConsent(context)) }
     val scope = rememberCoroutineScope()
 
-    Text(if (BuildConfig.DEBUG) "AI-agy – belső teszt" else "AI-agy – biztonságos szerverkapcsolat",
+    Text("AI-agy",
         style = MaterialTheme.typography.titleLarge)
     Spacer(Modifier.height(12.dp))
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        if (BuildConfig.DEBUG &&
-            JarvisAiGateway.normalizedBaseUrl(BuildConfig.JARVIS_GATEWAY_ORIGIN) == null) FilterChip(
+        FilterChip(
             selected = selectedMode == JarvisAiGateway.DIRECT_TEST,
             onClick = {
                 selectedMode = JarvisAiGateway.DIRECT_TEST
@@ -53,7 +52,7 @@ internal fun JarvisAiSettings(context: Context) {
     Spacer(Modifier.height(8.dp))
     Text(
         "Jelenleg mentett kapcsolat: " +
-            if (savedMode == JarvisAiGateway.DIRECT_TEST && BuildConfig.DEBUG)
+            if (savedMode == JarvisAiGateway.DIRECT_TEST)
                 "Közvetlen OpenRouter (modell: openai/gpt-4o-mini)"
             else "Saját Jarvis AI-szerver (/v1/chat)",
         style = MaterialTheme.typography.bodySmall
@@ -64,8 +63,8 @@ internal fun JarvisAiSettings(context: Context) {
     }
     Spacer(Modifier.height(8.dp))
 
-    if (selectedMode == JarvisAiGateway.DIRECT_TEST && BuildConfig.DEBUG) {
-        Text("Tesztmód: nincs szükség szervercímre. Az OpenRouter-kulcsodat egyszer kell megadni, a telefon titkosított tárhelyére mentjük.")
+    if (selectedMode == JarvisAiGateway.DIRECT_TEST) {
+        Text("Saját OpenRouter-kapcsolat: nincs szükség Jarvis-szervercímre. Az API-kulcsodat a telefon titkosított tárhelyére mentjük.")
         Spacer(Modifier.height(8.dp))
         OutlinedTextField(
             value = credential,
@@ -162,7 +161,7 @@ internal fun JarvisAiSettings(context: Context) {
             if (!cloudConsent) {
                 status = "Az AI-szöveg továbbításához külön, önkéntes hozzájárulás szükséges."
             } else {
-                val error = if (selectedMode == JarvisAiGateway.DIRECT_TEST && BuildConfig.DEBUG)
+                val error = if (selectedMode == JarvisAiGateway.DIRECT_TEST)
                     JarvisAiGateway.saveDirect(context, credential)
                 else if (paired && selectedMode == savedMode &&
                     endpoint == JarvisAiGateway.baseUrl(context)) null
@@ -197,7 +196,9 @@ internal fun JarvisAiSettings(context: Context) {
                 try {
                     status = JarvisAiGateway.ask(
                         context,
-                        "Válaszolj röviden magyarul: működik a Jarvis AI-kapcsolat?"
+                        if (JarvisLanguageSettings.load(context) == JarvisLanguage.ENGLISH)
+                            "In one brief sentence, confirm that the Jarvis AI connection works."
+                        else "Válaszolj röviden magyarul: működik a Jarvis AI-kapcsolat?"
                     )
                 } finally { busy = false }
             }

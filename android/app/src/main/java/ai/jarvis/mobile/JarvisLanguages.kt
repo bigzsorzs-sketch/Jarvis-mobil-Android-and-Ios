@@ -50,6 +50,7 @@ internal val LocalJarvisLanguage = compositionLocalOf { JarvisLanguage.HUNGARIAN
 /** Only UI chrome is translated. Stored chat messages and user data are not rewritten. */
 internal object JarvisTranslations {
     private val english = mapOf(
+        "Saját OpenRouter-kapcsolat: nincs szükség Jarvis-szervercímre. Az API-kulcsodat a telefon titkosított tárhelyére mentjük." to "Personal OpenRouter connection: no Jarvis server address is needed. Your API key is saved in encrypted storage on this phone.",
         "Főoldal" to "Home",
         "Munka" to "Work",
         "Navigáció" to "Navigation",
