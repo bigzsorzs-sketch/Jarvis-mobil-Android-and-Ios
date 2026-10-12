@@ -21,6 +21,7 @@ internal object JarvisAiGateway {
     private const val KEY_DIRECT = "ai_direct_openrouter_key"
     private const val KEY_URL = "ai_gateway_base_url"
     private const val KEY_TOKEN = "ai_gateway_access_token"
+    private const val KEY_CONSENT = "ai_cloud_text_consent_v1"
     private const val MAX_MESSAGE = 8000
     private const val OPENROUTER_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions"
     private const val TEST_MODEL = "openai/gpt-4o-mini"
@@ -46,7 +47,16 @@ internal object JarvisAiGateway {
     fun isValidOpenRouterKey(input: String): Boolean =
         input.matches(Regex("sk-or-[A-Za-z0-9_-]{20,200}"))
 
+    fun cloudConsent(context: Context): Boolean =
+        SecurePrefs(context).read(KEY_CONSENT, "false") == "true"
+
+    fun setCloudConsent(context: Context, approved: Boolean) {
+        SecurePrefs(context).write(KEY_CONSENT, approved.toString())
+    }
+
     fun mode(context: Context): String {
+        // End-users never receive a direct provider-key workflow in release builds.
+        if (!BuildConfig.DEBUG) return SERVER
         val prefs = SecurePrefs(context)
         val stored = prefs.read(KEY_MODE, "")
         if (stored == DIRECT_TEST || stored == SERVER) return stored
@@ -56,6 +66,7 @@ internal object JarvisAiGateway {
     }
 
     fun configured(context: Context): Boolean {
+        if (!cloudConsent(context)) return false
         val prefs = SecurePrefs(context)
         return if (mode(context) == DIRECT_TEST) {
             isValidOpenRouterKey(prefs.read(KEY_DIRECT, ""))
@@ -68,6 +79,7 @@ internal object JarvisAiGateway {
     fun baseUrl(context: Context): String = SecurePrefs(context).read(KEY_URL, "")
 
     fun saveDirect(context: Context, key: String): String? {
+        if (!BuildConfig.DEBUG) return "Közvetlen OpenRouter-kulcs csak belső tesztalkalmazásban használható."
         val clean = key.trim()
         if (!isValidOpenRouterKey(clean)) {
             return "Érvénytelen OpenRouter-kulcs formátum. Ellenőrizd, hogy a kulcs teljes-e."
@@ -100,6 +112,7 @@ internal object JarvisAiGateway {
         prefs.write(KEY_TOKEN, "")
         prefs.write(KEY_URL, "")
         prefs.write(KEY_MODE, DIRECT_TEST)
+        prefs.write(KEY_CONSENT, "false")
     }
 
     suspend fun ask(context: Context, message: String): String =
@@ -111,6 +124,10 @@ internal object JarvisAiGateway {
         val question = message.trim()
         if (question.isEmpty() || question.length > MAX_MESSAGE) {
             return@withContext JarvisAiOutcome("A kérdés üres vagy túl hosszú.")
+        }
+        if (!cloudConsent(context.applicationContext)) {
+            return@withContext JarvisAiOutcome(
+                "Az AI-kérdés elküldéséhez előbb engedélyezd a felhőalapú szövegfeldolgozást a Beállítások → AI-agy oldalon.")
         }
         val prefs = SecurePrefs(context.applicationContext)
         val direct = mode(context) == DIRECT_TEST
@@ -157,7 +174,15 @@ internal object JarvisAiGateway {
             connection.outputStream.use { it.write(payload.toString().toByteArray(Charsets.UTF_8)) }
             when (val status = connection.responseCode) {
                 200 -> {
-                    val response = connection.inputStream.bufferedReader().use { it.readText() }
+                    val response = connection.inputStream.use {
+                        val maxBytes = 256 * 1024
+                        val limited = it.readNBytes(maxBytes + 1)
+                        if (limited.size > maxBytes) {
+                            return@withContext JarvisAiOutcome(
+                                "Az AI-szerver válasza túl nagy volt; nem hajtottam végre eszközkérést.")
+                        }
+                        limited.toString(Charsets.UTF_8)
+                    }
                     val body = JSONObject(response)
                     if (direct) JarvisAiTools.fromProvider(body, question)
                     else JarvisAiTools.fromServer(body, question)
