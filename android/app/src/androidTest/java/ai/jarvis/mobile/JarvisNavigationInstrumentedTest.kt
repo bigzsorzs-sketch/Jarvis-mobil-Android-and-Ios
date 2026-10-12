@@ -1,5 +1,6 @@
 package ai.jarvis.mobile
 
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -25,7 +26,7 @@ class JarvisNavigationInstrumentedTest {
         composeRule.onNodeWithText("Alkalmazások").assertExists().performClick()
         composeRule.onNodeWithText("Telepített alkalmazások").assertExists()
         // Header opens the same drawer without a duplicate floating hamburger.
-        composeRule.onNodeWithText("Alkalmazások").performClick()
+        composeRule.onNodeWithTag("jarvis-subpage-header").performClick()
         composeRule.onNodeWithText("Előzmények").assertExists().performClick()
         composeRule.onNodeWithText("Helyi beszélgetések").assertExists()
         composeRule.onNodeWithText("Keresés az előzményekben").assertExists()
