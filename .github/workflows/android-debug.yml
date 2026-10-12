@@ -1,5 +1,10 @@
 name: Build Android APK
 on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "android/**"
+      - ".github/workflows/android-debug.yml"
   push:
     branches: [main]
     paths:
