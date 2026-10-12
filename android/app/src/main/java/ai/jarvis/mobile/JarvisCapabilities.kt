@@ -32,6 +32,12 @@ internal object JarvisCapabilities {
         n == "mit tudsz jarvis"
 
     private fun isIdentityQuestion(n: String): Boolean =
+        n.contains("mit tud elmondani magadrol") ||
+        n.contains("mit tudsz elmondani magadrol") ||
+        n.contains("mit tudnal mondani magadrol") ||
+        n.contains("meselj a jarvisrol") ||
+        n.contains("mutasd be magad") ||
+        n.contains("tell me about yourself") ||
         n.contains("mondj magadrol") ||
         n.contains("meselj magadrol") ||
         n.contains("mutatkozz be") ||
