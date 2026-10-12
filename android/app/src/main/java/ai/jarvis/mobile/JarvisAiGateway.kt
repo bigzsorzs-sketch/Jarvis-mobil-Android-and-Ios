@@ -14,7 +14,7 @@ import java.net.URL
  *   No shared key is embedded in APK/repository; use limited, revocable TEST keys.
  * - SERVER: separate tester token; provider key stays on the private backend.
  *
- * Sends only explicitly submitted question text. AI replies never invoke tools.
+ * Sends only submitted question text. Model-proposed page openings are\n * validated locally, then handed off to the existing Android UI.
  */
 internal object JarvisAiGateway {
     private const val KEY_MODE = "ai_connection_mode"
@@ -102,10 +102,15 @@ internal object JarvisAiGateway {
         prefs.write(KEY_MODE, DIRECT_TEST)
     }
 
-    suspend fun ask(context: Context, message: String): String = withContext(Dispatchers.IO) {
+    suspend fun ask(context: Context, message: String): String =
+        askStructured(context, message).message
+
+    /** Only an on-device allowlisted dispatcher can execute the proposed route. */
+    suspend fun askStructured(context: Context, message: String): JarvisAiOutcome =
+        withContext(Dispatchers.IO) {
         val question = message.trim()
         if (question.isEmpty() || question.length > MAX_MESSAGE) {
-            return@withContext "A kérdés üres vagy túl hosszú."
+            return@withContext JarvisAiOutcome("A kérdés üres vagy túl hosszú.")
         }
         val prefs = SecurePrefs(context.applicationContext)
         val direct = mode(context) == DIRECT_TEST
@@ -113,11 +118,11 @@ internal object JarvisAiGateway {
         val base = if (direct) null else normalizedBaseUrl(prefs.read(KEY_URL, ""))
         if ((direct && !isValidOpenRouterKey(credential)) ||
             (!direct && (base == null || !isValidTesterToken(credential)))) {
-            return@withContext if (direct) {
-                "Az AI-agy nincs beállítva. A Beállítások → AI-agy alatt add meg az OpenRouter API-kulcsodat."
+            return@withContext JarvisAiOutcome(if (direct) {
+                "Az AI-agy nincs beállítva. Beállítások → AI-agy alatt add meg a saját OpenRouter-kulcsodat."
             } else {
                 "A szerverkapcsolat nincs beállítva. Add meg a HTTPS-címet és a tesztelői kódot."
-            }
+            })
         }
 
         var connection: HttpURLConnection? = null
@@ -139,6 +144,8 @@ internal object JarvisAiGateway {
                     .put(JSONObject().put("role", "system")
                         .put("content", JarvisIdentity.systemPrompt))
                     .put(JSONObject().put("role", "user").put("content", question)))
+                put("tools", org.json.JSONArray().put(JarvisAiTools.toolDefinition()))
+                put("tool_choice", "auto")
                 put("max_tokens", 800)
                 put("stream", false)
             } else JSONObject().put("message", question)
@@ -148,22 +155,20 @@ internal object JarvisAiGateway {
                 200 -> {
                     val response = connection.inputStream.bufferedReader().use { it.readText() }
                     val body = JSONObject(response)
-                    val answer = if (direct) {
-                        body.optJSONArray("choices")?.optJSONObject(0)?.optJSONObject("message")
-                            ?.optString("content", "")?.trim()
-                    } else body.optString("reply", "").trim()
-                    if (answer.isNullOrBlank()) "Az AI üres választ küldött." else answer
+                    if (direct) JarvisAiTools.fromProvider(body, question)
+                    else JarvisAiTools.fromServer(body, question)
                 }
-                401 -> if (direct) "Az OpenRouter API-kulcs érvénytelen vagy visszavonták."
-                    else "A tesztelői kód érvénytelen vagy visszavonták."
-                402 -> "Az OpenRouter-egyenleg vagy a kulcshoz tartozó keret nem elegendő."
-                403 -> "Az AI-hozzáférés nincs engedélyezve."
-                429 -> "Elérted az ideiglenes használati limitet. Próbáld később."
-                301, 302, 303, 307, 308 -> "A szerver átirányított; biztonsági okból megszakítottam."
-                else -> "Az AI-szolgáltató hibát jelzett (HTTP $status)."
+                401 -> JarvisAiOutcome(if (direct) "Az OpenRouter-kulcs érvénytelen vagy visszavonták."
+                    else "A tesztelői kód érvénytelen vagy visszavonták.")
+                402 -> JarvisAiOutcome("Az OpenRouter-egyenleg vagy a kulcshoz tartozó keret nem elegendő.")
+                403 -> JarvisAiOutcome("Az AI-hozzáférés nincs engedélyezve.")
+                429 -> JarvisAiOutcome("Elérted az ideiglenes használati limitet. Próbáld később.")
+                301, 302, 303, 307, 308 -> JarvisAiOutcome(
+                    "A szerver átirányított; biztonsági okból megszakítottam.")
+                else -> JarvisAiOutcome("Az AI-szolgáltató hibát jelzett (HTTP $status).")
             }
         } catch (_: Exception) {
-            "Nem sikerült kapcsolódni az AI-hoz. Ellenőrizd az internetet és a megadott kulcsot."
+            JarvisAiOutcome("Nem sikerült kapcsolódni az AI-hoz. Ellenőrizd az internetet és a kulcsot.")
         } finally {
             connection?.disconnect()
         }

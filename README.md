@@ -1,5 +1,11 @@
 # Jarvis Mobile — Android (Kotlin) & iOS (Swift)
 
+## Android 0.2.3-dev — guarded AI → native Android tool execution (test)
+
+Real function-calling now connects both the direct OpenRouter chat mode and the self-hosted server mode to the installed Jarvis Android UI. The AI can *propose* opening one existing menu page. The Android app independently checks that the original user explicitly requested opening something, rejects unsupported functions, extra parameters and multiple actions, and then navigates through its existing foreground handlers. Voice requests wait for the Jarvis foreground activity. Ordinary generated text cannot execute commands.
+
+This is an **allowlisted navigation bridge**, not unrestricted Android automation. Sending messages, account actions, system settings modification, background automation, deleting data, or autonomous self-repair are **not** enabled. The hosted server must be deployed/updated separately to use its mode; the OpenRouter direct mode still requires each tester's individual key. Security and manual test plan: [docs/AI_TOOL_BRIDGE_023.md](docs/AI_TOOL_BRIDGE_023.md).
+
 ## Android 0.2.2-dev — Jarvis identity and tool awareness
 
 Jarvis' AI system messages identify the Jarvis Mobile app separately from its underlying AI provider. A local offline self-description reads the real Android menu catalog, so questions such as "Ki vagy?", "Mire vagy képes?" or "Listázd az összes eszközöd" no longer return generic AI-provider descriptions. Existing local commands remain deterministic; explicit page-opening requests now also reach the Munka, Ismerősök and Névjegyek pages in text and voice. Topic questions no longer inadvertently open an app. The LLM still cannot independently execute arbitrary Android actions or access private accounts. See the Android debug APK workflow and regression tests; physical-device testing is still required.

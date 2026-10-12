@@ -95,21 +95,24 @@ fun JarvisApp(context: Context) {
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val drawerScope = rememberCoroutineScope()
     var pendingCall by remember { mutableStateOf<VoiceCalling.Target?>(null) }
-    fun openTool(destination: String) {
+    fun openTool(destination: String): String {
         if (destination == "Navigáció" || destination == "Térkép") {
-            if (!openMap(context)) {
-                conversation.add("Navigáció" to "Nem találok telepített térképalkalmazást.")
-                page = "Főoldal"
-            }
-        } else if (destination == "Jegyzetek") {
+            val opened = openMap(context)
+            if (!opened) page = "Főoldal"
+            return if (opened) "A térképkérést átadtam az Androidnak."
+                else "Nem találok telepített térképalkalmazást."
+        }
+        if (destination == "Jegyzetek") {
             val result = JarvisExternalApps.openNotes(context)
-            if (result != AppHandoffResult.OPENED) {
-                page = "Főoldal"
-                conversation.add("Jegyzetek" to if (result == AppHandoffResult.SEARCH_OPENED)
-                    "Jegyzetalkalmazást keresek a Play Áruházban."
-                    else "Nem sikerült megnyitni a telefon jegyzetalkalmazását.")
+            if (result != AppHandoffResult.OPENED) page = "Főoldal"
+            return when (result) {
+                AppHandoffResult.OPENED -> "Megnyitottam a telefon jegyzetalkalmazását."
+                AppHandoffResult.SEARCH_OPENED -> "Jegyzetalkalmazást keresek a Play Áruházban."
+                AppHandoffResult.UNAVAILABLE -> "Nem sikerült megnyitni a jegyzetalkalmazást."
             }
-        } else page = destination
+        }
+        page = destination
+        return "Megnyitottam a Jarvis $destination oldalát."
     }
     fun executeHome(command: String) {
         if (command.isBlank()) return
@@ -118,7 +121,8 @@ fun JarvisApp(context: Context) {
             conversation.add(pending)
             if (conversation.size > 50) conversation.removeAt(0)
             drawerScope.launch {
-                val answer = JarvisAiGateway.ask(context, command)
+                val outcome = JarvisAiGateway.askStructured(context, command)
+                val answer = outcome.route?.let { openTool(it) } ?: outcome.message
                 val index = conversation.indexOf(pending)
                 if (index >= 0) conversation[index] = command to answer
             }

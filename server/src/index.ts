@@ -2,6 +2,7 @@ import http, { type IncomingMessage, type ServerResponse } from "node:http";
 import { createHash, timingSafeEqual } from "node:crypto";
 import { createRemoteJWKSet, jwtVerify } from "jose";
 import { createClient } from "redis";
+import { JARVIS_TOOLS, verifiedToolCall } from "./toolCalls.js";
 
 function required(name: string): string {
   const v = process.env[name]?.trim();
@@ -70,7 +71,7 @@ Jelenlegi Android-tesztverzió:
 - Engedélyhez kötött üzenetértesítések, támogatott gyorsválasz, külső WhatsApp/Messenger üzenet-előkészítés.
 - Helyi vércukornapló, számlatervezetek PDF-megosztása, jegyzetalkalmazás megnyitása, kísérleti ébresztő, világos/sötét mód, fájlválasztás.
 - Gmail-kereső vagy UC bejelentkezési oldal megnyitása, de nem teljes Gmail- vagy UC-fiók olvasása.
-Korlátok: a modell szöveges válasza önmagában nem képes alkalmazásoldalt, Android-eszközt vagy PC-t irányítani;
+Az open_jarvis_page függvénnyel CSAK egy menüpont megnyitását javasolhatod. Ezt a telefon külön ellenőrzi; ne állítsd, hogy te végrehajtottad.\nKorlátok: a modell szöveges válasza önmagában nem képes alkalmazásoldalt, Android-eszközt vagy PC-t irányítani;
 nem férsz hozzá automatikusan a készülék élő állapotához, üzenet- vagy fájltartalmához;
 nincs mobilos önjavítás, önálló kódmódosítás, önálló release, automatikus Gmail- vagy WhatsApp-üzenetküldés, EXE-futtatás.
 Csak valós, visszaigazolt végrehajtásról állíthatsz sikert; a tervezett funkciókról ne beszélj úgy, mintha már működnének.
@@ -176,6 +177,8 @@ const server = http.createServer(async (req, res) => {
             { role: "system", content: JARVIS_SYSTEM_PROMPT },
             { role: "user", content: message }
           ],
+          tools: JARVIS_TOOLS,
+          tool_choice: "auto",
           stream: false,
           max_tokens: MAX_OUTPUT_TOKENS
         }),
@@ -186,18 +189,27 @@ const server = http.createServer(async (req, res) => {
     }
     if (!upstream.ok) return reply(res, 502, { error: "PROVIDER_ERROR" });
     const modelReply = await upstream.json() as {
-      choices?: Array<{ message?: { content?: unknown } }>;
+      choices?: Array<{ message?: { content?: unknown; tool_calls?: unknown } }>;
       usage?: { total_tokens?: number };
     };
-    const answer = modelReply.choices?.[0]?.message?.content;
-    if (typeof answer !== "string") {
-      return reply(res, 502, { error: "PROVIDER_BAD_REPLY" });
+    const messageData = modelReply.choices?.[0]?.message;
+    const hasToolCalls = messageData && "tool_calls" in messageData &&
+      messageData.tool_calls != null;
+    const action = hasToolCalls ? verifiedToolCall(messageData.tool_calls) : null;
+    const answer = messageData?.content;
+    if (!action && (hasToolCalls || typeof answer !== "string")) {
+      return reply(res, 502, { error: "INVALID_PROVIDER_TOOL_CALL" });
     }
     const used = modelReply.usage?.total_tokens;
     if (typeof used === "number" && Number.isFinite(used) && used >= 0) {
       await redis.incrBy("tokens:" + subject + ":" + month, Math.ceil(used));
     }
-    reply(res, 200, { reply: answer, ai: true });
+    if (action) {
+      // Proposal ONLY: the Android client rechecks every argument and permission.
+      reply(res, 200, { reply: "Az alkalmazás ellenőrzi a kért menüpontot.", ai: true, action });
+    } else {
+      reply(res, 200, { reply: answer, ai: true });
+    }
   } catch {
     reply(res, 503, { error: "SERVICE_UNAVAILABLE" });
   }

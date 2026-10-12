@@ -26,6 +26,8 @@ jobs:
         run: cd server && npm install --no-audit --no-fund
       - name: TypeScript strict type check
         run: cd server && npm run typecheck
+      - name: Server AI tool-call regression tests
+        run: cd server && npm test
       - name: Validate private HTTPS Docker deployment configuration
         shell: bash
         run: |

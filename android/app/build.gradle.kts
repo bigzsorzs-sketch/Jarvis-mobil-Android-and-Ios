@@ -10,8 +10,8 @@ android {
         applicationId = "ai.jarvis.mobile"
         minSdk = 26
         targetSdk = 35
-        versionCode = 13
-        versionName = "0.2.2-dev"
+        versionCode = 14
+        versionName = "0.2.3-dev"
     }
     buildTypes {
         release {
@@ -38,4 +38,5 @@ dependencies {
     implementation("androidx.compose.ui:ui-tooling-preview")
     debugImplementation("androidx.compose.ui:ui-tooling")
     testImplementation("junit:junit:4.13.2")
+    testImplementation("org.json:json:20240303")
 }
