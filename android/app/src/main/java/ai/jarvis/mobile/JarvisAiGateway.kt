@@ -238,7 +238,8 @@ internal object JarvisAiGateway {
 
             // Never force function calling for ordinary chat. Some OpenRouter
             // providers support this model for text but return 404 with tools.
-            val payload = if (direct) JarvisAiToolPolicy.providerPayload(question)
+            val payload = if (direct) JarvisAiToolPolicy.providerPayload(
+                question, JarvisLanguageSettings.load(context.applicationContext).tag)
                 else JSONObject().put("message", question)
 
             connection.outputStream.use { it.write(payload.toString().toByteArray(Charsets.UTF_8)) }
