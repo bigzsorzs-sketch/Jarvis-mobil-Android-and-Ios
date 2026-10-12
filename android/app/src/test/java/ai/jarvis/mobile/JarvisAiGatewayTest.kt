@@ -39,7 +39,7 @@ class JarvisAiGatewayTest {
         assertFalse(direct.contains("érvénytelen"))
         val server = JarvisAiGateway.http404Message(false)
         assertTrue(server.contains("/v1/chat"))
-        assertTrue(server.contains("Saját"))
+        assertTrue(server.contains("saját Jarvis-szerver"))
         assertFalse(server.contains("sk-or-"))
     }
 
