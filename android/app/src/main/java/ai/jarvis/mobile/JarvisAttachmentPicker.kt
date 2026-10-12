@@ -1,5 +1,7 @@
 package ai.jarvis.mobile
 
+import ai.jarvis.mobile.LocalizedText as Text
+
 import android.content.Context
 import android.net.Uri
 import android.graphics.BitmapFactory
