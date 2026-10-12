@@ -19,9 +19,11 @@ internal class JarvisDictation(private val context: Context) {
     private var recognizer: SpeechRecognizer? = null
 
     fun stop() {
-        recognizer?.cancel()
-        recognizer?.destroy()
+        val active = recognizer
         recognizer = null
+        active?.setRecognitionListener(null)
+        active?.cancel()
+        active?.destroy()
     }
 
     fun start(
