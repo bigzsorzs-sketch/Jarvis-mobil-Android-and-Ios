@@ -28,6 +28,7 @@ internal object HandsFreeStatus {
 }
 internal data class PendingPhoneApp(val action: String, val createdAtMs: Long)
 internal data class PendingNativeAction(val action: String, val original: String, val createdAtMs: Long)
+internal data class PendingInstalledApp(val original: String, val createdAtMs: Long)
 internal data class PendingSequence(val plan: JarvisSequencePlan, val createdAtMs: Long)
 internal data class PendingExternalTask(val task: HandoffTask, val createdAtMs: Long)
 
@@ -36,6 +37,7 @@ internal object HandsFreeNavigation {
     var destination by mutableStateOf<String?>(null)
     var deviceAction by mutableStateOf<PendingPhoneApp?>(null)
     var nativeAction by mutableStateOf<PendingNativeAction?>(null)
+    var installedApp by mutableStateOf<PendingInstalledApp?>(null)
     var sequence by mutableStateOf<PendingSequence?>(null)
     var mapTarget by mutableStateOf<String?>(null)
     var mailDraft by mutableStateOf<EmailDraft?>(null)
@@ -404,6 +406,24 @@ class HandsFreeService : Service(), RecognitionListener {
                 speak("Előkészítettem a kért Android-műveletet. " +
                     "Előtérben lévő Jarvisból, harminc másodpercen belül nyitható meg.")
             }
+            return
+        }
+        // Only the foreground activity may launch third-party apps. Never
+        // execute a background or lock-screen activity start.
+        val userApp = JarvisInstalledApps.choose(command, JarvisInstalledApps.list(this))
+        if (userApp is AppSelection.Found || userApp is AppSelection.Ambiguous ||
+            (userApp is AppSelection.Missing &&
+                BasicCommandRouter.classify(command) == BasicAction.UNKNOWN &&
+                JarvisCapabilities.localPageToOpen(command) == null)) {
+            if (!privateVoiceAllowed()) speak("A telefon zárolva van. Előbb oldd fel.")
+            else if (userApp is AppSelection.Found) {
+                HandsFreeNavigation.installedApp = PendingInstalledApp(
+                    command, SystemClock.elapsedRealtime())
+                speak("A telepített alkalmazás megnyitása előkészítve. " +
+                    "Hozd előtérbe Jarvist harminc másodpercen belül.")
+            } else speak(if (userApp is AppSelection.Ambiguous)
+                "Több ilyen nevű alkalmazás van; válassz az Alkalmazások oldalon."
+                else "Nincs ilyen nevű telepített alkalmazás.")
             return
         }
         if (VoiceIntentParser.isReadMessage(command)) {
