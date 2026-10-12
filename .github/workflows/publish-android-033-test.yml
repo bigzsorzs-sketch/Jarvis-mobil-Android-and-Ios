@@ -1,4 +1,4 @@
-name: Publish Jarvis Android 0.2.13 test APK
+name: Publish Jarvis Android 0.2.16 test APK
 on:
   workflow_run:
     workflows: ["Build Android APK"]
@@ -57,8 +57,8 @@ jobs:
           set -euo pipefail
           test -s dist/app-debug.apk
           unzip -t dist/app-debug.apk >/dev/null
-          mv dist/app-debug.apk dist/Jarvis-Mobile-Android-0.2.13-test.apk
-          sha256sum dist/Jarvis-Mobile-Android-0.2.13-test.apk > dist/SHA256SUMS.txt
+          mv dist/app-debug.apk dist/Jarvis-Mobile-Android-0.2.16-test.apk
+          sha256sum dist/Jarvis-Mobile-Android-0.2.16-test.apk > dist/SHA256SUMS.txt
       - name: Publish test-only GitHub prerelease
         shell: bash
         env:
@@ -68,23 +68,24 @@ jobs:
           set -euo pipefail
           main_sha="$(gh api "repos/${{ github.repository }}/git/ref/heads/main" --jq '.object.sha')"
           test "$main_sha" = "$RUN_SHA"
-          tag="v0.2.13-dev-test.1"
+          tag="v0.2.16-dev-test.1"
           if gh release view "$tag" --repo "${{ github.repository }}" >/dev/null 2>&1; then
             echo "Existing release kept intact."
             exit 0
           fi
           cat > /tmp/JARVIS_TEST_NOTES.md <<'EOF'
-          ## Jarvis Mobile Android 0.2.13 – TESZT
+          ## Jarvis Mobile Android 0.2.16 – EGYBEN TESZT
 
-          A telepítő a sikeres Kotlin-, Android Lint-, debug/release fordítás és az azonos commiton futó Android UI-emulátoros ellenőrzés után készül.
+          Az Android 0.2.13 óta összes eddigi main fejlesztés + a 7 nyelvű számlázó fejlesztés egy APK-ban.
+          A kiadás csak a sikeres Kotlin-tesztek, Android Lint, debug/release fordítás, és az azonos commiton futó Android-emulátoros UI-teszt után történik.
 
-          - A főoldalon van az egyetlen Jarvis üzenet- és hangbeviteli mező; az összes aloldal aljáról eltűnt a duplikált mező és az utolsó AI-válasz ismétlése.
-          - A Jarvis gömb és a fejlécrész feljebb került és kompaktabb, így több hely marad a beszélgetésnek.
-          - A főoldali chat időrendben jeleníti meg külön a felhasználó és Jarvis buborékjait, alul az új üzenetekkel.
-          - A titkosított helyi chatnaplóból az Előzmények oldalon túl a főoldalon is betölthetők a régebbi beszélgetések; 50-es lapokban, stabil adatbázis-kurzorral.
-          - A hangvezérlés és az Android által engedélyezett helyi Jarvis-műveletek továbbra is a főoldali parancsokat használják.
-          - Jarvis saját működése és a külső appok kezelése különbözik: a telefonon más alkalmazás privát felületének tetszőleges vezérlése nélkülözhetetlen Android-hozzáférést, külső alkalmazás-API-t vagy külön, felhasználó által engedélyezett szolgáltatást igényel. Ez a verzió nem állít korlátlan appvezérlést.
-          - Belső tesztverzió. Biztonsági mentés nélkül ne távolítsd el a telepített változatot; más debug aláírás miatt helyi beszélgetések elveszhetnek.
+          - Teljes menü- és AI-válasznyelv-választás: magyar, angol, német, francia, spanyol, olasz, lengyel.
+          - Vércukor: helyi napló, LibreView CSV-import, összesítés, hivatalos LibreLink NFC-átadás, engedélyezett Health Connect lekérdezés (nem közvetlen Abbott-szenzorprotokoll).
+          - Új számlázás: ügyfelek és céges adatok helyi titkosított tárolása, számlák, ajánlatok, GBP/VAT mezők, PDF, fizetési státuszok.
+          - Számlázási hangvezérlés és nyelvfüggő PDF. A felhasználó által kézzel rögzített ügyfeleknek közvetlen Gmail SMTP-küldés alkalmazásjelszóval; valódi fiókkal még ellenőrizni kell. SMTP-visszaigazolás nem garantál postaládába kézbesítést.
+          - AI-agy: helyi, titkosított OpenRouter BYOK-kulcs, nem beágyazott megosztott API-kulcs. Korlátozott Android-parancsvégrehajtás, nem korlátlan más app vezérlés.
+          - Ez DEBUG-ALÁÍRÁSÚ, ellenőrzött TESZT APK, nem végleges pénzügyi vagy orvostechnikai termék. Számlázási jogi/VAT-megfelelőség és élő Gmail-teszt szükséges.
+          - MEGJEGYZÉS: a 0.2.13-dev verziót másik GitHub Actions gép írhatta alá. Ha Android szerint eltér az aláírás, a frissítés nem települ rá. MENTSD az alkalmazás adatait mielőtt eltávolítod: a törlés elveszítheti a titkosított jegyzeteket, chatet, ügyfeleket és egyéb adatokat. A régi titkosított adatok a régi app nélkül nem feltétlenül exportálhatók.
           EOF
-          gh release create "$tag"             "dist/Jarvis-Mobile-Android-0.2.13-test.apk"             "dist/SHA256SUMS.txt"             --repo "${{ github.repository }}"             --target "$RUN_SHA"             --title "Jarvis Mobile Android 0.2.13 – TESZT"             --notes-file /tmp/JARVIS_TEST_NOTES.md             --prerelease             --latest=false
+          gh release create "$tag"             "dist/Jarvis-Mobile-Android-0.2.16-test.apk"             "dist/SHA256SUMS.txt"             --repo "${{ github.repository }}"             --target "$RUN_SHA"             --title "Jarvis Mobile Android 0.2.16 – TESZT"             --notes-file /tmp/JARVIS_TEST_NOTES.md             --prerelease             --latest=false
 

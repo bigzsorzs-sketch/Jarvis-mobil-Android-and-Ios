@@ -87,6 +87,7 @@ private val Soft: Color @Composable get() = JarvisPalette.subtleText
 @Composable
 fun JarvisApp(context: Context) {
     val securePrefs = remember { SecurePrefs(context) }
+    val billingRepo = remember(context) { BillingRepository(context) }
     var language by remember { mutableStateOf(JarvisLanguageSettings.load(context)) }
     val selectLanguage: (JarvisLanguage) -> Unit = { selected ->
         if (language != selected) {
@@ -233,6 +234,21 @@ fun JarvisApp(context: Context) {
             drawerScope.launch {
                 val result = JarvisGlucoseVoice.reply(context, language)
                 if (requestRevision == commandRevision) addHistory(command to result)
+            }
+            return
+        }
+        if (BillingVoice.isCandidate(command)) {
+            if (BillingVoice.isOpen(command)) {
+                addHistory(command to openTool("Számlák", asPage = true))
+            } else {
+                drawerScope.launch {
+                    val chosenLanguage = language
+                    val answer = withContext(Dispatchers.IO) {
+                        BillingVoice.execute(context, BillingRepository(context), command, chosenLanguage)
+                    }
+                    billingRepo.refresh()
+                    if (requestRevision == commandRevision) addHistory(command to answer)
+                }
             }
             return
         }
@@ -603,9 +619,7 @@ fun JarvisApp(context: Context) {
                                 "Vércukor" -> JarvisGlucoseDashboard(context, readings) {
                                     securePrefs.write("readings", writeReadings(readings))
                                 }
-                                "Számlák" -> InvoiceScreen(context, invoices) {
-                                    securePrefs.write("invoices", writeInvoices(invoices))
-                                }
+                                "Számlák" -> JarvisBillingScreen(context, billingRepo, language)
                                 "Jegyzetek" -> LocalNotesScreen(notes) {
                                     securePrefs.write("notes", JSONArray(notes).toString())
                                 }
