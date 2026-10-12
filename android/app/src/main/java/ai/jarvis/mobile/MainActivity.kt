@@ -231,6 +231,21 @@ fun JarvisApp(context: Context) {
         pendingMessageUntilMs = 0L
         pendingSequence = null
         pendingSequenceUntilMs = 0L
+        // A visible, authorized notification preview is local data, not an AI prompt.
+        if (VoiceIntentParser.isReadMessage(command)) {
+            val source = VoiceIntentParser.messengerHint(command)
+            val notice = MessageBuffer.notices.firstOrNull {
+                source == null || it.appName.contains(source, ignoreCase = true)
+            }
+            if (notice == null) {
+                addHistory(command to "Nincs olvasható üzenetértesítés. Ellenőrizd az értesítési hozzáférést.")
+            } else {
+                val reply = notice.sender + ": " + notice.body
+                narrator.read(reply, language)
+                addHistory(command to reply)
+            }
+            return
+        }
         // Read-aloud is a device action. It does not ask a model to synthesize audio.
         // Dedicated local data readers always take precedence over generic TTS.
         val readAloud = if (JarvisGlucoseVoice.isQuery(command) ||
