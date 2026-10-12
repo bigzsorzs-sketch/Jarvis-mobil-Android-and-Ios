@@ -74,28 +74,51 @@ internal object JarvisCapabilities {
             "és nem látom automatikusan a telefon teljes tartalmát."
     }
 
-    /**
-     * Only clearly imperative requests, and only routes implemented by Jarvis.
-     * Existing alarm, map, email, glucose etc. commands keep their own handlers.
-     */
+    /** Menu and nested settings share the same offline navigation for voice/text.
+     * Explicit page requests take priority; ordinary phone-app requests retain
+     * their existing native Android handoffs. */
     fun localPageToOpen(raw: String): String? {
-        val n = normalized(raw)
-        val openRequest = listOf("nyisd meg", "nyitnad meg", "mutasd", "lepj a",
-            "lepj be", "open ", "show ", "go to ").any { it in n }
-        if (!openRequest || isDiscoveryRequest(raw)) return null
-        val route = when {
-            Regex("\\bismeros").containsMatchIn(n) -> "Ismerősök"
-            Regex("\\bnevjegy").containsMatchIn(n) -> "Névjegyek"
-            Regex("\\belozmeny").containsMatchIn(n) ||
-                n.contains("chat history") -> "Előzmények"
-            Regex("\\balkalmazasok").containsMatchIn(n) ||
-                Regex("\\bappok").containsMatchIn(n) -> "Alkalmazások"
-            Regex("\\bmunka\\b").containsMatchIn(n) ||
-                n.contains("eszkoztar") -> "Munka"
-            else -> null
+        val command = VoiceIntentParser.afterWakeWord(raw)?.takeIf { it.isNotBlank() } ?: raw
+        val n = normalized(command)
+        if (!JarvisAiTools.userAskedToOpen(command) || isDiscoveryRequest(command) ||
+            JarvisSystemPanels.identify(command) != null ||
+            Regex("""\b(ne|nem|dont|never|not|torold|delete|kuldd|send|fizess|pay|es|and|majd|then|aztan)\b""")
+                .containsMatchIn(n)) return null
+        val aliases = mapOf(
+            "Főoldal" to listOf("kezdolap", "home"),
+            "Munka" to listOf("eszkoztar", "eszkozok", "work"),
+            "Navigáció" to listOf("terkep", "maps"),
+            "Alkalmazások" to listOf("appok", "installed apps"),
+            "Előzmények" to listOf("chat history", "beszelgetesnaplo"),
+            "Vércukor" to listOf("vercukornaplo", "glucose"),
+            "Számlák" to listOf("szamlazas", "invoice"),
+            "Üzenetek" to listOf("messages"),
+            "Névjegyek" to listOf("nevjegy", "hivas", "contacts"),
+            "Beállítások" to listOf("settings"),
+            "Jegyzetek" to listOf("helyi jegyzetek"),
+            "Hangbeállítások" to listOf("hangvezerles", "hangfigyeles", "voice settings"),
+            "Engedélyek" to listOf("engedelykozpont", "permissions"),
+            "Továbbiak" to listOf("otthoni cim", "esemeny hozzaadasa",
+                "jarvis ebreszto kezelese")
+        )
+        val matches = (JarvisToolCatalog.all + JarvisToolCatalog.subpages).filter { tool ->
+            (listOf(tool.name, tool.route) + aliases[tool.route].orEmpty()).any { alias ->
+                Regex("""\b${Regex.escape(normalized(alias))}[a-z]{0,8}\b""")
+                    .containsMatchIn(n)
+            }
+        }.map { it.route }.toMutableSet()
+        // A named nested Settings page is more specific than its parent.
+        if (matches.any { it in setOf("AI-agy", "Hangbeállítások", "Engedélyek") }) {
+            matches.remove("Beállítások")
         }
-        return route?.takeIf { selected ->
-            JarvisToolCatalog.all.any { it.route == selected }
+        if ("Továbbiak" in matches) matches.remove("Ébresztő")
+        val route = matches.singleOrNull() ?: return null
+        val explicitPage = Regex("""\b(oldal[a-z]*|menu[a-z]*|kepernyo[a-z]*|page|screen)\b""")
+            .containsMatchIn(n)
+        if (!explicitPage && route in setOf("Navigáció", "Email", "Naptár", "Ébresztő")) {
+            return null
         }
+        return route
     }
 }
+

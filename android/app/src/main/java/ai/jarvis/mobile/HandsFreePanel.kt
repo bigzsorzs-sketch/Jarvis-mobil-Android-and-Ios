@@ -45,14 +45,16 @@ internal fun HandsFreePanel(context: Context) {
     val request = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
-        if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) start()
+        if (RuntimePermissionPolicy.mayStartVoice(
+                ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
+                    PackageManager.PERMISSION_GRANTED, permissions)) start()
         else issue = "Hangfigyeléshez mikrofonengedély szükséges."
     }
     Card(colors = CardDefaults.cardColors(containerColor = JarvisPalette.panel)) {
         Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text("🎙️ Hey Jarvis – kéz nélküli mód (BÉTA)",
                 color = JarvisPalette.mainText, fontWeight = FontWeight.Bold)
-            Text("Indítsd el, majd mondd: Hey Jarvis. Az üzeneteket felolvasom, " +
+            Text("Indítsd el, majd mondd: Jarvis vagy Hey Jarvis. Az üzeneteket felolvasom, " +
                 "a válaszokat csak az igen/nem megerősítésed után adom át a gyorsválasznak.",
                 color = JarvisPalette.subtleText)
             Text("Időkorlát: 15 perc. A telefon beszédfelismerőjét használja, " +
@@ -99,3 +101,4 @@ internal fun HandsFreePanel(context: Context) {
         }
     }
 }
+

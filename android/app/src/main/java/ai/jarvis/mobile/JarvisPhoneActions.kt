@@ -49,6 +49,9 @@ internal object JarvisPhoneActions {
     }
 
     /** App launch/handoff is not proof that any user action was completed. */
+    fun requestedAction(original: String): String? =
+        supported.singleOrNull { authorized(it, original) }
+
     fun execute(context: Context, action: String): String = when (action) {
         "calendar" -> if (openCalendar(context)) "Átadtam a naptár megnyitását az Androidnak."
             else "Nem sikerült elindítani a naptárat."
@@ -63,3 +66,4 @@ internal object JarvisPhoneActions {
         else -> "Ismeretlen telefonos művelet. Nem történt végrehajtás."
     }
 }
+

@@ -61,6 +61,7 @@ class HandsFreeService : Service(), RecognitionListener {
     private var recognizer: SpeechRecognizer? = null
     private var tts: TextToSpeech? = null
     private var ttsReady = false
+    private var usingOnDeviceRecognizer = false
     private var running = false
     private var speaking = false
     private var errors = 0
@@ -175,14 +176,29 @@ class HandsFreeService : Service(), RecognitionListener {
             }
         }
         try {
-            recognizer = if (Build.VERSION.SDK_INT >= 31 &&
-                SpeechRecognizer.isOnDeviceRecognitionAvailable(this)) {
-                SpeechRecognizer.createOnDeviceSpeechRecognizer(this)
-            } else SpeechRecognizer.createSpeechRecognizer(this)
-            recognizer?.setRecognitionListener(this)
+            usingOnDeviceRecognizer = Build.VERSION.SDK_INT >= 31 &&
+                SpeechRecognizer.isOnDeviceRecognitionAvailable(this)
+            createRecognizer()
             again(450)
-        } catch (_: Exception) { shutdown("Nem indítható a beszédfelismerő.") }
+        } catch (_: Exception) {
+            if (usingOnDeviceRecognizer) {
+                usingOnDeviceRecognizer = false
+                try {
+                    createRecognizer()
+                    again(450)
+                } catch (_: Exception) { shutdown("Nem indítható a beszédfelismerő.") }
+            } else shutdown("Nem indítható a beszédfelismerő.")
+        }
         return START_NOT_STICKY
+    }
+
+    private fun createRecognizer() {
+        recognizer?.setRecognitionListener(null)
+        recognizer?.destroy()
+        recognizer = if (usingOnDeviceRecognizer && Build.VERSION.SDK_INT >= 31)
+            SpeechRecognizer.createOnDeviceSpeechRecognizer(this)
+        else SpeechRecognizer.createSpeechRecognizer(this)
+        recognizer?.setRecognitionListener(this)
     }
 
     private fun again(delay: Long) {
@@ -199,12 +215,12 @@ class HandsFreeService : Service(), RecognitionListener {
             HandsFreeStatus.status = when {
                 proposed != null -> "Megerősítést várok: igen vagy nem"
                 awaitingCommand -> "Figyelek a parancsodra"
-                else -> "Mondd: Hey Jarvis"
+                else -> "Mondd: Jarvis vagy Hey Jarvis"
             }
             recognizer?.startListening(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE, "hu-HU")
-                putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
+                putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, usingOnDeviceRecognizer)
                 putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
             })
         } catch (_: Exception) {
@@ -380,6 +396,18 @@ class HandsFreeService : Service(), RecognitionListener {
             now < replyWindowUntil && VoiceIntentParser.replyDraft(heard) != null -> heard
             else -> { again(600); return }
         }
+        // A newer local command also invalidates a previous cloud proposal.
+        aiJob?.cancel()
+        aiJob = null
+        JarvisCapabilities.localPageToOpen(command)?.let { route ->
+            if (!privateVoiceAllowed()) {
+                speak("A telefon zárolva van. Az oldal megnyitásához előbb oldd fel.")
+            } else {
+                HandsFreeNavigation.destination = route
+                speak("Megnyitom a Jarvis $route oldalát, amint Jarvis előtérben van.")
+            }
+            return
+        }
         val sequence = JarvisSequence.plan(command)
         if (sequence != null) {
             if (!privateVoiceAllowed()) {
@@ -423,11 +451,13 @@ class HandsFreeService : Service(), RecognitionListener {
         }
         // Only the foreground activity may launch third-party apps. Never
         // execute a background or lock-screen activity start.
+        val phoneAction = JarvisPhoneActions.requestedAction(command)
         val userApp = if (JarvisInstalledApps.requestedLabel(command) != null)
             JarvisInstalledApps.choose(command, JarvisInstalledApps.list(this))
         else AppSelection.NotARequest
         if (userApp is AppSelection.Found || userApp is AppSelection.Ambiguous ||
             (userApp is AppSelection.Missing &&
+                phoneAction == null &&
                 BasicCommandRouter.classify(command) == BasicAction.UNKNOWN &&
                 JarvisCapabilities.localPageToOpen(command) == null)) {
             if (!privateVoiceAllowed()) speak("A telefon zárolva van. Előbb oldd fel.")
@@ -615,6 +645,20 @@ class HandsFreeService : Service(), RecognitionListener {
             speak("A Jarvis $route oldalát megnyitom, amint az alkalmazás előtérbe kerül.")
             return
         }
+        // Known system app requests must work locally, like typed commands.
+        // The older BasicAction fallback refused these even in the foreground.
+        if (phoneAction != null) {
+            if (!privateVoiceAllowed()) {
+                speak("A telefon zárolva van. Az alkalmazás megnyitásához oldd fel.")
+            } else {
+                HandsFreeNavigation.deviceAction = PendingPhoneApp(
+                    phoneAction, SystemClock.elapsedRealtime())
+                speak(if (HandsFreeNavigation.appIsForeground)
+                    "Átadom a kért alkalmazás megnyitását az Androidnak."
+                else "Az alkalmazás megnyitása előkészítve. Hozd előtérbe Jarvist harminc másodpercen belül.")
+            }
+            return
+        }
         val action = if (JarvisMessageIntent.parse(command) != null)
             BasicAction.UNKNOWN else BasicCommandRouter.classify(command)
         when (action) {
@@ -741,6 +785,24 @@ class HandsFreeService : Service(), RecognitionListener {
         HandsFreeStatus.userSpeaking = false
         HandsFreeStatus.micLevel = 0f
         if (!running || speaking) return
+        if (VoiceRecognitionPolicy.needsSystemFallback(usingOnDeviceRecognizer, error)) {
+            // Availability of an offline recognizer does not imply a Hungarian model.
+            usingOnDeviceRecognizer = false
+            errors = 0
+            try {
+                createRecognizer()
+                HandsFreeStatus.status = "A telefon alapértelmezett magyar beszédfelismerőjére váltok."
+                again(450)
+            } catch (_: Exception) {
+                shutdown("Nem érhető el magyar beszédfelismerő. Ellenőrizd a telefon hangbeállításait.")
+            }
+            return
+        }
+        if (error == SpeechRecognizer.ERROR_LANGUAGE_NOT_SUPPORTED ||
+            error == SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE) {
+            shutdown("A magyar beszédfelismerés nem érhető el. Engedélyezd vagy töltsd le a magyar nyelvet a telefon hangbeállításaiban.")
+            return
+        }
         if (error == SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS) {
             shutdown("A mikrofonengedély megszűnt.")
             return
@@ -787,3 +849,4 @@ class HandsFreeService : Service(), RecognitionListener {
         super.onDestroy()
     }
 }
+

@@ -13,14 +13,14 @@ internal object VoiceIntentParser {
         Normalizer.normalize(value.lowercase(Locale.ROOT), Normalizer.Form.NFD)
             .replace(Regex("\\p{M}+"), "").trim()
 
-    private val wakeWords = listOf("hey jarvis", "hej jarvis", "he jarvis", "szia jarvis", "ok jarvis", "okay jarvis")
     fun afterWakeWord(raw: String): String? {
         val normal = normalize(raw)
-        val match = wakeWords.mapNotNull { phrase ->
-            val index = normal.indexOf(phrase)
-            if (index >= 0) index + phrase.length else null
-        }.minOrNull() ?: return null
-        return raw.substring(match.coerceAtMost(raw.length)).trim().trimStart(',', '.', '!', ':', ' ')
+        // ASR may insert punctuation between the greeting and the name.
+        // Bare "Jarvis" is accepted only at the start, never a passing mention.
+        val match = Regex("""\b(?:hey|hej|he|szia|ok|okay)[,\s]+jarvis\b|^jarvis\b""")
+            .find(normal) ?: return null
+        return raw.substring((match.range.last + 1).coerceAtMost(raw.length))
+            .trim().trimStart(',', '.', '!', ':', ' ')
     }
 
     fun isStop(raw: String): Boolean {
@@ -86,3 +86,4 @@ internal object VoiceIntentParser {
         return text.takeIf { it.isNotBlank() && it.length <= 500 }
     }
 }
+

@@ -33,6 +33,13 @@ internal object JarvisToolCatalog {
         JarvisTool("Ismerősök", "Ismerősök", "♡"),
         JarvisTool("Beállítások", "Beállítások", "⚙")
     )
+    // Actual destinations reachable from tool pages and Settings.
+    val subpages = listOf(
+        JarvisTool("Hangbeállítások", "Hangbeállítások", "≋"),
+        JarvisTool("AI-agy", "AI-agy", "✧"),
+        JarvisTool("Engedélyek", "Engedélyek", "✓"),
+        JarvisTool("Továbbiak", "Továbbiak", "▣")
+    )
 }
 
 @Composable
@@ -133,3 +140,4 @@ internal fun JarvisToolLanding(context: Context, page: String, onOpen: (String) 
         Text(message, color = JarvisPalette.accent)
     }
 }
+

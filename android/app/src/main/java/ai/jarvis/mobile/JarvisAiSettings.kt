@@ -19,7 +19,7 @@ internal fun JarvisAiSettings(context: Context) {
     var credential by remember { mutableStateOf("") }
     var status by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
-    var paired by remember { mutableStateOf(JarvisAiGateway.configured(context)) }
+    var paired by remember { mutableStateOf(JarvisAiGateway.hasSavedConnection(context)) }
     var cloudConsent by remember { mutableStateOf(JarvisAiGateway.cloudConsent(context)) }
     val scope = rememberCoroutineScope()
 
@@ -67,7 +67,8 @@ internal fun JarvisAiSettings(context: Context) {
             value = credential,
             onValueChange = { credential = it },
             singleLine = true,
-            label = { Text("OpenRouter API-kulcs") },
+            label = { Text(if (paired && selectedMode == savedMode)
+                "Új OpenRouter-kulcs (csak cseréhez)" else "OpenRouter API-kulcs") },
             visualTransformation = PasswordVisualTransformation(),
             modifier = Modifier.fillMaxWidth()
         )
@@ -77,6 +78,10 @@ internal fun JarvisAiSettings(context: Context) {
                 "Mindkét telefonra külön meg kell adni a saját kulcsot.",
             style = MaterialTheme.typography.bodySmall
         )
+        if (paired && selectedMode == savedMode) {
+            Text("A korábban mentett kulcsot megtartjuk. A hozzájárulás mentéséhez nem kell újra beírnod.",
+                style = MaterialTheme.typography.bodySmall)
+        }
     } else {
         Text("Szerveres mód: saját Jarvis HTTPS-kiszolgáló és tesztelői kód. " +
             "A megadott címhez Jarvis a /v1/chat útvonalat hívja. " +
@@ -94,6 +99,10 @@ internal fun JarvisAiSettings(context: Context) {
             visualTransformation = PasswordVisualTransformation(),
             modifier = Modifier.fillMaxWidth()
         )
+        if (paired && selectedMode == savedMode) {
+            Text("Azonos szervercímnél az üres kódmező megtartja a mentett hozzáférést.",
+                style = MaterialTheme.typography.bodySmall)
+        }
     }
 
     Spacer(Modifier.height(12.dp))
@@ -111,7 +120,6 @@ internal fun JarvisAiSettings(context: Context) {
             // Revocation takes effect immediately, even if the user does not
             // press Save. Any new cloud AI request is refused by the gateway.
             JarvisAiGateway.setCloudConsent(context, false)
-            paired = false
             status = "Az AI-kérdések továbbításához adott hozzájárulást visszavontam."
         }
     }
@@ -133,7 +141,7 @@ internal fun JarvisAiSettings(context: Context) {
                     JarvisAiGateway.setCloudConsent(context, true)
                     credential = ""
                     savedMode = selectedMode
-                    paired = JarvisAiGateway.configured(context)
+                    paired = JarvisAiGateway.hasSavedConnection(context)
                 }
                 status = error ?: "Hozzáférés és hozzájárulás mentve. Teszteld az AI-kapcsolatot!"
             }
@@ -163,7 +171,8 @@ internal fun JarvisAiSettings(context: Context) {
                 } finally { busy = false }
             }
         },
-        enabled = paired && selectedMode == savedMode && !busy
+        enabled = paired && selectedMode == savedMode &&
+            JarvisAiGateway.cloudConsent(context) && !busy
     ) { Text(if (busy) "Kapcsolódás..." else "AI-próbakérdés") }
 
     if (status.isNotEmpty()) {
@@ -186,3 +195,4 @@ private fun CheckboxRowCloudConsent(checked: Boolean, onChange: (Boolean) -> Uni
             style = MaterialTheme.typography.bodySmall)
     }
 }
+
