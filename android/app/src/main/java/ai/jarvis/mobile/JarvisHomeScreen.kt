@@ -205,12 +205,14 @@ internal fun JarvisHomeScreen(
                 onDismissRequest = onMessageDismiss,
                 title = { Text("Üzenetpiszkozat ellenőrzése") },
                 text = {
-                    Text(
-                        "Alkalmazás: " + pendingMessage.platform.name +
-                        "\nCímzett: " + pendingMessage.recipient +
-                        "\nSzöveg: " + pendingMessage.text +
-                        "\n\nA küldés csak a külső alkalmazásban történhet meg."
-                    )
+                    Column(Modifier.heightIn(max = 250.dp).verticalScroll(rememberScrollState())) {
+                        Text(
+                            "Alkalmazás: " + pendingMessage.platform.name +
+                            "\nCímzett: " + pendingMessage.recipient +
+                            "\nSzöveg: " + pendingMessage.text +
+                            "\n\nA küldés csak a külső alkalmazásban történhet meg."
+                        )
+                    }
                 },
                 confirmButton = {
                     TextButton(onClick = onMessageConfirm) { Text("Piszkozat megnyitása") }
