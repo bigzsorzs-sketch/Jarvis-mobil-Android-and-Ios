@@ -174,14 +174,11 @@ internal object JarvisAiGateway {
             connection.outputStream.use { it.write(payload.toString().toByteArray(Charsets.UTF_8)) }
             when (val status = connection.responseCode) {
                 200 -> {
-                    val response = connection.inputStream.use {
-                        val maxBytes = 256 * 1024
-                        val limited = it.readNBytes(maxBytes + 1)
-                        if (limited.size > maxBytes) {
-                            return@withContext JarvisAiOutcome(
-                                "Az AI-szerver válasza túl nagy volt; nem hajtottam végre eszközkérést.")
-                        }
-                        limited.toString(Charsets.UTF_8)
+                    val response = try {
+                        connection.inputStream.use { JarvisNetworkSafety.readUtf8Limited(it) }
+                    } catch (_: IllegalArgumentException) {
+                        return@withContext JarvisAiOutcome(
+                            "Az AI válasza túl nagy volt; semmilyen AI-eszközkérést nem hajtottam végre.")
                     }
                     val body = JSONObject(response)
                     if (direct) JarvisAiTools.fromProvider(body, question)
