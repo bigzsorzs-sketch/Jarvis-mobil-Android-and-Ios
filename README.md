@@ -1,5 +1,10 @@
 # Jarvis Mobile — Android (Kotlin) & iOS (Swift)
 
+## Android 0.2.0-dev — AI test pairing (not yet deployed)
+
+The Android app now supports separately paired owner/family test accounts through a self-hosted HTTPS AI gateway; typed and voice questions go to the backend. Provider credentials stay exclusively on the server. The server needs deployment, real secrets and tester code provisioning before the APK can give AI answers. No public login, image AI or agentic device control. See [tester gateway guide](docs/AI_GATEWAY_ROADMAP.md) and GitHub Actions for an installable debug build.
+
+
 Separate **native mobile** Jarvis repository, independent from the Windows Electron app. This is a first **functional Basic prototype**, not a production release.
 
 ## Android 0.1.9-dev — revised menu, settings and file opening
