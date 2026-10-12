@@ -410,7 +410,9 @@ class HandsFreeService : Service(), RecognitionListener {
         }
         // Only the foreground activity may launch third-party apps. Never
         // execute a background or lock-screen activity start.
-        val userApp = JarvisInstalledApps.choose(command, JarvisInstalledApps.list(this))
+        val userApp = if (JarvisInstalledApps.requestedLabel(command) != null)
+            JarvisInstalledApps.choose(command, JarvisInstalledApps.list(this))
+        else AppSelection.NotARequest
         if (userApp is AppSelection.Found || userApp is AppSelection.Ambiguous ||
             (userApp is AppSelection.Missing &&
                 BasicCommandRouter.classify(command) == BasicAction.UNKNOWN &&
