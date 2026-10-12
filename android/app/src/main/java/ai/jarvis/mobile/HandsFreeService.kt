@@ -32,6 +32,7 @@ internal data class PendingInstalledApp(val original: String, val createdAtMs: L
 internal data class PendingSystemPanel(val kind: String, val original: String, val createdAtMs: Long)
 internal data class PendingSequence(val plan: JarvisSequencePlan, val createdAtMs: Long)
 internal data class PendingExternalTask(val task: HandoffTask, val createdAtMs: Long)
+internal data class CompletedVoiceTurn(val id: Long, val request: String, val answer: String)
 
 internal object HandsFreeNavigation {
     var appIsForeground by mutableStateOf(false)
@@ -44,12 +45,16 @@ internal object HandsFreeNavigation {
     var mapTarget by mutableStateOf<String?>(null)
     var mailDraft by mutableStateOf<EmailDraft?>(null)
     var external by mutableStateOf<PendingExternalTask?>(null)
+    var completedVoiceTurn by mutableStateOf<CompletedVoiceTurn?>(null)
 }
 
 /** User-started, time-limited recognition session. Not a true always-on hotword engine. */
 class HandsFreeService : Service(), RecognitionListener {
     companion object {
         const val START = "ai.jarvis.mobile.START_VOICE"
+        // Explicitly pressing the large microphone means an immediate command:
+        // users must not also say a wake word.
+        const val START_TAP = "ai.jarvis.mobile.START_VOICE_TAP"
         const val STOP = "ai.jarvis.mobile.STOP_VOICE"
         private const val CHANNEL = "jarvis_voice"
         private const val ID = 4102
@@ -61,6 +66,9 @@ class HandsFreeService : Service(), RecognitionListener {
     private var recognizer: SpeechRecognizer? = null
     private var tts: TextToSpeech? = null
     private var ttsReady = false
+    private var pendingTtsText: String? = null
+    private var activeVoiceCommand: String? = null
+    private var turnCounter = 0L
     private var usingOnDeviceRecognizer = false
     private var running = false
     private var speaking = false
@@ -86,7 +94,9 @@ class HandsFreeService : Service(), RecognitionListener {
             shutdown("A hangfigyelés leállt.")
             return START_NOT_STICKY
         }
-        if (intent?.action != START || running) return START_NOT_STICKY
+        if (intent?.action !in setOf(START, START_TAP) || running) return START_NOT_STICKY
+        // Tap-to-talk is distinct from optional hands-free wake-word listening.
+        awaitingCommand = intent?.action == START_TAP
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED
             || !SpeechRecognizer.isRecognitionAvailable(this)) {
             HandsFreeStatus.status = "Mikrofonengedély vagy Android beszédfelismerő hiányzik."
@@ -127,9 +137,16 @@ class HandsFreeService : Service(), RecognitionListener {
         startedAt = SystemClock.elapsedRealtime()
         handler.postDelayed(timeout, MAX_MS)
         tts = TextToSpeech(applicationContext) { status ->
-            ttsReady = status == TextToSpeech.SUCCESS
-            if (ttsReady) {
-                tts?.language = Locale.forLanguageTag("hu-HU")
+            val language = if (status == TextToSpeech.SUCCESS)
+                tts?.setLanguage(Locale.forLanguageTag("hu-HU")) ?: TextToSpeech.LANG_NOT_SUPPORTED
+            else TextToSpeech.LANG_NOT_SUPPORTED
+            ttsReady = language >= TextToSpeech.LANG_AVAILABLE
+            if (!ttsReady) {
+                pendingTtsText = null
+                HandsFreeStatus.status =
+                    "A magyar hangos válasz nem elérhető. Ellenőrizd a telefon szövegfelolvasó beállításait."
+                if (running) again(400)
+            } else {
                 tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
                     override fun onStart(utteranceId: String?) {
                         HandsFreeStatus.speaking = true
@@ -173,6 +190,9 @@ class HandsFreeService : Service(), RecognitionListener {
                         }
                     }
                 })
+                val queued = pendingTtsText
+                pendingTtsText = null
+                if (queued != null && running) handler.post { speak(queued) }
             }
         }
         try {
@@ -232,15 +252,32 @@ class HandsFreeService : Service(), RecognitionListener {
     private fun speak(text: String) {
         HandsFreeStatus.answer = text
         HandsFreeStatus.status = "Jarvis válaszol"
+        activeVoiceCommand?.let { request ->
+            turnCounter += 1
+            HandsFreeNavigation.completedVoiceTurn = CompletedVoiceTurn(turnCounter, request, text)
+            activeVoiceCommand = null
+        }
         handler.removeCallbacks(restart)
+        val engine = tts
+        if (!ttsReady) {
+            // TTS initialization is async. Never silently drop the first answer.
+            pendingTtsText = text
+            HandsFreeStatus.status = "A magyar hangmotor indul…"
+            handler.postDelayed({
+                if (running && pendingTtsText == text && !ttsReady) {
+                    pendingTtsText = null
+                    HandsFreeStatus.status = "A hangmotor nem indult el. Ellenőrizd a TTS-beállításokat."
+                    again(400)
+                }
+            }, 6000)
+            return
+        }
         speaking = true
         HandsFreeStatus.speaking = true
         HandsFreeStatus.micLevel = 0f
         HandsFreeStatus.userSpeaking = false
         recognizer?.cancel()
-        val engine = tts
-        if (ttsReady && engine != null &&
-            engine.speak(text, TextToSpeech.QUEUE_FLUSH, null,
+        if (engine != null && engine.speak(text, TextToSpeech.QUEUE_FLUSH, null,
                 "jarvis-" + SystemClock.uptimeMillis()) == TextToSpeech.SUCCESS) return
         handler.postDelayed({
             speaking = false
@@ -399,6 +436,7 @@ class HandsFreeService : Service(), RecognitionListener {
         // A newer local command also invalidates a previous cloud proposal.
         aiJob?.cancel()
         aiJob = null
+        activeVoiceCommand = command
         JarvisCapabilities.localPageToOpen(command)?.let { route ->
             if (!privateVoiceAllowed()) {
                 speak("A telefon zárolva van. Az oldal megnyitásához előbb oldd fel.")
@@ -841,6 +879,8 @@ class HandsFreeService : Service(), RecognitionListener {
         tts?.shutdown()
         tts = null
         ttsReady = false
+        pendingTtsText = null
+        activeVoiceCommand = null
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
     }
