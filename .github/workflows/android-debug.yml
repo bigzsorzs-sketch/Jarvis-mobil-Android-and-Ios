@@ -23,16 +23,16 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
-      - name: Install Android SDK 35
+      - name: Install Android SDK 36
         shell: bash
         run: |
           echo "ANDROID_HOME=$ANDROID_HOME"
           SDKMANAGER=$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -1)
           test -n "$SDKMANAGER"
-          "$SDKMANAGER" "platforms;android-35" "build-tools;35.0.0"
+          "$SDKMANAGER" "platforms;android-36" "build-tools;36.0.0"
       - uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: "8.9"
+          gradle-version: "8.11.1"
       - name: Run Kotlin tests, Android lint and compile debug APK
         shell: bash
         run: |
