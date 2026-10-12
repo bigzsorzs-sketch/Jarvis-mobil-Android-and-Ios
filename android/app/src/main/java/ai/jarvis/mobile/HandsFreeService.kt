@@ -258,7 +258,7 @@ class HandsFreeService : Service(), RecognitionListener {
             } else if (VoiceIntentParser.isNo(heard)) {
                 proposedSequence = null
                 speak("Rendben, egyik műveletet sem indítottam.")
-            } else if (VoiceIntentParser.isYes(heard)) {
+            } else if (VoiceIntentParser.isSequenceYes(heard)) {
                 proposedSequence = null
                 if (plan != null) {
                     HandsFreeNavigation.sequence = PendingSequence(plan, SystemClock.elapsedRealtime())
