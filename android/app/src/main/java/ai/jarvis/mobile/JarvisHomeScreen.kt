@@ -1,5 +1,7 @@
 package ai.jarvis.mobile
 
+import ai.jarvis.mobile.LocalizedText as Text
+
 import android.Manifest
 import android.content.Context
 import android.content.Intent
@@ -50,6 +52,8 @@ internal fun JarvisHomeScreen(
     context: Context,
     isDark: Boolean,
     onToggleTheme: () -> Unit,
+    language: JarvisLanguage,
+    onSelectLanguage: (JarvisLanguage) -> Unit,
     onMenu: () -> Unit,
     onCommand: (String) -> Unit,
     history: List<Pair<String, String>>,
@@ -165,12 +169,18 @@ internal fun JarvisHomeScreen(
                 .padding(start = 16.dp, end = 16.dp, top = 12.dp),
             contentAlignment = Alignment.Center
         ) {
-            Surface(
+            Row(
                 modifier = Modifier.align(Alignment.CenterEnd),
-                shape = CircleShape, color = JarvisPalette.panel, shadowElevation = 3.dp
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = onToggleTheme) {
-                    Text(if (isDark) "☀" else "☾", fontSize = 26.sp, color = JarvisInk)
+                JarvisLanguagePicker(language, onSelectLanguage)
+                Surface(
+                    shape = CircleShape, color = JarvisPalette.panel, shadowElevation = 3.dp
+                ) {
+                    IconButton(onClick = onToggleTheme) {
+                        Text(if (isDark) "☀" else "☾", fontSize = 26.sp, color = JarvisInk)
+                    }
                 }
             }
         }
@@ -306,7 +316,7 @@ internal fun JarvisHomeScreen(
                             shape = RoundedCornerShape(17.dp),
                             modifier = Modifier.fillMaxWidth(0.86f)
                         ) {
-                            Text(request, color = JarvisInk, fontSize = 14.sp,
+                            androidx.compose.material3.Text(request, color = JarvisInk, fontSize = 14.sp,
                                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp))
                         }
                     }
@@ -316,7 +326,7 @@ internal fun JarvisHomeScreen(
                             shape = RoundedCornerShape(17.dp),
                             modifier = Modifier.fillMaxWidth(0.90f)
                         ) {
-                            Text(answer, color = JarvisMuted, fontSize = 14.sp,
+                            androidx.compose.material3.Text(answer, color = JarvisMuted, fontSize = 14.sp,
                                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp))
                         }
                     }
