@@ -17,6 +17,7 @@ internal fun JarvisAiSettings(context: Context) {
     var savedMode by remember { mutableStateOf(JarvisAiGateway.mode(context)) }
     var endpoint by remember { mutableStateOf(JarvisAiGateway.baseUrl(context)) }
     var credential by remember { mutableStateOf("") }
+    var invitation by remember { mutableStateOf("") }
     var status by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     var paired by remember { mutableStateOf(JarvisAiGateway.hasSavedConnection(context)) }
@@ -83,9 +84,8 @@ internal fun JarvisAiSettings(context: Context) {
                 style = MaterialTheme.typography.bodySmall)
         }
     } else {
-        Text("Szerveres mód: saját Jarvis HTTPS-kiszolgáló és tesztelői kód. " +
-            "A megadott címhez Jarvis a /v1/chat útvonalat hívja. " +
-            "Ide ne az openrouter.ai címet és ne OpenRouter API-kulcsot írj.")
+        Text("Privát Jarvis AI-szerver: a tesztelőnek nem kell OpenRouter API-kulcs. " +
+            "A szervert először üzembe kell helyezni; csak ezután működik a meghívós aktiválás.")
         Spacer(Modifier.height(8.dp))
         OutlinedTextField(
             value = endpoint, onValueChange = { endpoint = it },
@@ -93,14 +93,39 @@ internal fun JarvisAiSettings(context: Context) {
             modifier = Modifier.fillMaxWidth()
         )
         Spacer(Modifier.height(8.dp))
-        OutlinedTextField(
-            value = credential, onValueChange = { credential = it },
-            singleLine = true, label = { Text("Személyes tesztelői kód") },
-            visualTransformation = PasswordVisualTransformation(),
-            modifier = Modifier.fillMaxWidth()
-        )
-        if (paired && selectedMode == savedMode) {
-            Text("Azonos szervercímnél az üres kódmező megtartja a mentett hozzáférést.",
+        if (!paired || selectedMode != savedMode) {
+            OutlinedTextField(
+                value = invitation, onValueChange = { invitation = it.take(48) },
+                singleLine = true, label = { Text("Egyszer használatos Jarvis meghívó") },
+                visualTransformation = PasswordVisualTransformation(),
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(Modifier.height(8.dp))
+            Button(enabled = !busy, onClick = {
+                if (!cloudConsent) {
+                    status = "A külső AI-feldolgozáshoz először jelöld be a hozzájárulást."
+                } else {
+                    scope.launch {
+                        busy = true
+                        try {
+                            val error = JarvisAiGateway.activateInvitation(
+                                context, endpoint, invitation)
+                            if (error == null) {
+                                JarvisAiGateway.setCloudConsent(context, true)
+                                invitation = ""
+                                credential = ""
+                                savedMode = JarvisAiGateway.SERVER
+                                selectedMode = savedMode
+                                paired = JarvisAiGateway.hasSavedConnection(context)
+                            }
+                            status = error ?: "Jarvis AI sikeresen aktiválva ezen a telefonon."
+                        } finally { busy = false }
+                    }
+                }
+            }) { Text("Jarvis aktiválása") }
+        } else {
+            Text("Ezen a telefonon már aktív a privát Jarvis-hozzáférés. " +
+                "A szerver a hozzáférést visszavonhatja.",
                 style = MaterialTheme.typography.bodySmall)
         }
     }
@@ -136,7 +161,9 @@ internal fun JarvisAiSettings(context: Context) {
             } else {
                 val error = if (selectedMode == JarvisAiGateway.DIRECT_TEST && BuildConfig.DEBUG)
                     JarvisAiGateway.saveDirect(context, credential)
-                else JarvisAiGateway.save(context, endpoint, credential)
+                else if (paired && selectedMode == savedMode &&
+                    endpoint == JarvisAiGateway.baseUrl(context)) null
+                else "Előbb aktiváld a Jarvist a meghívóval."
                 if (error == null) {
                     JarvisAiGateway.setCloudConsent(context, true)
                     credential = ""
@@ -149,7 +176,8 @@ internal fun JarvisAiSettings(context: Context) {
         OutlinedButton(onClick = {
             JarvisAiGateway.clear(context)
             credential = ""
-            endpoint = ""
+            invitation = ""
+            endpoint = JarvisAiGateway.baseUrl(context)
             selectedMode = JarvisAiGateway.mode(context)
             savedMode = JarvisAiGateway.mode(context)
             cloudConsent = false
