@@ -55,7 +55,7 @@ internal class JarvisChatStore(context: Context) : SQLiteOpenHelper(
     }
 
     private fun decrypt(bytes: ByteArray): String {
-        require(bytes.size > 28) { "Invalid conversation record" }
+        require(bytes.size >= 28) { "Invalid conversation record" }
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")
         cipher.init(Cipher.DECRYPT_MODE, key(), GCMParameterSpec(128, bytes.copyOfRange(0, 12)))
         return cipher.doFinal(bytes.copyOfRange(12, bytes.size)).toString(Charsets.UTF_8)
