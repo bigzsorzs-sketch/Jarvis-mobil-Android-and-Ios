@@ -453,6 +453,20 @@ class HandsFreeService : Service(), RecognitionListener {
         aiJob?.cancel()
         aiJob = null
         activeVoiceCommand = command
+        if (JarvisGlucoseVoice.isQuery(command)) {
+            if (!privateVoiceAllowed()) {
+                speak("A telefon zárolva van. A személyes egészségügyi adatokhoz előbb oldd fel.")
+            } else {
+                aiJob?.cancel()
+                aiJob = CoroutineScope(Dispatchers.Main.immediate).launch {
+                    val result = JarvisGlucoseVoice.reply(
+                        applicationContext,
+                        recognizedUtteranceLanguage ?: JarvisLanguageSettings.load(applicationContext))
+                    if (running) speak(result)
+                }
+            }
+            return
+        }
         JarvisCapabilities.localPageToOpen(command)?.let { route ->
             if (!privateVoiceAllowed()) {
                 speak("A telefon zárolva van. Az oldal megnyitásához előbb oldd fel.")
