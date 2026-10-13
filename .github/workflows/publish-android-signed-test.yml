@@ -49,8 +49,12 @@ jobs:
           if [ "$SOURCE_SHA" != "$baseline" ]; then
             comparison="$(gh api "repos/${{ github.repository }}/compare/$baseline...$SOURCE_SHA")"
             status="$(printf '%s' "$comparison" | jq -r '.status')"
-            changed="$(printf '%s' "$comparison" | jq -r '[.files[].filename] | join(",")')"
-            if [ "$status" = "ahead" ] && [ "$changed" = ".github/workflows/publish-android-signed-test.yml" ]; then
+            allowed="$(printf '%s' "$comparison" | jq -r '
+              [.files[].filename] | if length == 0 then false
+              else all(.[]; . == ".github/workflows/publish-android-signed-test.yml" or
+                                . == ".github/workflows/verify-jarvis-signing.yml") end
+            ')"
+            if [ "$status" = "ahead" ] && [ "$allowed" = "true" ]; then
               TESTED_SHA="$baseline"
             fi
           fi
@@ -126,7 +130,9 @@ jobs:
           current="$(grep -iE 'Signer #1 certificate SHA-256 digest: [0-9a-f]{64}' \
             dist/SIGNING-CERTIFICATE.txt | awk '{print $NF}' | tr 'A-F' 'a-f')"
           test "${#current}" -eq 64 || { echo "::error::No valid signing certificate fingerprint"; exit 1; }
-          echo "Permanent signing baseline certificate SHA-256: $current"
+          expected="955338795da61366091ed256b0f6b2a948b9aaf9d7771b022a65b88a94b2d86a"
+          test "$current" = "$expected" || { echo "::error::Wrong permanent Jarvis 0.2.18 signing certificate"; exit 1; }
+          echo "Permanent Jarvis signing identity verified against the saved baseline."
           # Future signed releases MUST match this baseline certificate.
           # The immutable release asset SIGNING-CERTIFICATE.txt records its identity.
       - name: Publish signed APK as clearly labeled prerelease (NOT public AI launch)
