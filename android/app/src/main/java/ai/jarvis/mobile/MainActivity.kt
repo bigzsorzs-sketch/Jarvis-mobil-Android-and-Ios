@@ -208,7 +208,8 @@ fun JarvisApp(context: Context) {
     val gmailAction = rememberJarvisGmail { request, outcome ->
         gmailStatus = outcome.status
         gmailReadText = outcome.speak.orEmpty()
-        if (request.operation is GmailOperation.Read && outcome.speak != null) page = "Email"
+        if ((request.operation is GmailOperation.Read || request.operation == GmailOperation.ListUnread) &&
+            outcome.speak != null) page = "Email"
         // Keep private Gmail bodies out of the persisted chat history.
         // Still deliver the asynchronous answer to a pending hands-free turn.
         val fromVoice = voiceReply?.first == request.instruction
@@ -224,7 +225,7 @@ fun JarvisApp(context: Context) {
         saveChatTurn(turn)
         // The microphone service speaks its own response. Do not start a
         // second cloud player over the top of it for the same email.
-        if (!fromVoice) outcome.speak?.let {
+        if (!fromVoice && request.operation is GmailOperation.Read) outcome.speak?.let {
             if (!narrator.read(it, language)) {
                 gmailStatus = outcome.status + " A hangos felolvasás nem indult el; a szöveg az Email oldalon olvasható."
             }
