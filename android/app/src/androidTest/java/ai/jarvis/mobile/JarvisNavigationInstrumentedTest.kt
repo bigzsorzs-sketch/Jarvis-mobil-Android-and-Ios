@@ -10,6 +10,7 @@ import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performImeAction
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTextClearance
@@ -127,6 +128,10 @@ class JarvisNavigationInstrumentedTest {
     @Test fun savedPlacesImportRemainsAccessibleFromSettingsWithoutNavigationMenu() {
         finishOnboarding()
         composeRule.onNodeWithTag("jarvis-home-drawer-trigger").performClick()
+        // The drawer contains a lazy list: Settings is below the viewport on
+        // phones and is not composed until the list scrolls to that item.
+        composeRule.onNodeWithTag("jarvis-drawer-list")
+            .performScrollToNode(hasText(displayedRoute("Beállítások")))
         composeRule.onNodeWithText(displayedRoute("Beállítások")).performClick()
         composeRule.onNodeWithText("Mentett helyek és otthoni cím")
             .performScrollTo().performClick()
