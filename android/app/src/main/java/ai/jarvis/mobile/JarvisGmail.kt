@@ -239,11 +239,14 @@ internal object JarvisGmailApi {
             .filter { it.isNotBlank() }
     }
 
-    private fun mime(to: String, subject: String, text: String, previous: GmailMessage? = null): String {
-        require(emailPattern.matches(to))
+    private fun mime(from: String, to: String, subject: String, text: String, previous: GmailMessage? = null): String {
+        require(emailPattern.matches(from) && emailPattern.matches(to))
         require(text.isNotBlank() && text.length <= 10000)
         val lines = StringBuilder()
+        lines.append("From: ").append(from).append("\r\n")
         lines.append("To: ").append(to).append("\r\n")
+        lines.append("Date: ").append(java.time.format.DateTimeFormatter.RFC_1123_DATE_TIME.format(
+            java.time.ZonedDateTime.now(java.time.ZoneOffset.UTC))).append("\r\n")
         lines.append("Subject: ").append(encodedHeader(subject)).append("\r\n")
         if (previous != null) {
             val originalId = safeHeader(previous.messageId)
@@ -293,7 +296,8 @@ internal object JarvisGmailApi {
                     GmailResult("Előkészítve: " + recipient + ", tárgy: " + operation.subject +
                         ". Küldés nem történt. Mondd: küldj emailt ... a teljes szöveggel.")
                 } else {
-                    val raw = mime(recipient, operation.subject, operation.body)
+                    val from = request(accessToken, "/profile").optString("emailAddress")
+                    val raw = mime(from, recipient, operation.subject, operation.body)
                     val response = request(accessToken, "/messages/send", JSONObject().put("raw", raw))
                     require(response.optString("id").isNotBlank()) { "A Gmail nem igazolta az elküldést." }
                     GmailResult("A Gmail elfogadta az emailt. Címzett: " + recipient +
@@ -316,7 +320,8 @@ internal object JarvisGmailApi {
                     ?: return GmailResult("A levél feladójának nincs biztonságosan azonosítható emailcíme.")
                 require(previous.threadId.isNotBlank()) { "Hiányzik az eredeti beszélgetés azonosítója." }
                 val subject = if (previous.subject.startsWith("Re:", true)) previous.subject else "Re: " + previous.subject
-                val raw = mime(recipient, subject, operation.body, previous)
+                val from = request(accessToken, "/profile").optString("emailAddress")
+                val raw = mime(from, recipient, subject, operation.body, previous)
                 val response = request(accessToken, "/messages/send",
                     JSONObject().put("raw", raw).put("threadId", previous.threadId))
                 require(response.optString("id").isNotBlank() &&
