@@ -32,3 +32,13 @@ It restores the exact same signing key every time; do not generate a new key per
 6. Only after testing an actual in-place upgrade can the product promise zero-uninstall updates.
 
 Do not market the `0.2.16-dev` → `0.2.17-signed-test` step as a guaranteed upgrade: the earlier temporary signing key might not exist anymore.
+
+## 0.2.18 cumulative update: blocked until the previous signing identity is restored
+
+The consolidated Android 0.2.18 / versionCode 29 source includes system-contacts calling, seven-language calls, live web search, cloud AI speech and automatic foreground Google Maps navigation. These compile and emulator tests do not replace live-phone/provider tests.
+
+The `publish-android-signed-test.yml` manual workflow must use the **original** signing keystore stored in protected GitHub Actions production secrets. It verifies APK v2/v3 signatures and `ai.jarvis.mobile` versionCode 29, publishes a SHA256SUMS file and signer certificate, and **refuses to publish** unless the new certificate fingerprint equals the published `v0.2.17-dev-test.1` certificate. This is intentionally stricter than simply producing a signed APK.
+
+A signed-test attempt on 2026-10-12 stopped at `Restore EXISTING protected signing keystore` with `Missing existing upload keystore secret`. Do not create or rotate a substitute key and advertise it as an in-place update. GitHub secrets must be configured using the repository Settings UI with the *original* private signing material, never sent through chat, logs or checked into source. A matching certificate with the `0.2.17` release does not prove a particular tester installed that exact APK; their device also verifies its own installed signer before opening Android's system installer.
+
+If the original signer is permanently unavailable, an in-place update for that signing lineage is cryptographically impossible. Preserve the existing installation and work out a user-approved data-export/import migration before attempting replacement. A green CI build alone does not establish that local encrypted data will survive an uninstall.
