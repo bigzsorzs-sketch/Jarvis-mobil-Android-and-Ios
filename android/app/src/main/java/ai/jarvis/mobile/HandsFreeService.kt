@@ -60,6 +60,17 @@ class HandsFreeService : Service(), RecognitionListener {
     }
     private val handler = Handler(Looper.getMainLooper())
     private val restart = Runnable { listen() }
+    // SpeechRecognizer is a one-utterance API: track the actual session and
+    // asynchronous foreground answer separately. Never start two recognizers,
+    // or restart recording while the reply is being generated/read aloud.
+    private var recognizerListening = false
+    private var foregroundReplyPending = false
+    private val foregroundReplyTimeout = Runnable {
+        if (running && foregroundReplyPending) {
+            foregroundReplyPending = false
+            speak("A válasz nem érkezett meg időben. Újra figyelek rád.")
+        }
+    }
     private var recognizer: SpeechRecognizer? = null
     private var cloudVoice: JarvisCloudVoicePlayer? = null
     private var activeVoiceCommand: String? = null
@@ -137,6 +148,8 @@ class HandsFreeService : Service(), RecognitionListener {
             aiJob?.cancel()
             cloudVoice?.stop()
             activeVoiceCommand = null
+            foregroundReplyPending = false
+            handler.removeCallbacks(foregroundReplyTimeout)
             finishSpokenReply()
         }
         HandsFreeStatus.running = true
@@ -159,6 +172,7 @@ class HandsFreeService : Service(), RecognitionListener {
     }
 
     private fun createRecognizer() {
+        recognizerListening = false
         recognizer?.setRecognitionListener(null)
         recognizer?.destroy()
         recognizer = if (usingOnDeviceRecognizer && Build.VERSION.SDK_INT >= 31)
@@ -169,10 +183,11 @@ class HandsFreeService : Service(), RecognitionListener {
 
     private fun again(delay: Long) {
         handler.removeCallbacks(restart)
-        if (running && !speaking) handler.postDelayed(restart, delay)
+        if (running && !speaking && !recognizerListening && !foregroundReplyPending)
+            handler.postDelayed(restart, delay)
     }
     private fun listen() {
-        if (!running || speaking) return
+        if (!running || speaking || recognizerListening || foregroundReplyPending) return
         try {
             recognizedUtteranceLanguage = null
             HandsFreeStatus.status = when {
@@ -180,6 +195,9 @@ class HandsFreeService : Service(), RecognitionListener {
                 awaitingCommand -> "Figyelek a parancsodra"
                 else -> "Mondd: Jarvis vagy Hey Jarvis"
             }
+            // Set BEFORE startListening: some Android speech providers deliver
+            // callbacks synchronously, and starting twice causes BUSY loops.
+            recognizerListening = true
             recognizer?.startListening(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                 JarvisSpeechRecognition.configure(this, JarvisLanguageSettings.load(applicationContext),
                     autoLanguageSwitchEnabled)
@@ -187,9 +205,10 @@ class HandsFreeService : Service(), RecognitionListener {
                 putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
             })
         } catch (_: Exception) {
+            recognizerListening = false
             errors++
             if (errors >= 5) shutdown("A beszédfelismerés hibázott.")
-            else again(2000)
+            else again(2500)
         }
     }
     private fun finishSpokenReply() {
@@ -198,7 +217,7 @@ class HandsFreeService : Service(), RecognitionListener {
         HandsFreeStatus.outputLevel = 0f
         if (running) {
             if (tapActivated) awaitingCommand = true
-            again(450)
+            again(VoiceSessionPolicy.AFTER_REPLY_DELAY_MS)
         }
     }
 
@@ -213,11 +232,16 @@ class HandsFreeService : Service(), RecognitionListener {
             activeVoiceCommand = null
         }
         handler.removeCallbacks(restart)
+        handler.removeCallbacks(foregroundReplyTimeout)
+        foregroundReplyPending = false
         speaking = true
         HandsFreeStatus.speaking = false
         HandsFreeStatus.micLevel = 0f
         HandsFreeStatus.userSpeaking = false
-        recognizer?.cancel()
+        if (recognizerListening) {
+            recognizerListening = false
+            recognizer?.cancel()
+        }
         val started = cloudVoice?.speak(text, wantedLanguage,
             onStart = { if (running) HandsFreeStatus.speaking = true }
         ) { successful ->
@@ -288,13 +312,25 @@ class HandsFreeService : Service(), RecognitionListener {
             if (sharedCommand.isNotBlank()) {
                 aiJob?.cancel()
                 activeVoiceCommand = null // Activity writes the single shared history entry.
+                foregroundReplyPending = true
+                handler.removeCallbacks(restart)
                 val delivered = JarvisForegroundCommands.submit(sharedCommand) { answer ->
-                    if (running) speak(answer)
+                    if (running && foregroundReplyPending) {
+                        foregroundReplyPending = false
+                        handler.removeCallbacks(foregroundReplyTimeout)
+                        speak(answer)
+                    }
                 }
                 if (delivered) {
                     awaitingCommand = true
+                    // An asynchronous Gmail/API response must not create
+                    // repeated microphone cycles while still pending.
+                    if (foregroundReplyPending)
+                        handler.postDelayed(foregroundReplyTimeout, VoiceSessionPolicy.REPLY_TIMEOUT_MS)
                     return
                 }
+                foregroundReplyPending = false
+                handler.removeCallbacks(foregroundReplyTimeout)
             }
         }
         // The same precedence contract as the text command handler.
@@ -985,15 +1021,19 @@ class HandsFreeService : Service(), RecognitionListener {
     }
     override fun onEvent(eventType: Int, params: Bundle?) {}
     override fun onResults(results: Bundle?) {
+        if (!recognizerListening) return // Stale result after cancellation.
+        recognizerListening = false
         HandsFreeStatus.userSpeaking = false
         HandsFreeStatus.micLevel = 0f
         if (running && !speaking)
             process(results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty())
     }
     override fun onError(error: Int) {
+        if (!recognizerListening) return // Cancellation is not a new listen error.
+        recognizerListening = false
         HandsFreeStatus.userSpeaking = false
         HandsFreeStatus.micLevel = 0f
-        if (!running || speaking) return
+        if (!running || speaking || foregroundReplyPending) return
         if (VoiceRecognitionPolicy.needsSystemFallback(usingOnDeviceRecognizer, error)) {
             // Availability of an offline recognizer does not imply a Hungarian model.
             usingOnDeviceRecognizer = false
@@ -1031,7 +1071,7 @@ class HandsFreeService : Service(), RecognitionListener {
             if (tapActivated) awaitingCommand = true
         } else errors++
         if (errors >= 5) shutdown("A beszédfelismerés nem működik stabilan.")
-        else again(if (error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY) 2200 else 1100)
+        else again(VoiceSessionPolicy.retryDelay(error))
     }
     private fun shutdown(status: String) {
         running = false
@@ -1055,6 +1095,9 @@ class HandsFreeService : Service(), RecognitionListener {
         tapActivated = false
         lastMessageKey = null
         handler.removeCallbacks(restart)
+        handler.removeCallbacks(foregroundReplyTimeout)
+        recognizerListening = false
+        foregroundReplyPending = false
         aiJob?.cancel()
         aiJob = null
         recognizer?.cancel()
