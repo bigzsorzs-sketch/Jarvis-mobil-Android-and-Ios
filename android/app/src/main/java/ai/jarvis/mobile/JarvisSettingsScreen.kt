@@ -86,6 +86,18 @@ internal fun JarvisSettingsScreen(
     Spacer(Modifier.height(18.dp))
     SettingsSectionTitle("Telefon-hozzáférés")
     PermissionCenter(context, onDone = {}, showContinue = false, showHeading = false)
+    Spacer(Modifier.height(14.dp))
+    SettingsSectionTitle("Android képernyővezérlés — opcionális")
+    JarvisSettingsGroup {
+        JarvisSettingsRow("◎", "Képernyővezérlés engedélyezése",
+            "Az Android Beállításokban, külön jóváhagyással. Vissza, Főképernyő, görgetés és egyértelmű gombok.") {
+            JarvisScreenControl.openPermissionSettings(context)
+        }
+    }
+    Text("Csak külön kimondott vagy leírt műveletet hajt végre. Külső alkalmazás tartalmát nem küldi az AI-nak. Nem hagy jóvá fizetést, törlést vagy más érzékeny műveletet.",
+        color = JarvisPalette.subtleText,
+        style = MaterialTheme.typography.bodySmall,
+        modifier = Modifier.padding(12.dp))
     Spacer(Modifier.height(16.dp))
     SettingsSectionTitle("Adatvédelem és helyi adatok")
     JarvisSettingsGroup {
