@@ -118,8 +118,8 @@ internal object JarvisAmazon {
         // Supported HU/EN natural commands. Removing only a fixed prefix means
         // the query is ALWAYS derived from the user's exact instruction.
         val patterns = listOf(
-            """^(?:(?:az?|a)\s+)?amazon(?:on|en|ban)?(?:\s+business)?(?:\s+alkalmazas(?:on|ban)?\s+keresztul)?\s+(?:keress|keresd\s+meg|talalj|search(?:\s+for)?|find)\s+""",
-            """^(?:keress(?:\s+nekem)?|keresd\s+meg|talalj|search(?:\s+for)?|find)\s+(?:egy\s+)?(?:(?:az?|a|on|in|the)\s+)?amazon(?:on|en|ban)?(?:\s+business)?(?:\s+alkalmazas(?:ban|on)?)?\s+""",
+            """^(?:(?:az?|a)\s+)?amazon(?:\\.co\\.uk|\\.com|\\.de|\\.fr|\\.es|\\.it|\\.pl|on|en|ban)?(?:\s+business)?(?:\s+alkalmazas(?:on|ban)?\s+keresztul)?\s+(?:keress|keresd\s+meg|talalj|search(?:\s+for)?|find)\s+""",
+            """^(?:keress(?:\s+nekem)?|keresd\s+meg|talalj|search(?:\s+for)?|find)\s+(?:egy\s+)?(?:(?:az?|a|on|in|the)\s+)?amazon(?:\\.co\\.uk|\\.com|\\.de|\\.fr|\\.es|\\.it|\\.pl|on|en|ban)?(?:\s+business)?(?:\s+alkalmazas(?:ban|on)?)?\s+""",
             """^(?:amazon(?:\s+business)?)\s+(?:kereses|search)\s+""",
             """^(?:mutasd\s+(?:meg\s+)?|show\s+)(?:(?:az?|on)\s+)?amazon(?:on|en)?\s+""",
             """^(?:mennyi(?:be)?\s+kerul|milyen\s+aron\s+van|what\s+is\s+the\s+price\s+of)\s+"""
