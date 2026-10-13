@@ -4,9 +4,8 @@ import java.text.Normalizer
 import java.util.Locale
 
 /**
- * Read-aloud intent is handled by Android, not by a remote model pretending to
- * control audio. Requests without supplied text ask the model for the actual
- * content, then the phone narrates that content itself.
+ * Read-aloud requests use consent-gated AI cloud MP3 speech; Android owns
+ * playback and stop. Requests without supplied text ask the AI for the content.
  */
 internal sealed class ReadAloudRequest {
     data object LastAnswer : ReadAloudRequest()
@@ -76,12 +75,12 @@ internal object JarvisReadAloudCommand {
         val values = when (key) {
             "started" -> arrayOf("Felolvasás elindítva.", "Reading aloud.", "Vorlesen gestartet.", "Lecture lancée.", "Lectura iniciada.", "Lettura avviata.", "Odczyt rozpoczęty.")
             "noAnswer" -> arrayOf("Még nincs korábbi válasz, amit felolvashatnék.", "There is no previous reply to read.", "Keine vorherige Antwort zum Vorlesen.", "Aucune réponse précédente à lire.", "No hay respuesta anterior para leer.", "Nessuna risposta precedente da leggere.", "Brak poprzedniej odpowiedzi do odczytania.")
-            "missingTts" -> arrayOf("A szövegfelolvasó nem érhető el. Ellenőrizd az Android TTS-beállításait és a kiválasztott hangot.", "Text-to-speech is unavailable. Check Android TTS settings and installed voice.", "Sprachausgabe nicht verfügbar. Android-TTS und Stimme prüfen.", "Synthèse vocale indisponible. Vérifiez les paramètres Android TTS.", "La síntesis de voz no está disponible. Comprueba Android TTS.", "Sintesi vocale non disponibile. Controlla Android TTS.", "Synteza mowy niedostępna. Sprawdź ustawienia TTS.")
+            "missingTts" -> arrayOf("AI-hang nem érhető el. Engedélyezd külön a Beállítások → AI-agy menüben, és ellenőrizd az internetkapcsolatot.", "AI voice unavailable. Enable cloud voice under Settings → AI and check your internet.", "KI-Stimme nicht verfügbar. Unter Einstellungen → KI aktivieren und Internet prüfen.", "Voix IA indisponible. Activez-la dans Paramètres → IA et vérifiez Internet.", "Voz IA no disponible. Actívala en Ajustes → IA y comprueba Internet.", "Voce IA non disponibile. Attivala in Impostazioni → IA e verifica Internet.", "Głos AI niedostępny. Włącz w Ustawienia → AI i sprawdź internet.")
             "stopped" -> arrayOf("Felolvasás leállítva.", "Reading stopped.", "Vorlesen angehalten.", "Lecture arrêtée.", "Lectura detenida.", "Lettura interrotta.", "Odczyt zatrzymany.")
             "stop" -> arrayOf("Leállítás", "Stop", "Stopp", "Arrêter", "Detener", "Ferma", "Zatrzymaj")
             "read" -> arrayOf("Felolvasás", "Read aloud", "Vorlesen", "Lire à voix haute", "Leer en voz alta", "Leggi ad alta voce", "Czytaj na głos")
             "finished" -> arrayOf("Felolvasás kész.", "Reading finished.", "Vorlesen beendet.", "Lecture terminée.", "Lectura terminada.", "Lettura terminata.", "Odczyt zakończony.")
-            "failed" -> arrayOf("Nem sikerült elindítani a felolvasást. Ellenőrizd a szövegfelolvasó beállításait.", "Could not start reading. Check text-to-speech settings.", "Vorlesen fehlgeschlagen. TTS-Einstellungen prüfen.", "Impossible de lancer la lecture. Vérifiez les paramètres TTS.", "No se pudo iniciar la lectura. Comprueba TTS.", "Impossibile avviare la lettura. Controlla TTS.", "Nie udało się rozpocząć odczytu. Sprawdź TTS.")
+            "failed" -> arrayOf("Az AI-hang generálása vagy lejátszása sikertelen. Ellenőrizd az OpenRouter-kapcsolatot és a keretet.", "AI voice generation or playback failed. Check your OpenRouter connection and balance.", "KI-Sprachausgabe fehlgeschlagen. OpenRouter-Verbindung und Guthaben prüfen.", "La voix IA a échoué. Vérifiez la connexion OpenRouter et le crédit.", "Error de voz IA. Comprueba la conexión a OpenRouter y el saldo.", "Errore voce IA. Controlla la connessione OpenRouter e il credito.", "Błąd głosu AI. Sprawdź połączenie OpenRouter i saldo.")
             else -> error("Unknown TTS label: " + key)
         }
         return values[language.ordinal]
@@ -90,7 +89,7 @@ internal object JarvisReadAloudCommand {
 
 /**
  * Splits at whitespace when available, without silently dropping the tail.
- * Keep each utterance below the Android TTS engine's 4000-character limit.
+ * Keep chunks reasonably small for cloud speech API processing.
  */
 internal object JarvisSpeechChunks {
     fun split(text: String, maxChars: Int = 2600): List<String> {

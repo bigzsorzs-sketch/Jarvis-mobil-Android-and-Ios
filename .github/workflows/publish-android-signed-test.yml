@@ -39,7 +39,7 @@ jobs:
           current="$(gh api "repos/${{ github.repository }}/git/ref/heads/main" --jq '.object.sha')"
           test "$current" = "$SOURCE_SHA"
           test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
-          if gh release view "v0.2.17-signed-test.1" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+          if gh release view "v0.2.18-signed-test.1" --repo "${{ github.repository }}" >/dev/null 2>&1; then
             echo "Signed test release already exists; nothing to replace"
             exit 1
           fi
@@ -99,13 +99,37 @@ jobs:
           set -euo pipefail
           apk=android/app/build/outputs/apk/release/app-release.apk
           test -s "$apk"
-          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose "$apk"
-          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$apk" | grep "versionName='0.2.17'"
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$apk" > "$RUNNER_TEMP/new-signature.txt"
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$apk" | grep -F "package: name='ai.jarvis.mobile' versionCode='29' versionName='0.2.18'"
           "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$apk" | grep "targetSdkVersion:'36'"
           unzip -t "$apk" > /dev/null
           mkdir -p dist
-          cp "$apk" dist/Jarvis-Android-0.2.17-signed-test.apk
-          (cd dist && sha256sum Jarvis-Android-0.2.17-signed-test.apk > SHA256SUMS.txt)
+          cp "$apk" dist/Jarvis-Android-0.2.18-signed-test.apk
+          cp "$RUNNER_TEMP/new-signature.txt" dist/SIGNING-CERTIFICATE.txt
+          (cd dist && sha256sum Jarvis-Android-0.2.18-signed-test.apk > SHA256SUMS.txt)
+      - name: Verify signing identity MATCHES prior in-app upgrade APK
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          # This gate deliberately refuses to claim a seamless update unless
+          # the new APK has exactly the certificate from the prior public build.
+          mkdir -p "$RUNNER_TEMP/previous"
+          gh release download v0.2.17-dev-test.1 \
+            --repo "${{ github.repository }}" \
+            --pattern SIGNING-CERTIFICATE.txt \
+            --dir "$RUNNER_TEMP/previous"
+          old="$(grep -iE 'Signer #1 certificate SHA-256 digest: [0-9a-f]{64}' \
+            "$RUNNER_TEMP/previous/SIGNING-CERTIFICATE.txt" | awk '{print $NF}' | tr 'A-F' 'a-f')"
+          current="$(grep -iE 'Signer #1 certificate SHA-256 digest: [0-9a-f]{64}' \
+            dist/SIGNING-CERTIFICATE.txt | awk '{print $NF}' | tr 'A-F' 'a-f')"
+          test "${#old}" -eq 64 && test "${#current}" -eq 64
+          if [ "$old" != "$current" ]; then
+            echo "::error::The protected signing key differs from the previous 0.2.17 APK. This cannot be published as an in-place update."
+            exit 1
+          fi
+          echo "Same APK signing certificate confirmed; installer will independently verify the installed app signature."
       - name: Publish signed APK as clearly labeled prerelease (NOT public AI launch)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -114,14 +138,14 @@ jobs:
           set -euo pipefail
           current="$(gh api "repos/${{ github.repository }}/git/ref/heads/main" --jq '.object.sha')"
           test "$current" = "$GITHUB_SHA"
-          tag=v0.2.17-signed-test.1
+          tag=v0.2.18-signed-test.1
           if gh release view "$tag" --repo "${{ github.repository }}" > /dev/null 2>&1; then
             echo 'Signed-test release already exists; refusing to replace it'
             exit 1
           fi
           cat > "$RUNNER_TEMP/jarvis-signed-test-notes.md" <<'EOF'
-          # Jarvis Android 0.2.17 — SIGNED TEST APK
-          This APK is built with the configured production signing keystore and its signature is verified in CI.
+          # Jarvis Android 0.2.18 — SIGNED TEST APK
+          This APK is built only when the existing protected keystore exactly matches the previous published 0.2.17 signing certificate. Signature, versionCode, package name, checksum and Android build are validated in CI.
           This is a PRE-RELEASE for controlled testing, not a verified full AI-service/public launch.
           The Jarvis hosted AI gateway is NOT bundled or connected. Hosted AI requests need a future
           HTTPS gateway deployment. Direct OpenRouter mode is AVAILABLE in this signed APK:
@@ -129,13 +153,14 @@ jobs:
           The key is encrypted locally using Android Keystore; no shared key is embedded in this APK.
           AI model availability and provider errors depend on your OpenRouter account.
           Installing from GitHub may still show Android unknown-source or Play Protect warnings.
-          Before replacing a debug-signed installation, back up conversations and app data:
-          a different signing key may require uninstalling the earlier build.
+          This release is blocked when the old and new signing certificates differ.
+          Never uninstall the previous Jarvis just to force an update: encrypted local
+          conversations, readings, billing records and settings may be lost.
           EOF
           gh release create "$tag" \
-            dist/Jarvis-Android-0.2.17-signed-test.apk dist/SHA256SUMS.txt \
+            dist/Jarvis-Android-0.2.18-signed-test.apk dist/SHA256SUMS.txt dist/SIGNING-CERTIFICATE.txt \
             --repo "${{ github.repository }}" --target "$GITHUB_SHA" \
-            --title 'Jarvis Android 0.2.17 — signed TEST APK' \
+            --title 'Jarvis Android 0.2.18 — signed TEST APK' \
             --notes-file "$RUNNER_TEMP/jarvis-signed-test-notes.md" --prerelease --latest=false
       - name: Securely remove signing material
         if: always()

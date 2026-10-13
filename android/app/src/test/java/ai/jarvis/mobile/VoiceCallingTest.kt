@@ -16,6 +16,20 @@ class VoiceCallingTest {
         assertFalse(VoiceCalling.matchesAiTarget("+441234567890", "+441234567891"))
     }
 
+    @Test fun systemPhonebookNamesAndSevenCallLanguages() {
+        assertTrue(VoiceCalling.matchesFirstName("Vivit", "Vivi Nagy"))
+        assertTrue(VoiceCalling.matchesContactName("Esztert", "Eszter"))
+        assertFalse(VoiceCalling.matchesFirstName("Viv", "Vivi Nagy"))
+        assertEquals("Vivit", VoiceCalling.extractRequest("Jarvis, hívd fel Vivit"))
+        assertEquals("Vivi", VoiceCalling.extractRequest("Call Vivi"))
+        assertEquals("Vivi", VoiceCalling.extractRequest("Ruf an Vivi"))
+        assertEquals("Vivi", VoiceCalling.extractRequest("Appelle Vivi"))
+        assertEquals("Vivi", VoiceCalling.extractRequest("Llama a Vivi"))
+        assertEquals("Vivi", VoiceCalling.extractRequest("Chiama Vivi"))
+        assertEquals("Vivi", VoiceCalling.extractRequest("Zadzwoń do Vivi"))
+        assertNull(VoiceCalling.extractRequest("Don't call Vivi"))
+    }
+
     @Test fun hungarianDialCommands() {
         assertEquals("Esztert", VoiceCalling.extractRequest("Hívd fel Esztert"))
         assertEquals("George", VoiceCalling.extractRequest("Tárcsázd George"))

@@ -24,6 +24,8 @@ internal fun JarvisAiSettings(context: Context) {
     var busy by remember { mutableStateOf(false) }
     var paired by remember { mutableStateOf(JarvisAiGateway.hasSavedConnection(context)) }
     var cloudConsent by remember { mutableStateOf(JarvisAiGateway.cloudConsent(context)) }
+    var voiceConsent by remember { mutableStateOf(JarvisAiGateway.voiceConsent(context)) }
+    val selectedLanguage = LocalJarvisLanguage.current
     val scope = rememberCoroutineScope()
 
     Text("AI-agy",
@@ -150,6 +152,37 @@ internal fun JarvisAiSettings(context: Context) {
             status = "Az AI-kérdések továbbításához adott hozzájárulást visszavontam."
         }
     }
+    Spacer(Modifier.height(8.dp))
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Checkbox(checked = voiceConsent, onCheckedChange = { enabled ->
+            voiceConsent = enabled
+            JarvisAiGateway.setVoiceConsent(context, enabled)
+        })
+        androidx.compose.material3.Text(
+            listOf(
+                "AI-hang használata (felhő, külön engedély)",
+                "Use AI voice (cloud, separate consent)",
+                "KI-Stimme verwenden (Cloud, gesonderte Zustimmung)",
+                "Utiliser la voix IA (cloud, accord séparé)",
+                "Usar voz de IA (nube, permiso separado)",
+                "Usa la voce IA (cloud, consenso separato)",
+                "Używaj głosu AI (chmura, osobna zgoda)"
+            )[selectedLanguage.ordinal],
+            style = MaterialTheme.typography.bodyMedium
+        )
+    }
+    androidx.compose.material3.Text(
+        listOf(
+            "A felolvasott szöveg (akár személyes üzenet, névjegy vagy egészségügyi adat) az AI-hang szolgáltatójához kerül. Nincs Android TTS-tartalék, internet nélkül a hang nem működik.",
+            "Spoken text (possibly messages, contact details or health information) is sent to the AI voice provider. There is no Android TTS fallback; voice requires internet.",
+            "Der gesprochene Text (auch private Nachrichten, Kontaktdaten oder Gesundheitsdaten) wird an den KI-Sprachanbieter gesendet. Ohne Internet keine Sprachausgabe.",
+            "Le texte lu (messages privés, contacts ou données médicales compris) est transmis au fournisseur vocal IA. Sans Internet, pas de voix.",
+            "El texto leído (incluso mensajes, contactos o datos de salud) se envía al proveedor de voz de IA. Sin internet no hay voz.",
+            "Il testo letto (anche messaggi, contatti o dati sanitari) viene inviato al fornitore della voce IA. Senza internet niente voce.",
+            "Odczytywany tekst (także wiadomości, kontakty lub dane zdrowotne) jest przesyłany dostawcy głosu AI. Bez internetu głos nie działa."
+        )[selectedLanguage.ordinal],
+        style = MaterialTheme.typography.bodySmall
+    )
     Spacer(Modifier.height(12.dp))
     Text(
         if (paired && selectedMode == savedMode) "AI-hozzáférés mentve ezen a telefonon."

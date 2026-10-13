@@ -75,8 +75,8 @@ Ha megkérdezik, hogy ki vagy vagy ki készített, különböztesd meg a Jarvis 
 Ne mondd, hogy a Jarvis alkalmazást az OpenAI fejlesztette. Nem vagy a ChatGPT alkalmazás.
 
 Jelenlegi Android-tesztverzió:
-- Szöveges AI-válaszok, felolvasás, telefonos beszédfelismerés, korlátozott kéz nélküli hangmód.
-- Helyi Android-parancsok: alkalmazásoldalak megnyitása, navigáció külső térképen, jóváhagyást igénylő hívás-előkészítés.
+- Szöveges AI-válaszok, külön hozzájárulásos felhő AI-hang MP3 lejátszással Android TTS nélkül, és telefonos beszédfelismerés korlátozott kéz nélküli módban.
+- Helyi Android-parancsok: alkalmazásoldalak megnyitása, navigáció külső térképen, jóváhagyást igénylő hívás-előkészítés. Névjegyeket kizárólag a telefon saját névjegyzékéből keresünk. Az AI válasznál OpenRouter webkeresés is elérhető, ha friss információ szükséges.
 - Engedélyhez kötött üzenetértesítések, támogatott gyorsválasz, külső WhatsApp/Messenger üzenet-előkészítés.
 - Helyi vércukornapló, számlatervezetek PDF-megosztása, jegyzetalkalmazás megnyitása, kísérleti ébresztő, világos/sötét mód, fájlválasztás.
 - Gmail-kereső vagy UC bejelentkezési oldal megnyitása, de nem teljes Gmail- vagy UC-fiók olvasása.
@@ -139,7 +139,7 @@ const server = http.createServer(async (req, res) => {
       return reply(res, 400, { error: "ACTIVATION_UNAVAILABLE" });
     }
   }
-  if (req.method !== "POST" || req.url !== "/v1/chat") {
+  if (req.method !== "POST" || !["/v1/chat", "/v1/speech"].includes(req.url ?? "")) {
     reply(res, 404, { error: "NOT_FOUND" });
     return;
   }
@@ -167,6 +167,73 @@ const server = http.createServer(async (req, res) => {
     if (!tester && await redis.get("subscription:" + subject) !== "active") {
       return reply(res, 403, { error: "SUBSCRIPTION_REQUIRED" });
     }
+    if (req.url === "/v1/speech") {
+      // Voice has independent quotas. Never expose provider credentials
+      // or accept arbitrary upstream URLs/models from the device.
+      let request: unknown;
+      try { request = await readInput(req); }
+      catch { return reply(res, 400, { error: "INVALID_BODY" }); }
+      const input = (request as { text?: unknown } | null)?.text;
+      const lang = (request as { language?: unknown } | null)?.language;
+      if (typeof input !== "string" || !input.trim() || input.length > 1600 ||
+          typeof lang !== "string" ||
+          !["hu-HU", "en-GB", "de-DE", "fr-FR", "es-ES", "it-IT", "pl-PL"].includes(lang)) {
+        return reply(res, 400, { error: "INVALID_SPEECH_REQUEST" });
+      }
+      const minute = Math.floor(Date.now() / 60000);
+      const month = new Date().toISOString().slice(0, 7);
+      const quota = await redis.eval(QUOTA_SCRIPT, {
+        keys: ["voice:rate:" + subject + ":" + minute,
+          "voice:monthly:" + subject + ":" + month],
+        arguments: ["8", "250", "180", String(40 * 86400)]
+      });
+      if (quota !== 0) return reply(res, 429, { error: "VOICE_LIMIT" });
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 30000);
+      try {
+        const upstream = await fetch("https://openrouter.ai/api/v1/audio/speech", {
+          method: "POST",
+          headers: {
+            "Authorization": "Bearer " + secret,
+            "Content-Type": "application/json",
+            "Accept": "audio/mpeg"
+          },
+          body: JSON.stringify({
+            model: "openai/gpt-4o-mini-tts-2025-12-15",
+            input,
+            voice: "alloy",
+            response_format: "mp3"
+          }),
+          signal: controller.signal
+        });
+        if (!upstream.ok || !upstream.headers.get("content-type")?.startsWith("audio/mpeg")
+            || !upstream.body) return reply(res, 502, { error: "VOICE_PROVIDER_ERROR" });
+        const reader = upstream.body.getReader();
+        const chunks: Buffer[] = [];
+        let total = 0;
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          total += value.length;
+          if (total > 3 * 1024 * 1024) {
+            await reader.cancel();
+            return reply(res, 502, { error: "VOICE_RESPONSE_TOO_LARGE" });
+          }
+          chunks.push(Buffer.from(value));
+        }
+        if (total < 100) return reply(res, 502, { error: "EMPTY_VOICE_RESPONSE" });
+        res.writeHead(200, {
+          "content-type": "audio/mpeg",
+          "cache-control": "no-store",
+          "x-content-type-options": "nosniff"
+        });
+        res.end(Buffer.concat(chunks, total));
+        return;
+      } finally {
+        clearTimeout(timeout);
+      }
+    }
+
     let data: unknown;
     try { data = await readInput(req); }
     catch { return reply(res, 400, { error: "INVALID_BODY" }); }
@@ -206,7 +273,11 @@ const server = http.createServer(async (req, res) => {
             { role: "system", content: JARVIS_SYSTEM_PROMPT },
             { role: "user", content: message }
           ],
-          ...(toolsRequested ? { tools: JARVIS_TOOLS, tool_choice: "auto" } : {}),
+          ...(toolsRequested
+            ? { tools: JARVIS_TOOLS, tool_choice: "auto" }
+            : { tools: [{ type: "openrouter:web_search", parameters: {
+                  max_uses: 2, max_results: 4, max_total_results: 8
+                } }], tool_choice: "auto" }),
           stream: false,
           max_tokens: MAX_OUTPUT_TOKENS
         }),

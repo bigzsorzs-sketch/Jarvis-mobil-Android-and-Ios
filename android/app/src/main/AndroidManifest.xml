@@ -27,7 +27,6 @@
             <category android:name="android.intent.category.LAUNCHER" />
         </intent>
         <intent><action android:name="android.speech.RecognitionService" /></intent>
-        <intent><action android:name="android.intent.action.TTS_SERVICE" /></intent>
         <package android:name="com.freestylelibre.app.gb" />
         <package android:name="com.whatsapp" />
         <package android:name="com.facebook.orca" />

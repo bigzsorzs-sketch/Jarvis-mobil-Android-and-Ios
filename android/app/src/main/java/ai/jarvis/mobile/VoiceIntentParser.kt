@@ -37,7 +37,7 @@ internal object VoiceIntentParser {
     /** Call confirmation must not mistake 'send' or 'küldd el' for consent to call. */
     fun isCallYes(raw: String): Boolean {
         val n = normalize(raw).trimEnd('.', '!', ',')
-        return n in setOf("igen", "mehet", "yes", "hivd fel", "call now")
+        return n in setOf("igen", "mehet", "yes", "hivd fel", "call now", "ja", "ruf an", "oui", "appelle", "sí", "si", "llama", "sì", "chiama", "tak", "zadzwon")
     }
 
     /** A multi-step workflow must not accept message-send or call words as consent. */
@@ -48,7 +48,7 @@ internal object VoiceIntentParser {
 
     fun isNo(raw: String): Boolean {
         val n = normalize(raw).trimEnd('.', '!', ',')
-        return n in setOf("nem", "megse", "ne kuldd", "torold", "cancel", "no")
+        return n in setOf("nem", "megse", "ne kuldd", "torold", "cancel", "no", "nein", "abbrechen", "non", "annuler", "não", "anuluj", "nie", "anulare", "annulla", "cancelar")
     }
 
     fun isReadMessage(raw: String): Boolean {
