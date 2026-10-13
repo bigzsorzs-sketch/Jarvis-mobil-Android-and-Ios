@@ -131,7 +131,7 @@ internal object JarvisSavedPlaces {
             val destination = if (lat.isFinite() && lon.isFinite() &&
                 lat in -90.0..90.0 && lon in -180.0..180.0 &&
                 (lat != 0.0 || lon != 0.0)) "$lat,$lon"
-            else address.ifBlank { name }
+            else address // Do not invent a routable location from invalid coordinates.
             if (name.isNotBlank() && destination.isNotBlank()) {
                 places.add(JarvisSavedPlace(name, destination))
             }
