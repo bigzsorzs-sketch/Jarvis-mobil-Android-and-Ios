@@ -18,8 +18,9 @@ internal object VoiceNavigation {
     )
 
     private val destinationCommands = listOf(
-        // Hungarian: "Vigyél Harrogate-be", "Navigálj Leedsbe", "Indítsd el a navigációt Yorkba".
-        Regex("""(?iu)^(?:navig[aá]lj(?:\s+el)?|vigy[eé]l(?:\s+el)?|vezess(?:\s+el)?|[uú]tvonal(?:at)?|ind[ií]tsd\s+el\s+a\s+navig[aá]ci[oó]t|[aá]ll[ií]tsd\s+be\s+az?\s+[uú]tvonalat|mutasd\s+meg(?:\s+az\s+[uú]tvonalat)?)\s+(.+)$"""),
+        // Hungarian: accept standard accents and common grave-accent keyboard typos, e.g. "navigàlj".
+        // "Vigyél Harrogate-be", "Navigálj Leedsbe", "Indítsd el a navigációt Yorkba".
+        Regex("""(?iu)^(?:navig[aáà]lj(?:\s+el)?|vigy[eé]l(?:\s+el)?|vezess(?:\s+el)?|[uú]tvonal(?:at)?|ind[ií]tsd\s+el\s+a\s+navig[aá]ci[oó]t|[aá]ll[ií]tsd\s+be\s+az?\s+[uú]tvonalat|mutasd\s+meg(?:\s+az\s+[uú]tvonalat)?)\s+(.+)$"""),
         // English.
         Regex("""(?iu)^(?:navigate|drive|go|take\s+me|guide\s+me|route|start\s+navigation|show\s+(?:me\s+)?directions|get\s+directions)\s+to\s+(.+)$"""),
         // German.
@@ -44,7 +45,9 @@ internal object VoiceNavigation {
     private val navigationPrefix = Regex(
         """(?iu)^(?:ind[ií]tsd\s+el\s+)?(?:az?\s+)?navig[aá]ci[oó]t\s+(?:ide|erre|ehhez)\s*[:,-]?\s*(.+)$"""
     )
-    private val separatedHungarianCase = Regex("""(?iu)^(.+?)\s*-\s*(?:hoz|hez|höz|ba|be|ra|re)\s*$""")
+    // Spoken and typed Hungarian may separate the directional suffix as "-be", " -be",
+    // or " be". Only remove it AFTER recognising an explicit Hungarian command.
+    private val separatedHungarianCase = Regex("""(?iu)^(.+?)(?:\s*-\s*|\s+)(?:hoz|hez|höz|ba|be|ra|re)\s*$""")
     private val joinedHungarianCase = Regex("""(?iu)^(.+?)(?:hoz|hez|höz|ba|be)$""")
 
     fun destinationFrom(command: String): String? {
