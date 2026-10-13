@@ -299,6 +299,12 @@ fun JarvisApp(context: Context) {
             null -> Unit
         }
         if (readAloud != null) return
+        // Explicit page navigation must take priority over modules that see a
+        // keyword inside "Nyisd meg a Vércukor oldalt".
+        JarvisCapabilities.localPageToOpen(command)?.let { route ->
+            addHistory(command to openTool(route, asPage = true))
+            return
+        }
         // Private, on-device data query: never send a glucose request to the LLM.
         if (JarvisGlucoseVoice.isQuery(command)) {
             drawerScope.launch {
@@ -320,10 +326,6 @@ fun JarvisApp(context: Context) {
                     if (requestRevision == commandRevision) addHistory(command to answer)
                 }
             }
-            return
-        }
-        JarvisCapabilities.localPageToOpen(command)?.let { route ->
-            addHistory(command to openTool(route, asPage = true))
             return
         }
         // The same strictly validated local action registry is available from
