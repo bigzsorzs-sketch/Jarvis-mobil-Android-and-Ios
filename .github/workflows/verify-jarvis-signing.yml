@@ -45,7 +45,7 @@ jobs:
           actual_keystore_sha256="$(sha256sum "$tmp/verify.jks" | awk '{print $1}')"
           if [ "$actual_keystore_sha256" != "$expected_keystore_sha256" ]; then
             echo "::error::GitHub keystore does not match the original supplied JKS file"; exit 1
-          }
+          fi
           if ! keytool -list -v -keystore "$tmp/verify.jks" -storepass:env STORE_PASSWORD -alias "$KEY_ALIAS" > "$tmp/certificate-info.txt" 2>/dev/null; then
             echo "::error::Keystore password or alias does not match"; exit 1
           fi
