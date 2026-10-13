@@ -566,12 +566,6 @@ fun JarvisApp(context: Context) {
             gmailAction(request)
             return
         }
-        // Native Amazon search gets the exact original user query. The AI is
-        // never allowed to fabricate a price or select a hidden checkout action.
-        JarvisAmazon.parse(command)?.let { action ->
-            addHistory(command to executeAmazon(action))
-            return
-        }
         // Read-aloud is a device action. It does not ask a model to synthesize audio.
         // Dedicated local data readers always take precedence over generic TTS.
         val readAloud = if (JarvisGlucoseVoice.isQuery(command) ||
@@ -658,6 +652,14 @@ fun JarvisApp(context: Context) {
         // keyword inside "Nyisd meg a Vércukor oldalt".
         JarvisCapabilities.localPageToOpen(command)?.let { route ->
             addHistory(command to openTool(route, asPage = true))
+            return
+        }
+        // Resolve internal Jarvis page requests BEFORE Amazon's external
+        // marketplace handoff. "Open the Amazon page" must stay in Jarvis;
+        // otherwise UI/voice navigation can send the Activity to background.
+        // An actual product search still opens Amazon's retailer results.
+        JarvisAmazon.parse(command)?.let { action ->
+            addHistory(command to executeAmazon(action))
             return
         }
         // Private, on-device data query: never send a glucose request to the LLM.
