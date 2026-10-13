@@ -220,12 +220,31 @@ fun JarvisApp(context: Context) {
         }
         else -> JarvisAmazon.open(context, action)
     }
+    var gmailDraft by remember { mutableStateOf<GmailDraftConversation?>(null) }
+    var gmailChoice by remember { mutableStateOf<GmailRecipientChoice?>(null) }
+    var gmailLookupInstruction by remember { mutableStateOf<String?>(null) }
     var gmailStatus by remember { mutableStateOf("") }
     var gmailReadText by remember { mutableStateOf("") }
     val gmailAction = rememberJarvisGmail { request, outcome ->
+        if (request.operation is GmailOperation.ResolveRecipient) {
+            if (gmailLookupInstruction != request.instruction) return@rememberJarvisGmail
+            gmailLookupInstruction = null
+            val addresses = outcome.recipientCandidates
+            gmailDraft = null
+            gmailChoice = null
+            when {
+                addresses.size == 1 -> gmailDraft = GmailDraftConversation(
+                    addresses.single(), request.operation.actuallySend,
+                    expiresAtMs = android.os.SystemClock.elapsedRealtime() + 180_000L)
+                addresses.size > 1 -> gmailChoice = GmailRecipientChoice(
+                    addresses, request.operation.actuallySend,
+                    android.os.SystemClock.elapsedRealtime() + 90_000L)
+            }
+        }
         gmailStatus = outcome.status
         gmailReadText = outcome.speak.orEmpty()
-        if (request.operation is GmailOperation.Read && outcome.speak != null) page = "Email"
+        if ((request.operation is GmailOperation.Read || request.operation == GmailOperation.ListUnread) &&
+            outcome.speak != null) page = "Email"
         // Keep private Gmail bodies out of the persisted chat history.
         // Still deliver the asynchronous answer to a pending hands-free turn.
         val fromVoice = voiceReply?.first == request.instruction
@@ -236,12 +255,15 @@ fun JarvisApp(context: Context) {
             is GmailOperation.Reply -> "Gmail válasz küldése"
             else -> "Gmail művelet"
         }
-        val turn = safeCommand to outcome.status
+        // Mailbox-derived recipient lists must not be written to chat history.
+        val turn = safeCommand to if (request.operation is GmailOperation.ResolveRecipient)
+            "A Gmail címzettkeresése befejeződött. Az eredmény csak a képernyőn látható."
+            else outcome.status
         conversation.add(turn)
         saveChatTurn(turn)
         // The microphone service speaks its own response. Do not start a
         // second cloud player over the top of it for the same email.
-        if (!fromVoice) outcome.speak?.let {
+        if (!fromVoice && request.operation is GmailOperation.Read) outcome.speak?.let {
             if (!narrator.read(it, language)) {
                 gmailStatus = outcome.status + " A hangos felolvasás nem indult el; a szöveg az Email oldalon olvasható."
             }
@@ -340,6 +362,13 @@ fun JarvisApp(context: Context) {
         pendingSequenceUntilMs = android.os.SystemClock.elapsedRealtime() + 40_000L
     }
     fun openTool(destination: String, asPage: Boolean = false): String {
+        // Backward-compatible route guard for pending voice/AI requests from
+        // before the Navigation page was removed. Real destination navigation
+        // still executes earlier through VoiceNavigation, unchanged.
+        if (asPage && destination == "Navigáció") {
+            page = "Továbbiak"
+            return "A mentett helyek importálása és az otthoni cím most a Továbbiak oldalon van."
+        }
         // Legacy AI/tool requests must not reopen the removed Contacts screen.
         // Phonebook lookup and confirmed calls still run through VoiceCalling.
         if (destination == "Névjegyek" || destination == "Hívás") {
@@ -400,6 +429,54 @@ fun JarvisApp(context: Context) {
         commandRevision += 1
         val requestRevision = commandRevision
         val now = android.os.SystemClock.elapsedRealtime()
+        if (gmailLookupInstruction != null) gmailLookupInstruction = null
+        if (gmailChoice != null) {
+            val choice = gmailChoice!!
+            if (now > choice.expiresAtMs || GmailDraftConversationFlow.isCancel(command)) {
+                gmailChoice = null
+                completeCommand(command, "Megszakítottam a Gmail-címzett kiválasztását.")
+                conversation.add("Gmail címzett" to "Címzettválasztás megszakítva.")
+                return
+            }
+            val chosen = GmailDraftConversationFlow.choice(command, choice.options.size)
+            if (chosen != null) {
+                gmailDraft = GmailDraftConversation(
+                    choice.options[chosen], choice.actuallySend,
+                    expiresAtMs = now + 180_000L)
+                gmailChoice = null
+                completeCommand(command, "Kiválasztottam a címzettet a Gmailből. Mi legyen a tárgy?")
+                conversation.add("Gmail címzett kiválasztása" to
+                    "Kiválasztottam a címzettet a Gmailből. Mi legyen a tárgy?")
+                return
+            }
+            gmailChoice = null
+        }
+        if (gmailDraft != null) {
+            val oldDraft = gmailDraft!!
+            if (now > oldDraft.expiresAtMs) {
+                gmailDraft = null
+            } else when (val next = GmailDraftConversationFlow.advance(oldDraft, command)) {
+                GmailDraftNext.Cancelled -> {
+                    gmailDraft = null
+                    completeCommand(command, "Megszakítottam az emailt. Nem küldtem el.")
+                    conversation.add("Gmail művelet" to "Email megszakítva, nem küldtem el.")
+                    return
+                }
+                GmailDraftNext.NotRelated -> gmailDraft = null
+                is GmailDraftNext.Updated -> {
+                    gmailDraft = next.draft.copy(expiresAtMs = now + 180_000L)
+                    val response = "Rögzítettem a tárgyat. Mi legyen a levél szövege?"
+                    completeCommand(command, response)
+                    conversation.add("Gmail tárgy megadva" to response)
+                    return
+                }
+                is GmailDraftNext.Complete -> {
+                    gmailDraft = null
+                    gmailAction(GmailRequest(command, next.send))
+                    return
+                }
+            }
+        }
         JarvisControlCommand.parse(command)?.let { control ->
             val result = controls.execute(control, language)
             clearCallFlow()
@@ -545,8 +622,8 @@ fun JarvisApp(context: Context) {
             val answer = if (count > 0)
                 "Megnyitom a $count importált mentett helyet. Ez helyi másolat, nem élő Google-fiók kapcsolat."
             else "A Google Maps mentett helyeihez nincs élő hozzáférésem. " +
-                "Megnyitom a Navigációt, ahol Google Takeout CSV vagy GeoJSON fájlt importálhatsz."
-            openTool("Navigáció", asPage = true)
+                "Megnyitom a Beállítások → Továbbiak oldalt, ahol Google Takeout CSV vagy GeoJSON fájlt importálhatsz."
+            openTool("Továbbiak", asPage = true)
             addHistory(command to answer)
             return
         }
@@ -569,6 +646,11 @@ fun JarvisApp(context: Context) {
         // Route user-originated Gmail actions before generic narration or AI.
         // Only the real Google authorization flow can grant email access.
         JarvisGmailCommands.parse(command)?.let { request ->
+            if (request.operation is GmailOperation.ResolveRecipient) {
+                gmailLookupInstruction = request.instruction
+                gmailDraft = null
+                gmailChoice = null
+            }
             gmailAction(request)
             return
         }
@@ -1066,6 +1148,7 @@ fun JarvisApp(context: Context) {
                                     context, isDark, toggleTheme,
                                     onVoice = { page = "Hangbeállítások" },
                                     onAi = { page = "AI-agy" },
+                                    onMore = { page = "Továbbiak" },
                                     language = language
                                 )
                                 "Hangbeállítások" -> HandsFreePanel(context)
@@ -1204,8 +1287,17 @@ private fun MoreScreen(context: Context, notes: MutableList<String>, persist: ()
                 result = "Az otthoni címed titkosított helyi tárhelyre került."
             }
         }, commandLabel = "Otthoni cím mentése") { Text("Otthoni cím mentése") }
+        ControlledButton(onClick = {
+            result = if (VoiceNavigation.resolve(context, "HOME") == null)
+                "Előbb add meg és mentsd el az otthoni címedet."
+            else JarvisNavigationText.result(
+                JarvisLanguageSettings.load(context), VoiceNavigation.openDetailed(context, "HOME"))
+        }, commandLabel = "Navigálás haza") { Text("Navigálás haza") }
         ControlledOutlinedButton(onClick = { result = if (openMap(context)) "Térkép megnyitva."
             else "Nincs térképalkalmazás." }, commandLabel = "Térkép megnyitása") { Text("Térkép megnyitása") }
+        // Keep the local saved-places file picker accessible after removing
+        // the standalone Navigation UI. It never requires Google credentials.
+        JarvisSavedPlacesPanel(context)
     }
     Spacer(Modifier.height(12.dp))
     SurfaceCard {

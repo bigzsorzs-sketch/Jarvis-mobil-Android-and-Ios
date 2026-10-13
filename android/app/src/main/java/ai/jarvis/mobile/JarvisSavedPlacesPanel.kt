@@ -62,7 +62,7 @@ internal fun JarvisSavedPlacesPanel(context: Context) {
         "Lieux Google Maps enregistrés (copie locale)",
         "Lugares guardados de Google Maps (copia local)",
         "Luoghi salvati di Google Maps (copia locale)",
-        "Zapisane miejsca Google Maps (kopia lokalna)"))
+        "Zapisane miejsca Google Maps (kopia lokalna)"), color = JarvisPalette.mainText)
     Text(message(language,
         "A Google-fiókhoz nincs élő hozzáférés. A Google Takeout »Mentett« CSV-listáját vagy a »Maps (your places)« GeoJSON-fájlt importálhatod.",
         "No live Google account access. Import a Google Takeout Saved CSV list or Maps (your places) GeoJSON.",
@@ -70,7 +70,7 @@ internal fun JarvisSavedPlacesPanel(context: Context) {
         "Pas d'accès direct au compte Google. Importe un CSV « Saved » ou un GeoJSON Google Takeout.",
         "Sin acceso directo a Google. Importa el CSV de « Saved » o GeoJSON de Google Takeout.",
         "Nessun accesso diretto a Google. Importa CSV « Saved » o GeoJSON da Google Takeout.",
-        "Brak bezpośredniego dostępu do Google. Zaimportuj CSV « Saved » lub GeoJSON z Google Takeout."))
+        "Brak bezpośredniego dostępu do Google. Zaimportuj CSV « Saved » lub GeoJSON z Google Takeout."), color = JarvisPalette.subtleText)
     Button(
         onClick = { picker.launch(arrayOf("text/*", "application/json", "application/geo+json", "application/octet-stream")) },
         modifier = Modifier.fillMaxWidth()
@@ -80,15 +80,15 @@ internal fun JarvisSavedPlacesPanel(context: Context) {
             "Importar lugares guardados", "Importa luoghi salvati",
             "Importuj zapisane miejsca"))
     }
-    if (status.isNotBlank()) Text(status)
+    if (status.isNotBlank()) Text(status, color = JarvisPalette.accent)
     Text(message(language, "Importált helyek: ", "Imported places: ",
         "Importierte Orte: ", "Lieux importés : ", "Lugares importados: ",
-        "Luoghi importati: ", "Zaimportowane miejsca: ") + places.size)
+        "Luoghi importati: ", "Zaimportowane miejsca: ") + places.size, color = JarvisPalette.mainText)
     if (places.isNotEmpty()) {
         // Keep screen scroll ownership in JarvisToolLanding; avoid nested unbounded lazy scrolling.
         places.take(60).forEach { place ->
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text(place.name, modifier = Modifier.weight(1f))
+                Text(place.name, modifier = Modifier.weight(1f), color = JarvisPalette.mainText)
                 OutlinedButton(onClick = {
                     status = JarvisNavigationText.result(
                         language, VoiceNavigation.openDetailed(context, place.destination))
@@ -102,7 +102,7 @@ internal fun JarvisSavedPlacesPanel(context: Context) {
             "Az első 60 hely látható.", "Showing the first 60 places.",
             "Die ersten 60 Orte werden angezeigt.", "Affichage des 60 premiers lieux.",
             "Se muestran los primeros 60 lugares.", "Mostrati i primi 60 luoghi.",
-            "Wyświetlono pierwsze 60 miejsc."))
+            "Wyświetlono pierwsze 60 miejsc."), color = JarvisPalette.subtleText)
     }
 }
 

@@ -96,7 +96,6 @@ internal object JarvisCapabilities {
         val aliases = mapOf(
             "Főoldal" to listOf("kezdolap", "home"),
             "Munka" to listOf("eszkoztar", "eszkozok", "work"),
-            "Navigáció" to listOf("terkep", "maps"),
             "Alkalmazások" to listOf("appok", "installed apps"),
             "Előzmények" to listOf("chat history", "beszelgetesnaplo"),
             "Vércukor" to listOf("vercukornaplo", "glucose"),
@@ -107,7 +106,8 @@ internal object JarvisCapabilities {
             "Hangbeállítások" to listOf("hangvezerles", "hangfigyeles", "voice settings"),
             "Engedélyek" to listOf("engedelykozpont", "permissions"),
             "Továbbiak" to listOf("otthoni cim", "esemeny hozzaadasa",
-                "jarvis ebreszto kezelese")
+                "jarvis ebreszto kezelese", "mentett helyek importalasa", "mentett helyek beallitasai",
+                "saved places import")
         )
         val matches = (JarvisToolCatalog.all + JarvisToolCatalog.subpages).filter { tool ->
             (listOf(tool.name, tool.route) + JarvisLanguage.entries.flatMap { lang ->
@@ -125,7 +125,7 @@ internal object JarvisCapabilities {
         val route = matches.singleOrNull() ?: return null
         val explicitPage = Regex("""\b(oldal[a-z]*|menu[a-z]*|kepernyo[a-z]*|page|screen|seite|pagina|ecran|strone)\b""")
             .containsMatchIn(n)
-        if (!explicitPage && route in setOf("Navigáció", "Email", "Naptár", "Ébresztő")) {
+        if (!explicitPage && route in setOf("Email", "Naptár", "Ébresztő")) {
             return null
         }
         return route

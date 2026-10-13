@@ -22,7 +22,6 @@ internal object JarvisToolCatalog {
     val all = listOf(
         JarvisTool("Főoldal", "Főoldal", "⌂"),
         JarvisTool("Munka", "Munka", "▣"),
-        JarvisTool("Navigáció", "Navigáció", "➤"),
         JarvisTool("Alkalmazások", "Alkalmazások", "▦"),
         JarvisTool("Előzmények", "Előzmények", "◷"),
         JarvisTool("Vércukor", "Vércukor", "♧"),
@@ -102,18 +101,6 @@ internal fun JarvisToolLanding(context: Context, page: String, onOpen: (String) 
                     Text(item.name, modifier = Modifier.weight(1f))
                 }
             }
-        }
-        "Navigáció" -> {
-            Text("Hangos útvonaltervezés: a mentett címek alapján a telepített térképalkalmazás indul.",
-                color = JarvisPalette.subtleText)
-            ControlledButton(onClick = {
-                message = if (VoiceNavigation.resolve(context, "HOME") == null)
-                    "Előbb mentsd el az otthoni címet az Eszközök menüben."
-                else JarvisNavigationText.result(
-                    JarvisLanguageSettings.load(context), VoiceNavigation.openDetailed(context, "HOME"))
-            }, commandLabel = "Navigálás haza") { Text("Navigálás haza") }
-            ControlledOutlinedButton(onClick = { onOpen("Továbbiak") }, commandLabel = "Otthoni cím beállítása") { Text("Otthoni cím beállítása") }
-            JarvisSavedPlacesPanel(context)
         }
         "Email" -> {
             Text("Emailvázlatot készíthetsz. Gmail-fiók olvasása és keresése külön OAuth-kapcsolatot igényel.",

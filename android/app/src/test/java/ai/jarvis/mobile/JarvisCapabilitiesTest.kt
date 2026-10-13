@@ -13,6 +13,8 @@ class JarvisCapabilitiesTest {
         assertEquals("AI-agy", JarvisCapabilities.localPageToOpen("Nyisd meg a beállítások AI-agy oldalát"))
         assertEquals("Hangbeállítások", JarvisCapabilities.localPageToOpen("Nyisd meg a hangvezérlést"))
         assertEquals("Továbbiak", JarvisCapabilities.localPageToOpen("Nyisd meg az otthoni cím beállítását"))
+        assertEquals("Továbbiak", JarvisCapabilities.localPageToOpen("Nyisd meg a mentett helyek importálását"))
+        assertNull(JarvisCapabilities.localPageToOpen("Nyisd meg a Navigáció oldalt"))
         assertEquals("Továbbiak", JarvisCapabilities.localPageToOpen("Nyisd meg a Jarvis-ébresztő kezelését"))
         assertEquals("Jegyzetek", JarvisCapabilities.localPageToOpen("Nyisd meg a helyi jegyzeteket"))
         assertNull(JarvisCapabilities.localPageToOpen("Nyisd meg a wifi beállításokat"))
