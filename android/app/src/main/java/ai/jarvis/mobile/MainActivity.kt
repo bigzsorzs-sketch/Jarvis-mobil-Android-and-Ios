@@ -187,13 +187,16 @@ fun JarvisApp(context: Context) {
     // Keep only the pending intent within this foreground Activity, not a saved contact.
     var awaitingCallTarget by remember { mutableStateOf<String?>(null) }
     var awaitingCallTargetUntilMs by remember { mutableLongStateOf(0L) }
+    var callChoices by remember { mutableStateOf<List<VoiceCalling.Target>>(emptyList()) }
     fun clearCallFlow() {
         pendingCall = null
         pendingCallUntilMs = 0L
         awaitingCallTarget = null
         awaitingCallTargetUntilMs = 0L
+        callChoices = emptyList()
     }
     fun prepareCallConfirmation(person: VoiceCalling.Target) {
+        callChoices = emptyList()
         awaitingCallTarget = null
         awaitingCallTargetUntilMs = 0L
         pendingCall = person
@@ -216,9 +219,17 @@ fun JarvisApp(context: Context) {
                 "A Névjegyek engedély hiányzik. Engedélyezd a Jarvisnak, vagy add meg a teljes telefonszámot."
             }
             VoiceCalling.Lookup.Ambiguous -> {
+                val matches = VoiceCalling.candidates(context, target)
+                callChoices = matches.take(3)
                 awaitingCallTarget = ""
                 awaitingCallTargetUntilMs = android.os.SystemClock.elapsedRealtime() + 90_000L
-                "Több ilyen nevű névjegy van. Mondd a teljes nevet vagy a pontos telefonszámot."
+                if (matches.isEmpty()) "Több névjegy van. Mondd a pontos telefonszámot."
+                else "Több különböző szám található. " +
+                    callChoices.mapIndexed { index, item ->
+                        "${index + 1}. ${item.label}: ${item.number}"
+                    }.joinToString("; ") +
+                    if (matches.size > 3) ". További találatok is vannak, add meg a teljes számot."
+                    else ". Mondd: első, második, vagy add meg a teljes számot."
             }
         }
     }
@@ -260,6 +271,16 @@ fun JarvisApp(context: Context) {
         commandRevision += 1
         val requestRevision = commandRevision
         val now = android.os.SystemClock.elapsedRealtime()
+        // An unrelated explicit Android command interrupts any previous call.
+        // Launching Messenger/WhatsApp must NEVER consume a stale phone target.
+        if (VoiceCalling.isOtherCommand(command)) {
+            clearCallFlow()
+            val request = JarvisInstalledApps.requestedLabel(command)
+            if (request != null) {
+                addHistory(command to JarvisInstalledApps.openRequested(context, command))
+                return
+            }
+        }
         // BEFORE invalidating earlier approvals, consume explicit follow-ups
         // on the original user-initiated call. A bare "igen, hívd" is allowed
         // only for a fresh, unambiguous, resolved telephone number.
@@ -299,6 +320,11 @@ fun JarvisApp(context: Context) {
             if (VoiceIntentParser.isNo(command)) {
                 clearCallFlow()
                 addHistory(command to "Rendben, megszakítottam a híváskérést.")
+                return
+            }
+            VoiceCalling.selectedChoice(command, callChoices)?.let { choice ->
+                prepareCallConfirmation(choice)
+                addHistory(command to "Ezt a számot hívjam: ${choice.label}, ${choice.number}? Mondd: igen, hívd – vagy: nem.")
                 return
             }
             // A user can state "ez a Vivi száma 07478 ...". Only the exact
