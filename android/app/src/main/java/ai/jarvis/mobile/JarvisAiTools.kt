@@ -172,7 +172,6 @@ internal object JarvisAiTools {
             "Munka" to listOf("munka", "eszkoztar", "work"),
             "Alkalmazások" to listOf("alkalmazasok", "appok", "installed apps"),
             "Előzmények" to listOf("elozmeny", "chat history"),
-            "Navigáció" to listOf("navig", "terkep", "maps"),
             "Vércukor" to listOf("vercuk", "glucose", "blood sugar"),
             "Számlák" to listOf("szaml", "invoice"),
             "Email" to listOf("email", "gmail", "level", "mail"),
