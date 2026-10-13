@@ -16,6 +16,8 @@ internal object JarvisQuietActions {
     fun hideSuccessfulTurn(command: String, response: String): Boolean {
         val q = n(command)
         val r = n(response)
+        if ("amazon" in q && r.startsWith("megnyitottam") &&
+            (r.contains("amazon") || r.contains("talalatait"))) return true
         if (q.isBlank() || r.isBlank() || "?" in response ||
             listOf("nem sikerult", "nem talal", "nem tortent", "nincs",
                 "hiba", "sikertelen", "bizonytalan", "nem indult", "nem tudom",
