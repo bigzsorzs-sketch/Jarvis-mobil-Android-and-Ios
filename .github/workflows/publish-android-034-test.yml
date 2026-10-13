@@ -1,0 +1,119 @@
+name: Publish Jarvis Android 0.2.17 cumulative test APK
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/publish-android-034-test.yml"]
+permissions:
+  contents: write
+  actions: read
+concurrency:
+  group: jarvis-android-0217-test-release
+  cancel-in-progress: false
+jobs:
+  publish-tested-apk:
+    if: github.repository == 'bigzsorzs-sketch/Jarvis-mobil-Android-and-Ios' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      SOURCE_SHA: "a77300103140095e8cbe7cd115328b4c6d15b7ab"
+      PUBLISHER_PATH: ".github/workflows/publish-android-034-test.yml"
+    steps:
+      - name: Verify publisher-only commit after the approved application commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          main_sha="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')"
+          test "$main_sha" = "$GITHUB_SHA"
+          gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA" > "$RUNNER_TEMP/publisher-commit.json"
+          jq -e --arg source "$SOURCE_SHA" --arg path "$PUBLISHER_PATH" '
+            (.parents | length) == 1 and .parents[0].sha == $source and
+            (.files | length) == 1 and .files[0].filename == $path and .files[0].status == "added"
+          ' "$RUNNER_TEMP/publisher-commit.json" >/dev/null
+      - name: Wait for same-commit main build and real emulator success
+        id: verified
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 90); do
+            gh api "repos/$GITHUB_REPOSITORY/actions/workflows/android-debug.yml/runs?head_sha=$SOURCE_SHA&event=push&per_page=10" > "$RUNNER_TEMP/build-runs.json"
+            gh api "repos/$GITHUB_REPOSITORY/actions/workflows/android-ui-emulator.yml/runs?head_sha=$SOURCE_SHA&event=push&per_page=10" > "$RUNNER_TEMP/ui-runs.json"
+            build_state="$(jq -r '.workflow_runs[0].conclusion // ""' "$RUNNER_TEMP/build-runs.json")"
+            ui_state="$(jq -r '.workflow_runs[0].conclusion // ""' "$RUNNER_TEMP/ui-runs.json")"
+            for state in "$build_state" "$ui_state"; do
+              case "$state" in
+                failure|cancelled|timed_out|action_required|stale) echo "Required verification failed: $state"; exit 1 ;;
+              esac
+            done
+            if [ "$build_state" = "success" ] && [ "$ui_state" = "success" ]; then
+              for report in "$RUNNER_TEMP/build-runs.json" "$RUNNER_TEMP/ui-runs.json"; do
+                jq -e --arg sha "$SOURCE_SHA" --arg repo "$GITHUB_REPOSITORY" '
+                  .workflow_runs[0] |
+                  .head_sha == $sha and .event == "push" and .head_branch == "main" and
+                  .head_repository.full_name == $repo and .status == "completed" and .conclusion == "success"
+                ' "$report" >/dev/null
+              done
+              echo "build_run_id=$(jq -r '.workflow_runs[0].id' "$RUNNER_TEMP/build-runs.json")" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            echo "Waiting for validated application commit: build=$build_state emulator=$ui_state"
+            sleep 10
+          done
+          echo "Required application verification did not finish successfully."
+          exit 1
+      - name: Download exact verified main build artifact
+        uses: actions/download-artifact@v4
+        with:
+          run-id: ${{ steps.verified.outputs.build_run_id }}
+          name: Jarvis-Android-Debug-APK
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: dist
+      - name: Install APK inspection tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -1)"
+          test -n "$sdkmanager"
+          "$sdkmanager" "build-tools;36.0.0"
+      - name: Verify APK signature, identity, version and checksum
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s dist/app-debug.apk
+          unzip -t dist/app-debug.apk >/dev/null
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs dist/app-debug.apk > dist/SIGNING-CERTIFICATE.txt
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging dist/app-debug.apk > "$RUNNER_TEMP/apk-badging.txt"
+          grep -F "package: name='ai.jarvis.mobile' versionCode='28' versionName='0.2.17-dev'" "$RUNNER_TEMP/apk-badging.txt"
+          grep -F "targetSdkVersion:'36'" "$RUNNER_TEMP/apk-badging.txt"
+          mv dist/app-debug.apk dist/Jarvis-Mobile-Android-0.2.17-test.apk
+          (cd dist && sha256sum Jarvis-Mobile-Android-0.2.17-test.apk > SHA256SUMS.txt)
+      - name: Publish one cumulative test prerelease without replacing older releases
+        shell: bash
+        run: |
+          set -euo pipefail
+          main_sha="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')"
+          test "$main_sha" = "$GITHUB_SHA"
+          tag="v0.2.17-dev-test.1"
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Existing release kept intact."
+            exit 0
+          fi
+          cat > "$RUNNER_TEMP/jarvis-test-notes.md" <<'EOF'
+          ## Jarvis Mobile Android 0.2.17 – EGYBEN TESZT
+
+          Mindkét új javítás egy APK-ban, a korábbi vércukor-, számlázó- és nyelvi fejlesztésekkel együtt.
+
+          - Általános felolvasás: bármilyen chatkérdés vagy válasz, hosszú szöveg darabolása, leállítás, hangutasítások.
+          - Beállítások → Frissítések: új kiadások keresése, APK letöltése és ellenőrzése, átadás az Android telepítőjének.
+          - Magyar, angol, német, francia, spanyol, olasz és lengyel felület, hangutasítások és visszajelzések.
+          - A frissítő ellenőrzi a hivatalos GitHub-forrást, SHA-256 értéket, appazonosítót, verziószámot és az aláíró tanúsítvány egyezését.
+          - A korábbi helyi vércukornapló, LibreView-import, Health Connect és LibreLink NFC-átadás, valamint számlák/PDF/Gmail SMTP funkciók is benne vannak.
+          - Az APK a pontos kiadási forráscommit sikeres főági egységtesztje, lint-, debug/release fordítása és Android-emulátoros UI-ellenőrzése után készült.
+          - Ez CI DEBUG-ALÁÍRÁSÚ TESZT APK. A régebben telepített APK-val egyező tanúsítvány nincs igazolva. Az új frissítő nem töröl alkalmazást és elutasítja az eltérő aláírást. Ha Android nem engedi a rátelepítést, ne töröld az adatokat tartalmazó régi appot; a biztonságos átálláshoz az eredeti aláírókulcs vagy külön adatmentési megoldás szükséges.
+          - A fizikai telefonos mikrofon/felolvasás és a tényleges törlés nélküli frissítés még ellenőrzendő. A közvetlen Abbott-élőadatkapcsolat és a valódi Gmail-kézbesítés nincs ezzel a builddel igazolva.
+          EOF
+          gh release create "$tag" \
+            dist/Jarvis-Mobile-Android-0.2.17-test.apk dist/SHA256SUMS.txt dist/SIGNING-CERTIFICATE.txt \
+            --repo "$GITHUB_REPOSITORY" --target "$SOURCE_SHA" \
+            --title "Jarvis Mobile Android 0.2.17 – TESZT" \
+            --notes-file "$RUNNER_TEMP/jarvis-test-notes.md" --prerelease --latest=false
