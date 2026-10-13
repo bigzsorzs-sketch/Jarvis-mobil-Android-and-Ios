@@ -32,6 +32,14 @@ class JarvisAmazonTest {
         assertNull(JarvisAmazon.productFromUrl("https://www.amazon.co.uk.evil.com/dp/B012345678"))
     }
 
+    @Test fun explicitJarvisAmazonPageCommandIsLocalNavigation() {
+        assertEquals("Amazon", JarvisCapabilities.localPageToOpen("Nyisd meg az Amazon oldalt"))
+        assertEquals("Amazon", JarvisCapabilities.localPageToOpen("Jarvis, nyisd meg az Amazon oldalt"))
+        assertEquals("Amazon", JarvisCapabilities.localPageToOpen("Nyisd meg az Amazon menüt"))
+        // A product search must not masquerade as a local menu request.
+        assertNull(JarvisCapabilities.localPageToOpen("keress Amazonon Costa kávébabot"))
+    }
+
     @Test fun noUnrequestedAmazonHandoff() {
         assertNull(JarvisAmazon.parse("navigálj Manchesterbe"))
         assertNull(JarvisAmazon.parse("milyen új emailek vannak?"))
