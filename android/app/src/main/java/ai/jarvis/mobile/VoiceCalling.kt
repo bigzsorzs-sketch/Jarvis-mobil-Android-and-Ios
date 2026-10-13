@@ -36,30 +36,34 @@ internal object VoiceCalling {
         return name.length >= 2 && query in setOf(name, name + "t", name + "nak", name + "nek")
     }
 
+    /** A unique first-name match is permitted, but duplicates must never auto-dial. */
+    internal fun matchesFirstName(spoken: String, contactName: String): Boolean {
+        val query = normalize(spoken)
+        val first = normalize(contactName).substringBefore(' ')
+        return first.length >= 2 && (query == first ||
+            query == first + "t" || query == first + "nak" || query == first + "nek")
+    }
+
     fun extractRequest(text: String): String? {
-        val matched = Regex(
-            "^(?:h[ií]vd\\s+fel|t[aá]rcs[aá]zd|telefon[aá]lj|call)\\s+(?:(?:a|az)\\s+)?(.+?)\\s*[.!?]?$",
-            RegexOption.IGNORE_CASE
-        ).find(text.trim()) ?: return null
-        return matched.groupValues[1].trim().takeIf { it.isNotBlank() }
+        val clean = text.trim()
+            .replace(Regex("""(?iu)^(?:(?:hey|hej|szia|ok|okay)\s+)?jarvis\s*[,!:]?\s*"""), "")
+            .replace(Regex("""(?iu)^(?:k[eé]rlek|please|bitte|s'il vous plaît|por favor|per favore|proszę)\s+"""), "")
+        val pattern = Regex(
+            """(?iu)^(?:h[ií]vd\s+fel|t[aá]rcs[aá]zd|telefon[aá]lj|fel\s+tudn[aá]d\s+h[ií]vni|felh[ií]vn[aá]d|szeretn[eé]m\s+ha\s+felh[ií]vn[aá]d|call|phone|ruf\s+an|rufe|anrufen|appelle|appeler|llama\s+a|llamar|chiama|chiamare|zadzwo[nń]\s+do|zadzwo[nń])\s+(?:(?:a|az|the|le|la|el|il|den|die|do)\s+)?(.+?)\s*[.!?]?$"""
+        )
+        val match = pattern.matchEntire(clean) ?: return null
+        val target = match.groupValues[1].trim()
+        if (target.isBlank() || target.length > 70 ||
+            Regex("""(?iu)\b(?:és|and|majd|aztán|then|und|et|y|e|i)\b""")
+                .containsMatchIn(target)) return null
+        return target
     }
 
     /**
      * Additional explicit natural-language call requests for AI proposals.
      * Return the target FROM THE USER, not a potentially hallucinated model target.
      */
-    fun extractAiRequest(input: String): String? {
-        val withoutWake = input.trim()
-            .replace(Regex("""(?iu)^(?:(?:hey|hej|szia|ok)\s+)?jarvis\s*[,!:]?\s*"""), "")
-            .replace(Regex("""(?iu)^k[eé]rlek\s+"""), "")
-        val match = Regex(
-            """(?iu)^(?:h[ií]vd\s+fel|t[aá]rcs[aá]zd|telefon[aá]lj|call|fel\s+tudn[aá]d\s+h[ií]vni|felh[ií]vn[aá]d|szeretn[eé]m\s+ha\s+felh[ií]vn[aá]d)\s+(?:(?:a|az)\s+)?(.+?)\s*[.!?]?$"""
-        ).matchEntire(withoutWake) ?: return null
-        val target = match.groupValues[1].trim()
-        if (target.isBlank() || target.length > 70 ||
-            Regex("""(?iu)\b(?:és|and|majd|aztán|then)\b""").containsMatchIn(target)) return null
-        return target
-    }
+    fun extractAiRequest(input: String): String? = extractRequest(input)
 
     /** Model must not substitute a different contact or phone number. */
     fun matchesAiTarget(originalTarget: String?, suggested: String): Boolean {
@@ -72,8 +76,7 @@ internal object VoiceCalling {
     }
 
     fun lookup(context: Context, spoken: String): Lookup {
-        val trusted = PeopleDirectory.find(context, spoken)
-        if (trusted != null) return Lookup.Found(Target(trusted.nickname, trusted.phone))
+        // Only system phonebook contacts are used for name resolution.
         val query = spoken.trim()
         val cleanedNumber = query.replace(Regex("[\\s()\\-]"), "")
         if (cleanedNumber.matches(Regex("\\+?[0-9]{5,16}"))) {
@@ -95,7 +98,7 @@ internal object VoiceCalling {
                 while (cursor.moveToNext() && candidates.size <= 2) {
                     val name = cursor.getString(nameAt).orEmpty()
                     val phone = cursor.getString(numberAt).orEmpty()
-                    val matches = matchesContactName(query, name)
+                    val matches = matchesContactName(query, name) || matchesFirstName(query, name)
                     if (matches && phone.isNotBlank()) candidates.add(Target(name, phone))
                 }
             }
