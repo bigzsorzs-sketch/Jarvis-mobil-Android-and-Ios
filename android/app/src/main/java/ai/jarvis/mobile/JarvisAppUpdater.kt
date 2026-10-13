@@ -284,6 +284,12 @@ internal object JarvisUpdateVoice {
     private fun normalize(value: String): String = java.text.Normalizer.normalize(
         value.lowercase(Locale.ROOT), java.text.Normalizer.Form.NFD
     ).replace(Regex("\\p{M}+"), "")
+    fun shouldInstall(value: String): Boolean {
+        val s = normalize(value)
+        return listOf("frissits", "frissitsd", "telepits", "install", "actualiza",
+            "aktualisier", "aggiorna", "zainstaluj", "aktualizuj", "mettre a jour")
+            .any { it in s } && isRequest(value)
+    }
     fun isRequest(value: String): Boolean {
         val s = normalize(value)
         val action = listOf("frissit", "ellenoriz", "update", "check", "aktualisier",
@@ -298,5 +304,9 @@ internal object JarvisUpdateVoice {
 
 internal object JarvisUpdateNavigation {
     var requestCheck by androidx.compose.runtime.mutableIntStateOf(0)
-    fun request() { requestCheck++ }
+    var installRequested by androidx.compose.runtime.mutableStateOf(false)
+    fun request(install: Boolean = false) {
+        installRequested = install
+        requestCheck++
+    }
 }
