@@ -71,6 +71,8 @@ internal object VoiceNavigation {
         // Only strip Hungarian case endings from Hungarian commands. Other
         // languages and full addresses must be passed unmodified to Maps.
         if (index != 0) return raw
+        // The suffix belongs to the saved-place reference ("helyhez"), not to the place name.
+        if (JarvisSavedPlaces.importedName(raw) != null) return raw
         val explicit = separatedHungarianCase.matchEntire(raw)
         if (explicit != null) return explicit.groupValues[1].trim()
         val joined = joinedHungarianCase.matchEntire(raw)
