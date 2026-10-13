@@ -488,6 +488,18 @@ fun JarvisApp(context: Context) {
             openTool("Beállítások", asPage = true)
             return
         }
+        // The private Google Maps lists are never accessible from a generic Maps API key.
+        // Show the on-device imported copy, or the import option, not an invented cloud answer.
+        if (JarvisSavedPlaces.isListRequest(command)) {
+            val count = JarvisSavedPlaces.list(context).size
+            val answer = if (count > 0)
+                "Megnyitom a $count importált mentett helyet. Ez helyi másolat, nem élő Google-fiók kapcsolat."
+            else "A Google Maps mentett helyeihez nincs élő hozzáférésem. " +
+                "Megnyitom a Navigációt, ahol Google Takeout CSV vagy GeoJSON fájlt importálhatsz."
+            openTool("Navigáció", asPage = true)
+            addHistory(command to answer)
+            return
+        }
         // A visible, authorized notification preview is local data, not an AI prompt.
         if (VoiceIntentParser.isReadMessage(command)) {
             val source = VoiceIntentParser.messengerHint(command)
