@@ -138,6 +138,10 @@ internal fun JarvisHomeScreen(
     }
     RegisterJarvisControl("Küldés", text.isNotBlank() || stagedAttachments.isNotEmpty(), click = { submit(text) })
     fun startVoice() {
+        if (HandsFreeStatus.running) return
+        // Explicitly switching FROM one-shot dictation TO continuous voice
+        // releases the small microphone before requesting the service.
+        dictation.stop()
         try {
             ContextCompat.startForegroundService(
                 context,
