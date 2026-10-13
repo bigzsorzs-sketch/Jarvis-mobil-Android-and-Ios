@@ -30,9 +30,9 @@ import java.util.Locale
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 internal fun JarvisAttachmentPicker(
-    context: Context, dark: Boolean, onStatus: (String) -> Unit
+    context: Context, dark: Boolean, onStatus: (String) -> Unit,
+    items: androidx.compose.runtime.snapshots.SnapshotStateList<JarvisAttachment>
 ) {
-    val items = remember { mutableStateListOf<JarvisAttachment>() }
     var open by remember { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
     var pendingCameraFile by remember { mutableStateOf<File?>(null) }
@@ -57,7 +57,7 @@ internal fun JarvisAttachmentPicker(
             busy = false
             onStatus(
                 (if (accepted > 0) "Helyben előkészítve: " + accepted + " csatolmány. " +
-                    "AI-feltöltés még nincs bekötve." else "") +
+                    "AI-elemzéshez küldd el az üzenetet. Kép, PDF és szöveg támogatott, maximum 20 MB összesen." else "") +
                     (if (errors.isNotBlank()) " " + errors else "")
             )
         }
