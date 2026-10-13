@@ -21,7 +21,7 @@
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <queries>
-        <!-- Visible launcher apps only. No QUERY_ALL_PACKAGES or AccessibilityService. -->
+        <!-- Visible launcher apps only. No QUERY_ALL_PACKAGES. -->
         <intent>
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LAUNCHER" />
@@ -38,7 +38,7 @@
         <intent><action android:name="com.google.android.gms.actions.CREATE_NOTE" /></intent>
     </queries>
 
-    <!-- No READ_SMS, SEND_SMS, READ_MEDIA_IMAGES, MANAGE_EXTERNAL_STORAGE or AccessibilityService.
+    <!-- No READ_SMS, SEND_SMS, READ_MEDIA_IMAGES, MANAGE_EXTERNAL_STORAGE.
          File and photo access is scoped to user-selected content. -->
     <application
         android:label="Jarvis Mobile"
@@ -58,6 +58,15 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <service android:name=".JarvisAssistantService"
+            android:label="Jarvis Mobile" android:exported="true"
+            android:process=":assistant"
+            android:permission="android.permission.BIND_VOICE_INTERACTION">
+            <intent-filter><action android:name="android.service.voice.VoiceInteractionService" /></intent-filter>
+            <meta-data android:name="android.voice_interaction" android:resource="@xml/jarvis_voice_interaction" />
+        </service>
+        <service android:name=".JarvisAssistantSessionService" android:exported="true"
+            android:permission="android.permission.BIND_VOICE_INTERACTION" />
         <receiver android:name=".JarvisAlarmReceiver" android:exported="false" />
         <receiver android:name=".JarvisBootReceiver" android:exported="false">
             <intent-filter>

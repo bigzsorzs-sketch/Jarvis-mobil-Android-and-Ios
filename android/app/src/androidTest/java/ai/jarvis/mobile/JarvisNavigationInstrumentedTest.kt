@@ -1,6 +1,5 @@
 package ai.jarvis.mobile
 
-import androidx.compose.ui.test.onAllNodes
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.hasText

@@ -85,6 +85,12 @@ internal fun JarvisSettingsScreen(
     // GitHub updates remain explicitly user-controlled and never wipe local data.
     JarvisUpdatePanel(context, language)
     Spacer(Modifier.height(18.dp))
+    JarvisSettingsGroup {
+        JarvisSettingsRow("🎙", JarvisCommandTexts.text(language, "assistant"), JarvisCommandTexts.text(language, "assistantHelp")) {
+            openSystemIntent(context, android.content.Intent(android.provider.Settings.ACTION_VOICE_INPUT_SETTINGS))
+        }
+    }
+    Spacer(Modifier.height(16.dp))
     SettingsSectionTitle("Telefon-hozzáférés")
     PermissionCenter(context, onDone = {}, showContinue = false, showHeading = false)
     Spacer(Modifier.height(14.dp))

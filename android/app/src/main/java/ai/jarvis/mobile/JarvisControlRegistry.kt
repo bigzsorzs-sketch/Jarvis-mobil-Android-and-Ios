@@ -13,46 +13,47 @@ internal class JarvisControlRegistry {
     fun remove(id: Any) { controls.remove(id) }
     fun clear() { controls.clear() }
 
-    fun describe(): String = controls.values.filter { it.enabled && it.label.isNotBlank() }
-        .groupBy { if (it.edit != null) "Mezők" else "Gombok" }
+    fun describe(language: JarvisLanguage = JarvisLanguage.HUNGARIAN): String = controls.values.filter { it.enabled && it.label.isNotBlank() }
+        .groupBy { JarvisCommandTexts.text(language, if (it.edit != null) "fields" else "buttons") }
         .map { (kind, items) -> "$kind: " + items.map { it.label }.distinct().joinToString("; ") }
-        .joinToString(". ").ifBlank { "Ezen az oldalon nincs elérhető vezérlő." }
+        .joinToString(". ").ifBlank { JarvisCommandTexts.text(language, "empty") }
 
-    fun execute(request: JarvisControlCommand): String {
-        if (request is JarvisControlCommand.ListControls) return describe()
+    fun execute(request: JarvisControlCommand, language: JarvisLanguage = JarvisLanguage.HUNGARIAN): String {
+        fun t(key: String, label: String = "") = JarvisCommandTexts.text(language, key, label)
+        if (request is JarvisControlCommand.ListControls) return describe(language)
         val label = when (request) {
             is JarvisControlCommand.Click -> request.label
             is JarvisControlCommand.Fill -> request.label
-            else -> return describe()
+            else -> return describe(language)
         }
         val field = request is JarvisControlCommand.Fill
         val matches = controls.values.filter {
             it.label.isNotBlank() && (if (field) it.edit != null else it.click != null) &&
                 normalize(it.label) == normalize(label)
         }
-        if (matches.isEmpty()) return "Nem találom ezt a ${if (field) "mezőt" else "gombot"} az aktuális Jarvis-oldalon: $label. Kérd: sorold fel az oldal vezérlőit."
+        if (matches.isEmpty()) return t("missing", label)
         val index = when (request) {
             is JarvisControlCommand.Click -> request.ordinal
             is JarvisControlCommand.Fill -> request.ordinal
             else -> null
         }
         val target = if (index == null) matches.singleOrNull() else matches.getOrNull(index - 1)
-        if (target == null) return "${matches.size} ilyen vezérlő van: $label. Add meg a sorszámát, például: nyomd meg a második $label gombot."
-        if (!target.enabled) return "Ez a vezérlő most nem aktív: $label."
+        if (target == null) return t("duplicate", label)
+        if (!target.enabled) return t("disabled", label)
         return try {
             when (request) {
                 is JarvisControlCommand.Fill -> {
                     target.edit?.invoke(request.value)
-                    "Kitöltöttem ezt a mezőt: ${target.label}."
+                    t("filled", target.label)
                 }
                 is JarvisControlCommand.Click -> {
                     target.click?.invoke()
                     // The underlying UI owns validation, network results and OS handoffs.
-                    "Működtettem ezt a vezérlőt: ${target.label}. Az oldal mutatja a művelet eredményét."
+                    t("clicked", target.label)
                 }
-                else -> describe()
+                else -> describe(language)
             }
-        } catch (_: Exception) { "Nem sikerült működtetni ezt a vezérlőt: $label." }
+        } catch (_: Exception) { t("failed", label) }
     }
 
     companion object {
@@ -84,7 +85,8 @@ internal sealed class JarvisControlCommand {
                 .replace(Regex("^(?:kérlek|please)\\s+", RegexOption.IGNORE_CASE), "")
             val n = JarvisControlRegistry.normalize(text)
             if (n in setOf("sorold fel az oldal vezerloit", "mit tudok ezen az oldalon",
-                    "list page controls", "show page controls")) return ListControls
+                    "list page controls", "show page controls", "zeige steuerelemente",
+                    "liste les controles", "muestra controles", "mostra controlli", "pokaz kontrolki")) return ListControls
             // Preserve dictated values exactly, including accents, case and punctuation.
             val fill = Regex("""^(?:írd be|ird be|írd|ird|állítsd|allitsd|fill|set|type into|schreibe|remplis|rellena|scrivi|wpisz)\s+(?:(?:az|a|the)\s+)?(.+?)\s+(?:mezőbe|mezobe|mezőt|mezot|field|feld|champ|campo|pole)\s*(?:[:=]\s*)?([\s\S]+)$""", RegexOption.IGNORE_CASE).matchEntire(text)
             if (fill != null) {

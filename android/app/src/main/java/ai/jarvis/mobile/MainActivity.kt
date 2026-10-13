@@ -52,10 +52,37 @@ data class Reading(val value: String, val stamp: String, val source: String = "m
 data class Invoice(val client: String, val amount: String, val stamp: String)
 
 class MainActivity : ComponentActivity() {
+    private var assistantRequested = false
+    private val assistantMicPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) startAssistantVoice()
+    }
+    private fun startAssistantVoice() {
+        val lock = getSystemService(android.app.KeyguardManager::class.java)
+        if (lock.isDeviceLocked) return
+        if (androidx.core.content.ContextCompat.checkSelfPermission(this, android.Manifest.permission.RECORD_AUDIO) !=
+            android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            assistantMicPermission.launch(android.Manifest.permission.RECORD_AUDIO)
+            return
+        }
+        runCatching {
+            androidx.core.content.ContextCompat.startForegroundService(this,
+                Intent(this, HandsFreeService::class.java).setAction(HandsFreeService.START_TAP))
+        }.onFailure { HandsFreeStatus.status = "A mikrofon nem indítható. Nyomd meg a Jarvis mikrofonját." }
+    }
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        assistantRequested = JarvisAssistantLaunch.consume(intent)
+    }
+
     override fun onResume() {
         super.onResume()
         PermissionRefresh.serial += 1
         HandsFreeNavigation.appIsForeground = true
+        if (assistantRequested) {
+            assistantRequested = false
+            window.decorView.post { startAssistantVoice() }
+        }
     }
 
     override fun onPause() {
@@ -73,6 +100,7 @@ class MainActivity : ComponentActivity() {
         // Resize instead of panning the entire screen (which hides the composer
         // and pushes the orb behind the system status bar on some OEM phones).
         window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
+        assistantRequested = JarvisAssistantLaunch.consume(intent)
         setContent { JarvisApp(this) }
     }
 }
@@ -107,7 +135,10 @@ fun JarvisApp(context: Context) {
     var isDark by remember { mutableStateOf(securePrefs.read("ui_dark_mode", "false") == "true") }
     val commandDark = JarvisLocalPreferences.requestedDark
     LaunchedEffect(commandDark) {
-        if (commandDark != null) isDark = commandDark
+        if (commandDark != null) {
+            isDark = commandDark
+            JarvisLocalPreferences.requestedDark = null
+        }
     }
     val toggleTheme = {
         isDark = !isDark
@@ -320,7 +351,11 @@ fun JarvisApp(context: Context) {
         val requestRevision = commandRevision
         val now = android.os.SystemClock.elapsedRealtime()
         JarvisControlCommand.parse(command)?.let { control ->
-            addHistory(command to controls.execute(control))
+            val result = controls.execute(control, language)
+            clearCallFlow()
+            pendingMessage = null
+            pendingSequence = null
+            addHistory(command to result)
             return
         }
         when (JarvisScreenControl.parse(command)) {
@@ -927,7 +962,7 @@ fun JarvisApp(context: Context) {
                                 fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f).testTag("jarvis-subpage-header")
                                     .clickable { drawerScope.launch { drawerState.open() } })
                             TextButton(onClick = { commandPanel = true }, modifier = Modifier.testTag("jarvis-command-panel")) {
-                                Text("Parancs")
+                                Text(JarvisCommandTexts.text(language, "command"))
                             }
                             JarvisLanguagePicker(language = language, onSelect = selectLanguage)
                             IconButton(onClick = toggleTheme, modifier = Modifier.testTag("jarvis-subpage-theme-toggle")) {
