@@ -30,6 +30,20 @@ class VoiceIntentParserTest {
         assertEquals("20 perc múlva hazaérek", VoiceIntentParser.replyDraft("Válaszolj neki hogy 20 perc múlva hazaérek"))
         assertNull(VoiceIntentParser.replyDraft("válaszolj neki"))
     }
+    @Test fun readMessageCommandsKeepTheirPrivateNotificationHandlerInSevenLanguages() {
+        val phrases = listOf(
+            "Olvasd fel a WhatsApp üzenetet",
+            "Read aloud my WhatsApp message",
+            "Lies die WhatsApp Nachricht vor",
+            "Lis moi le message WhatsApp",
+            "Lee el mensaje de WhatsApp",
+            "Leggi il messaggio WhatsApp",
+            "Przeczytaj wiadomość WhatsApp"
+        )
+        phrases.forEach { assertTrue(it, VoiceIntentParser.isReadMessage(it)) }
+        assertFalse(VoiceIntentParser.isReadMessage("Olvass fel egy mesét"))
+    }
+
     @Test fun messageConsentCannotTriggerPhoneCall() {
         org.junit.Assert.assertTrue(VoiceIntentParser.isCallYes("igen"))
         org.junit.Assert.assertTrue(VoiceIntentParser.isCallYes("yes"))

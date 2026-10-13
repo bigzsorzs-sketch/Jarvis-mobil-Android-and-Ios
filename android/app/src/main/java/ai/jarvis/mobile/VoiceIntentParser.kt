@@ -54,9 +54,15 @@ internal object VoiceIntentParser {
     fun isReadMessage(raw: String): Boolean {
         val n = normalize(raw)
         if ("ki irt nekem" in n || "utolso uzenet" in n) return true
-        val read = listOf("olvasd fel", "olvas fel", "felolvas", "ki irt").any { it in n }
-        val messenger = listOf("uzenet", "whatsapp", "messenger", "telegram", "signal", "sms")
-            .any { it in n }
+        val read = listOf(
+            "olvasd fel", "olvas fel", "felolvas", "ki irt",
+            "read ", "lies ", "vorlesen", "lis ", "lisez ", "lee ",
+            "leggi ", "przeczytaj ", "odczytaj "
+        ).any { it in n }
+        val messenger = listOf(
+            "uzenet", "whatsapp", "messenger", "telegram", "signal", "sms",
+            "message", "nachricht", "mensaje", "messaggio", "wiadomosc"
+        ).any { it in n }
         return read && messenger
     }
 

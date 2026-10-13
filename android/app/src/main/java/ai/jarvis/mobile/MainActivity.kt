@@ -88,6 +88,8 @@ private val Soft: Color @Composable get() = JarvisPalette.subtleText
 fun JarvisApp(context: Context) {
     val securePrefs = remember { SecurePrefs(context) }
     val billingRepo = remember(context) { BillingRepository(context) }
+    val narrator = remember(context) { JarvisReadAloud(context) }
+    DisposableEffect(narrator) { onDispose { narrator.release() } }
     var language by remember { mutableStateOf(JarvisLanguageSettings.load(context)) }
     val selectLanguage: (JarvisLanguage) -> Unit = { selected ->
         if (language != selected) {
@@ -229,6 +231,75 @@ fun JarvisApp(context: Context) {
         pendingMessageUntilMs = 0L
         pendingSequence = null
         pendingSequenceUntilMs = 0L
+        if (JarvisUpdateVoice.isRequest(command)) {
+            JarvisUpdateNavigation.request(JarvisUpdateVoice.shouldInstall(command))
+            val message = JarvisUpdateTexts.get(language,
+                if (JarvisUpdateVoice.shouldInstall(command)) "voiceInstall" else "voiceCheck")
+            addHistory(command to message)
+            openTool("Beállítások", asPage = true)
+            return
+        }
+        // A visible, authorized notification preview is local data, not an AI prompt.
+        if (VoiceIntentParser.isReadMessage(command)) {
+            val source = VoiceIntentParser.messengerHint(command)
+            val notice = MessageBuffer.notices.firstOrNull {
+                source == null || it.appName.contains(source, ignoreCase = true)
+            }
+            if (notice == null) {
+                addHistory(command to "Nincs olvasható üzenetértesítés. Ellenőrizd az értesítési hozzáférést.")
+            } else {
+                val reply = notice.sender + ": " + notice.body
+                narrator.read(reply, language)
+                // Do not persist a third-party private notification into chat history.
+                addHistory(command to JarvisReadAloudCommand.response(language, "started"))
+            }
+            return
+        }
+        // Read-aloud is a device action. It does not ask a model to synthesize audio.
+        // Dedicated local data readers always take precedence over generic TTS.
+        val readAloud = if (JarvisGlucoseVoice.isQuery(command) ||
+            BillingVoice.isCandidate(command) || VoiceIntentParser.isReadMessage(command))
+            null else JarvisReadAloudCommand.parse(command)
+        when (val read = readAloud) {
+            ReadAloudRequest.LastAnswer -> {
+                val previous = conversation.asReversed().firstOrNull {
+                    it.second.isNotBlank() && it.second != "AI-válaszra várok…" &&
+                        !it.second.startsWith("Felolvasás elindítva.")
+                }?.second
+                if (previous == null) {
+                    addHistory(command to JarvisReadAloudCommand.response(language, "noAnswer"))
+                } else {
+                    narrator.read(previous, language)
+                    addHistory(command to (narrator.status.ifBlank {
+                        JarvisReadAloudCommand.response(language, "started")
+                    }))
+                }
+            }
+            is ReadAloudRequest.Literal -> {
+                narrator.read(read.text, language)
+                addHistory(command to narrator.status.ifBlank {
+                    JarvisReadAloudCommand.response(language, "started")
+                })
+            }
+            is ReadAloudRequest.Generate -> {
+                drawerScope.launch {
+                    val prompt = JarvisReadAloudCommand.generationPrompt(read.request, language)
+                    val outcome = JarvisAiGateway.askStructured(context, prompt, language.tag)
+                    if (requestRevision == commandRevision) {
+                        // AI answers cannot grant Android actions. Just read plain content.
+                        val actual = outcome.message
+                        addHistory(command to actual)
+                        if (outcome.route == null && outcome.deviceAction == null &&
+                            outcome.nativeAction == null && outcome.messageDraft == null &&
+                            outcome.callTarget == null) {
+                            narrator.read(actual, language)
+                        }
+                    }
+                }
+            }
+            null -> Unit
+        }
+        if (readAloud != null) return
         // Private, on-device data query: never send a glucose request to the LLM.
         if (JarvisGlucoseVoice.isQuery(command)) {
             drawerScope.launch {
@@ -511,6 +582,15 @@ fun JarvisApp(context: Context) {
                             onSelectLanguage = selectLanguage,
                             onMenu = { drawerScope.launch { drawerState.open() } },
                             onCommand = { command -> executeHome(command) },
+                            onReadText = { readText ->
+                                if (HandsFreeStatus.running) context.startService(
+                                    Intent(context, HandsFreeService::class.java)
+                                        .setAction(HandsFreeService.STOP))
+                                narrator.read(readText, language)
+                            },
+                            onStopReading = { narrator.stop() },
+                            reading = narrator.isSpeaking,
+                            readingStatus = narrator.status,
                             history = conversation,
                             hasOlderHistory = hasOlderChat,
                             loadingOlderHistory = loadingOlderChat,
@@ -596,7 +676,8 @@ fun JarvisApp(context: Context) {
                                 "Beállítások" -> JarvisSettingsScreen(
                                     context, isDark, toggleTheme,
                                     onVoice = { page = "Hangbeállítások" },
-                                    onAi = { page = "AI-agy" }
+                                    onAi = { page = "AI-agy" },
+                                    language = language
                                 )
                                 "Hangbeállítások" -> HandsFreePanel(context)
                                 "AI-agy" -> JarvisAiSettings(context)

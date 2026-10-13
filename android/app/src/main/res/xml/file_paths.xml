@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <cache-path name="verified_jarvis_updates" path="jarvis_updates/" />
     <cache-path name="invoices" path="invoices/" />
     <cache-path name="jarvis_attachments" path="jarvis_attachments/" />
 </paths>
