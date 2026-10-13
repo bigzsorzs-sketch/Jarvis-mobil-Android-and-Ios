@@ -425,6 +425,13 @@ fun JarvisApp(context: Context) {
             null -> Unit
         }
         if (readAloud != null) return
+        // The optional Android accessibility bridge can perform only
+        // deterministic, user-requested, one-step operations. No AI-selected
+        // buttons or automatic security confirmations.
+        JarvisScreenControl.parse(command)?.let { action ->
+            addHistory(command to JarvisScreenControl.execute(context, action))
+            return
+        }
         // Navigation commands have priority over generic "open Maps" shortcuts.
         // The recognized city/address must be passed directly to Google's
         // turn-by-turn intent, never dropped in favour of an empty map view.
