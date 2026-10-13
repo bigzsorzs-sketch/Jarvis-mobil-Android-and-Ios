@@ -57,7 +57,7 @@ class JarvisAiGatewayTest {
     @Test fun http404ExplainsRoutingNotInvalidSecrets() {
         val direct = JarvisAiGateway.http404Message(true)
         assertTrue(direct.contains("OpenRouter HTTP 404"))
-        assertTrue(direct.contains("openai/gpt-4o-mini"))
+        assertTrue(direct.contains(JarvisAiGateway.TEST_MODEL))
         assertFalse(direct.contains("érvénytelen"))
         val server = JarvisAiGateway.http404Message(false)
         assertTrue(server.contains("/v1/chat"))
