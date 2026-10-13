@@ -63,7 +63,12 @@ internal object GmailMailboxHeader {
             val address = item.groupValues[2]
             val displayName = plain(item.groupValues[1].trim().trim('"'))
             val localPart = plain(address.substringBefore('@'))
-            val fullMatch = displayName == name || (displayName.isBlank() && localPart == name)
+            // Some mailers show Hungarian family/given names in reverse order.
+            // Require the same complete tokens rather than a fuzzy substring.
+            val reversedNamesMatch = name.contains(' ') &&
+                displayName.split(' ').sorted() == name.split(' ').sorted()
+            val fullMatch = displayName == name || reversedNamesMatch ||
+                (displayName.isBlank() && localPart == name)
             // A one-word request can match a complete token only, but multiple
             // matching addresses remain ambiguous and MUST NOT be auto-selected.
             val oneWordMatch = !name.contains(' ') &&
