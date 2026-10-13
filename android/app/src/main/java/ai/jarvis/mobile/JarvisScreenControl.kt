@@ -31,6 +31,7 @@ internal object JarvisScreenControl {
     private fun normalized(s: String): String =
         Normalizer.normalize(s.lowercase(Locale.ROOT), Normalizer.Form.NFD)
             .replace(Regex("""\p{M}+"""), "")
+            .replace("ł", "l").replace("ß", "ss")
             .replace(Regex("""[^a-z0-9 ]+"""), " ")
             .trim().replace(Regex("""\s+"""), " ")
 
@@ -78,7 +79,7 @@ internal object JarvisScreenControl {
         "payment", "purchas", "transferr", "authoriz", "delet",
         "fizet", "vasar", "atutal", "jovahagy", "engedelyez", "telepit",
         "bezah", "zahl", "kauf", "uberweis", "losch", "bestatig",
-        "paiem", "achet", "supprim", "autoris", "compr", "pag",
+        "paiem", "achet", "supprim", "autoris", "compr", "paga", "pago",
         "elimin", "approv", "acquist", "cancell", "conferm",
         "zaplac", "platn", "potwierdz", "odinstal"
     )
