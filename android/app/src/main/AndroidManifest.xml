@@ -68,6 +68,20 @@
             android:name=".HandsFreeService"
             android:exported="false"
             android:foregroundServiceType="microphone" />
+        <!-- Optional manual Android accessibility grant.
+             One explicit user action only; no autonomous GPT control. -->
+        <service
+            android:name=".JarvisAccessibilityService"
+            android:label="Jarvis képernyővezérlés"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/jarvis_accessibility" />
+        </service>
         <service
             android:name=".JarvisNotificationListener"
             android:label="Jarvis üzenetolvasás"
