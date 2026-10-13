@@ -1,0 +1,64 @@
+package ai.jarvis.mobile
+
+import java.text.Normalizer
+import java.util.Locale
+
+/**
+ * One deterministic precedence contract shared by typed chat and hands-free voice.
+ *
+ * A stale phone call must never hijack a new question, page navigation or app
+ * command. A bare name/ordinal/number is a follow-up only while a call flow is
+ * explicitly waiting for a target. All final calls still need confirmation.
+ */
+internal object JarvisCommandContext {
+    private fun normalize(raw: String): String =
+        Normalizer.normalize(raw.lowercase(Locale.ROOT), Normalizer.Form.NFD)
+            .replace(Regex("""\p{M}+"""), "")
+            .replace(Regex("""[^a-z0-9+? ]+"""), " ")
+            .replace(Regex("""\s+"""), " ").trim()
+
+    fun independentRequest(raw: String): Boolean {
+        val s = normalize(raw)
+        if (s.isBlank()) return false
+        if (VoiceCalling.extractRequest(raw) != null || VoiceCalling.needsTarget(raw)) return true
+        if (JarvisInstalledApps.requestedLabel(raw) != null ||
+            JarvisCapabilities.localPageToOpen(raw) != null ||
+            JarvisCapabilities.isDiscoveryRequest(raw) ||
+            JarvisPhoneActions.requestedAction(raw) != null ||
+            JarvisSystemPanels.identify(raw) != null ||
+            VoiceNavigation.destinationFrom(raw) != null ||
+            JarvisUpdateVoice.isRequest(raw) ||
+            JarvisMessageIntent.parse(raw) != null ||
+            VoiceIntentParser.isReadMessage(raw)) return true
+
+        // A phone number or a bare contact can be an answer to "Whom to call?".
+        if (VoiceCalling.statedNumber(raw) != null) return false
+        if (s.matches(Regex("""\+?[0-9]{5,16}"""))) return false
+        if (s in setOf("elso", "az elso", "masodik", "a masodik", "harmadik",
+                "igen", "igen hivd", "igen hivd fel", "nem", "no", "yes")) return false
+
+        // Everything else that is an ordinary sentence belongs to the newest
+        // user command, not the previous short-lived call state.
+        if ('?' in raw || s.split(' ').size > 3) return true
+        if (s.startsWith("de ") || s.startsWith("akkor ") ||
+            s.startsWith("mit ") || s.startsWith("milyen ") ||
+            s.startsWith("hogyan ") || s.startsWith("keress ") ||
+            s.startsWith("nezd ") || s.startsWith("nyisd ") ||
+            s.startsWith("mondj ") || s.startsWith("sorold ")) return true
+        return false
+    }
+
+    /** Caller can use this only while waiting for an explicitly requested
+     * contact. Reject free-form conversation masquerading as a contact name.
+     */
+    fun possibleContactReply(raw: String): String? {
+        if (independentRequest(raw)) return null
+        if (VoiceCalling.callConfirmationYes(raw) || VoiceIntentParser.isNo(raw)) return null
+        val candidate = VoiceCalling.followUpTarget(raw) ?: return null
+        val simple = normalize(candidate)
+        if (simple.split(' ').size > 3) return null
+        if (simple.matches(Regex("""[a-z ]{2,70}""")) ||
+            simple.matches(Regex("""\+?[0-9 ]{5,22}"""))) return candidate
+        return null
+    }
+}
