@@ -113,6 +113,7 @@ internal fun JarvisToolLanding(context: Context, page: String, onOpen: (String) 
                     JarvisLanguageSettings.load(context), VoiceNavigation.openDetailed(context, "HOME"))
             }, commandLabel = "Navigálás haza") { Text("Navigálás haza") }
             ControlledOutlinedButton(onClick = { onOpen("Továbbiak") }, commandLabel = "Otthoni cím beállítása") { Text("Otthoni cím beállítása") }
+            JarvisSavedPlacesPanel(context)
         }
         "Email" -> {
             Text("Emailvázlatot készíthetsz. Gmail-fiók olvasása és keresése külön OAuth-kapcsolatot igényel.",

@@ -43,6 +43,49 @@ class VoiceNavigationTest {
         assertEquals("Leeds", VoiceNavigation.destinationFrom("Navigálj Leeds-be"))
     }
 
+    @Test fun keyboardGraveAccentAndSpacedDirectionalSuffix() {
+        val cases = listOf(
+            "navigàlj Harrogate be" to "Harrogate",
+            "navigálj Harrogate be" to "Harrogate",
+            "navigalj Harrogate be" to "Harrogate",
+            "Jarvis, navigàlj Harrogate-be" to "Harrogate",
+            "Jarvis, navigàlj Harrogate - be" to "Harrogate",
+            "Vigyél Harrogate be" to "Harrogate",
+            "navigàlj Leeds ba" to "Leeds",
+            "navigàlj haza" to "HOME"
+        )
+        for ((spoken, target) in cases) {
+            assertEquals(spoken, target, VoiceNavigation.destinationFrom(spoken))
+            assertFalse(spoken, JarvisAiRouting.shouldAskAi(spoken))
+        }
+        // The ordinary open-map instruction still does not invent a destination.
+        assertNull(VoiceNavigation.destinationFrom("Nyisd meg a térképet"))
+        assertNull(VoiceNavigation.destinationFrom("navigàlj"))
+        // An address without a Hungarian suffix must not be modified.
+        assertEquals("Leeds, UK", VoiceNavigation.destinationFrom("navigàlj Leeds, UK"))
+    }
+
+    @Test fun setMapToArbitraryCityIsFullNavigationNotEmptyMap() {
+        val commands = listOf(
+            "Állítsd be a térképet Londonba" to "London",
+            "Állítsd be a térképet Leedsbe" to "Leeds",
+            "Állítsd be a térképet Liverpoolba" to "Liverpool",
+            "Állítsd be a térképet Manchester -be" to "Manchester",
+            "állitsd be a térképet Leeds be" to "Leeds",
+            "àllítsd be a térképet Londonba" to "London",
+            "Jarvis, állítsd be a Google Mapset Liverpoolba" to "Liverpool",
+            "Állítsd be a térképet Yorkba" to "York",
+            "Állítsd be a térképet Leeds, UK" to "Leeds, UK"
+        )
+        for ((command, destination) in commands) {
+            assertEquals(command, destination, VoiceNavigation.destinationFrom(command))
+            assertFalse(command, JarvisAiRouting.shouldAskAi(command))
+        }
+        assertNull(VoiceNavigation.destinationFrom("Állítsd be a térképet"))
+        assertNull(VoiceNavigation.destinationFrom("Ne állítsd be a térképet Londonba"))
+        assertNull(VoiceNavigation.destinationFrom("Hogyan állítsd be a térképet Londonba?"))
+    }
+
     @Test fun everySupportedLanguageCanAskForNavigation() {
         assertEquals("Leeds", VoiceNavigation.destinationFrom("Navigate to Leeds"))
         assertEquals("Harrogate", VoiceNavigation.destinationFrom("Take me to Harrogate"))

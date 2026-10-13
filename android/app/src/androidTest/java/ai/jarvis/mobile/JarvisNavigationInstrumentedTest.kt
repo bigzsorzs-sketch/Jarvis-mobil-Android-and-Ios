@@ -1,5 +1,9 @@
 package ai.jarvis.mobile
 
+import android.content.ContextWrapper
+import android.content.Intent
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.hasText
@@ -62,6 +66,51 @@ class JarvisNavigationInstrumentedTest {
             if (destination == "Főoldal")
                 composeRule.onNodeWithTag("jarvis-home-input").assertExists()
             else composeRule.onNodeWithTag("jarvis-subpage-header").assert(hasText(displayedRoute(destination)))
+        }
+    }
+
+    @Test fun graveAccentNavigationOpensMapsWithDestinationNotEmptyMap() {
+        // Capture the actual Activity intent without launching an external app.
+        val context = object : ContextWrapper(composeRule.activity) {
+            var launched: Intent? = null
+            override fun startActivity(intent: Intent) { launched = intent }
+        }
+        val destination = VoiceNavigation.destinationFrom("navigàlj Harrogate be")
+        assertEquals("Harrogate", destination)
+        assertEquals(VoiceNavigation.LaunchResult.GUIDANCE_REQUESTED,
+            VoiceNavigation.openDetailed(context, destination!!))
+        val intent = context.launched
+        assertNotNull(intent)
+        assertEquals(Intent.ACTION_VIEW, intent?.action)
+        assertEquals("com.google.android.apps.maps", intent?.`package`)
+        assertEquals("google.navigation:q=Harrogate&mode=d", intent?.dataString)
+    }
+
+    @Test fun typedCommandExecutorPassesCitiesToAndroidNavigationInsteadOfEmptyMap() {
+        val context = object : ContextWrapper(composeRule.activity) {
+            var launched: Intent? = null
+            override fun startActivity(intent: Intent) { launched = intent }
+        }
+        val commands = listOf(
+            "navigàlj Harrogate be" to "Harrogate",
+            "Navigálj Leeds -be" to "Leeds",
+            "Állítsd be a térképet Londonba" to "London",
+            "Állítsd be a térképet Liverpoolba" to "Liverpool",
+            "Állítsd be a térképet Manchester -be" to "Manchester",
+            "Nyisd meg a térképet és navigálj Yorkba" to "York"
+        )
+        for ((command, city) in commands) {
+            context.launched = null
+            var openedPage: String? = null
+            val answer = JarvisCommandExecutor.run(
+                context, command,
+                { openedPage = it },
+                { _ -> throw AssertionError("Unexpected call request") }
+            )
+            assertEquals(command, null, openedPage)
+            assertEquals(command, "com.google.android.apps.maps", context.launched?.`package`)
+            assertEquals(command, "google.navigation:q=$city&mode=d", context.launched?.dataString)
+            org.junit.Assert.assertTrue(command, answer.contains("navigációindítási"))
         }
     }
 
