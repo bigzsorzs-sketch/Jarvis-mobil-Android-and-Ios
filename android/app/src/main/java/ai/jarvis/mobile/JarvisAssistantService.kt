@@ -22,7 +22,7 @@ internal object JarvisAssistantLaunch {
         val fresh = java.util.UUID.randomUUID().toString()
         token = fresh
         expires = android.os.SystemClock.elapsedRealtime() + 15_000L
-        return Intent(context, MainActivity::class.java).setAction(Intent.ACTION_VOICE_ASSIST)
+        return Intent(context, MainActivity::class.java).setAction(Intent.ACTION_ASSIST)
             .putExtra("jarvis_assistant_launch", fresh)
             .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
     }
