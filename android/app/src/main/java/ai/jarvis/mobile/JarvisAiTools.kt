@@ -177,7 +177,6 @@ internal object JarvisAiTools {
             "Számlák" to listOf("szaml", "invoice"),
             "Email" to listOf("email", "gmail", "level", "mail"),
             "Üzenetek" to listOf("uzenet", "whatsapp", "messenger", "messages"),
-            "Névjegyek" to listOf("nevjegy", "contact", "hivas"),
             "Naptár" to listOf("naptar", "calendar"),
             "Jegyzetek" to listOf("jegyzet", "notes"),
             "Ébresztő" to listOf("ebreszt", "alarm"),

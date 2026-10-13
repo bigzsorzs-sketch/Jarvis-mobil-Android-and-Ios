@@ -37,10 +37,10 @@ class JarvisAiToolsTest {
 
     @Test fun oneValidProviderToolCallProposesNavigation() {
         val body = providerWith(toolCall(JarvisAiTools.FUNCTION_NAME,
-            JSONObject().put("route", "Névjegyek")))
-        assertEquals("Névjegyek", JarvisAiTools.fromProvider(
-            body, "Nyisd meg a névjegyeket").route)
-        assertNull(JarvisAiTools.fromProvider(body, "Mit tudsz a névjegyekről?").route)
+            JSONObject().put("route", "Munka")))
+        assertEquals("Munka", JarvisAiTools.fromProvider(
+            body, "Nyisd meg a Munka oldalt").route)
+        assertNull(JarvisAiTools.fromProvider(body, "Mit tudsz a munkáról?").route)
     }
 
     @Test fun multipleCallsExtraParametersAndWrongTypesAreRejected() {
@@ -62,8 +62,12 @@ class JarvisAiToolsTest {
         assertNull(JarvisAiTools.fromProvider(wrong, "Nyisd meg a térképet").route)
         assertNull(JarvisAiTools.fromProvider(wrong, "Nyisd meg az emailt és a naptárat").route)
         val correct = providerWith(toolCall(JarvisAiTools.FUNCTION_NAME,
+            JSONObject().put("route", "Munka")))
+        assertEquals("Munka", JarvisAiTools.fromProvider(correct,
+            "Nyisd meg a Munka oldalt").route)
+        val legacy = providerWith(toolCall(JarvisAiTools.FUNCTION_NAME,
             JSONObject().put("route", "Névjegyek")))
-        assertEquals("Névjegyek", JarvisAiTools.fromProvider(correct,
+        assertNull(JarvisAiTools.fromProvider(legacy,
             "Nyisd meg a névjegyeket").route)
         val removed = providerWith(toolCall(JarvisAiTools.FUNCTION_NAME,
             JSONObject().put("route", "Ismerősök")))

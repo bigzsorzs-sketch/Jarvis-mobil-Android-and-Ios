@@ -340,6 +340,12 @@ fun JarvisApp(context: Context) {
         pendingSequenceUntilMs = android.os.SystemClock.elapsedRealtime() + 40_000L
     }
     fun openTool(destination: String, asPage: Boolean = false): String {
+        // Legacy AI/tool requests must not reopen the removed Contacts screen.
+        // Phonebook lookup and confirmed calls still run through VoiceCalling.
+        if (destination == "Névjegyek" || destination == "Hívás") {
+            return "A külön Hívás és Névjegyek oldal már nincs a menüben. " +
+                "Híváshoz mondd vagy írd be: Hívd fel Esztert."
+        }
         if (!asPage && (destination == "Navigáció" || destination == "Térkép")) {
             val opened = openMap(context)
             if (!opened) page = "Főoldal"
@@ -1077,9 +1083,6 @@ fun JarvisApp(context: Context) {
                                 "Üzenetek" -> MessageInboxScreen(context, onPermissions = {
                                     page = "Engedélyek"
                                 })
-                                "Névjegyek" -> ContactsScreen(context, onPermissions = {
-                                    page = "Engedélyek"
-                                })
                                 "Vércukor" -> JarvisGlucoseDashboard(context, readings) {
                                     securePrefs.write("readings", writeReadings(readings))
                                 }
@@ -1250,7 +1253,6 @@ private fun MoreScreen(context: Context, notes: MutableList<String>, persist: ()
             color = Soft, fontSize = 12.sp)
         ControlledButton(onClick = { onGo("Engedélyek") }, commandLabel = "Engedélyközpont megnyitása") { Text("Engedélyközpont megnyitása") }
         ControlledOutlinedButton(onClick = { onGo("Üzenetek") }, commandLabel = "WhatsApp / Messenger / üzenetek") { Text("WhatsApp / Messenger / üzenetek") }
-        ControlledOutlinedButton(onClick = { onGo("Névjegyek") }, commandLabel = "Névjegyek megtekintése") { Text("Névjegyek megtekintése") }
     }
     Spacer(Modifier.height(12.dp))
     SurfaceCard {

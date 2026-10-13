@@ -30,7 +30,6 @@ internal object JarvisToolCatalog {
         JarvisTool("Email", "Email", "✉"),
         JarvisTool("Amazon", "Amazon", "▣"),
         JarvisTool("Üzenetek", "Üzenetek", "▢"),
-        JarvisTool("Hívás", "Névjegyek", "☎"),
         JarvisTool("Naptár", "Naptár", "▦"),
         JarvisTool("Jegyzetek", "Jegyzetek", "≡"),
         JarvisTool("Ébresztő", "Ébresztő", "◷"),
