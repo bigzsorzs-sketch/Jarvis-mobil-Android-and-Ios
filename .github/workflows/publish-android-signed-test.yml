@@ -55,16 +55,17 @@ jobs:
           if [ "$RUN_KIND" = "push" ]; then
             # The only untested difference must be this release workflow file.
             # The actual Android code was verified on the exact parent commit.
-            parent="$(gh api "repos/${{ github.repository }}/commits/$SOURCE_SHA" --jq '.parents[0].sha')"
-            test "$parent" = "d47f0e1d644d51d501fd5a382210d3fe91790946" || { echo "Unexpected app source parent"; exit 1; }
-            changed="$(gh api "repos/${{ github.repository }}/commits/$SOURCE_SHA" --jq '[.files[].filename] | join(",")')"
-            test "$changed" = ".github/workflows/publish-android-signed-test.yml" || { echo "Non-workflow files changed; require fresh app checks"; exit 1; }
-            TESTED_SHA="$parent"
+            TESTED_SHA="d47f0e1d644d51d501fd5a382210d3fe91790946"
+            # Allow only workflow-script corrections after the known green app commit.
+            comparison="$(gh api "repos/${{ github.repository }}/compare/$TESTED_SHA...$SOURCE_SHA")"
+            status="$(printf '%s' "$comparison" | jq -r '.status')"
+            changed="$(printf '%s' "$comparison" | jq -r '[.files[].filename] | join(",")')"
+            test "$status" = "ahead" && test "$changed" = ".github/workflows/publish-android-signed-test.yml" || { echo "Non-workflow files changed or source history invalid"; exit 1; }
           fi
           # Require completed, successful main-branch build AND emulator tests
           # for the exact Android source being signed. No blind green claim.
           for workflow in android-debug.yml android-ui-emulator.yml; do
-            state="$(gh api "repos/${{ github.repository }}/actions/workflows/$workflow/runs?head_sha=$TESTED_SHA&event=push&per_page=10" --jq --arg sha "$TESTED_SHA" --arg repo "${{ github.repository }}" '
+            state="$(gh api "repos/${{ github.repository }}/actions/workflows/$workflow/runs?head_sha=$TESTED_SHA&event=push&per_page=10" | jq -r --arg sha "$TESTED_SHA" --arg repo "${{ github.repository }}" '
               [.workflow_runs[] | select(.head_sha == $sha and .head_branch == "main" and
                 .head_repository.full_name == $repo and .event == "push" and .status == "completed")][0].conclusion // ""
             ')"
