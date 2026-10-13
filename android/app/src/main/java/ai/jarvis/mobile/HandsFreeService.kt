@@ -79,6 +79,8 @@ class HandsFreeService : Service(), RecognitionListener {
     private var proposedSequenceUntil = 0L
     private var proposedCall: VoiceCalling.Target? = null
     private var proposedCallUntil = 0L
+    // Next speech turn can supply the previously omitted contact/number.
+    private var awaitingCallTargetUntil = 0L
     private var awaitingExternalDraft: OutgoingMessage? = null
     private var externalProposal: OutgoingMessage? = null
     private var externalDeadline = 0L
@@ -240,6 +242,27 @@ class HandsFreeService : Service(), RecognitionListener {
     }
 
     private fun clearProposal() { proposed = null; confirmUntil = 0L }
+
+    private fun proposePhoneCall(target: String, now: Long) {
+        if (!privateVoiceAllowed()) {
+            speak("Oldd fel a telefont a hívás indításához.")
+            return
+        }
+        if (!VoiceCalling.canCall(this)) {
+            speak("Hívás indításához engedélyezd a Telefon hozzáférést az Engedélyközpontban.")
+            return
+        }
+        when (val match = VoiceCalling.lookup(this, target)) {
+            is VoiceCalling.Lookup.Found -> {
+                proposedCall = match.target
+                proposedCallUntil = now + 30_000L
+                speak(callMessage("confirm", match.target.label, match.target.number))
+            }
+            VoiceCalling.Lookup.NoContactsAccess -> speak(callMessage("noContacts"))
+            VoiceCalling.Lookup.Ambiguous -> speak(callMessage("ambiguous"))
+            VoiceCalling.Lookup.NotFound -> speak(callMessage("missing"))
+        }
+    }
     private fun process(raw: String) {
         val heard = raw.trim()
         if (!running || heard.isBlank()) { again(600); return }
@@ -331,6 +354,25 @@ class HandsFreeService : Service(), RecognitionListener {
                 speak(callMessage(if (target != null && VoiceCalling.place(this, target))
                     "submitted" else "failed"))
             } else speak(callMessage("yesNo"))
+            return
+        }
+        if (awaitingCallTargetUntil > 0L) {
+            val validUntil = awaitingCallTargetUntil
+            awaitingCallTargetUntil = 0L
+            if (now > validUntil) {
+                speak("Lejárt a telefonszám megadására szánt idő. Mondd újra, kit hívjak.")
+            } else if (VoiceIntentParser.isNo(heard)) {
+                speak("Rendben, nem indítok hívást.")
+            } else {
+                val target = VoiceCalling.followUpTarget(heard)
+                if (target == null) {
+                    speak("Mondj egy konkrét telefonszámot vagy névjegynevet. Hívás még nem indult.")
+                    awaitingCallTargetUntil = now + 30_000L
+                } else {
+                    activeVoiceCommand = heard
+                    proposePhoneCall(target, now)
+                }
+            }
             return
         }
         if (proposed != null) {
@@ -704,26 +746,14 @@ class HandsFreeService : Service(), RecognitionListener {
             }
             return
         }
+        if (VoiceCalling.needsTarget(command)) {
+            awaitingCallTargetUntil = now + 30_000L
+            speak("Melyik telefonszámot vagy névjegyet hívjam? Mondd el most.")
+            return
+        }
         val calledName = VoiceCalling.extractRequest(command)
         if (calledName != null) {
-            if (!privateVoiceAllowed()) {
-                speak("A telefon lezárva. Hangos hívás előtt oldd fel, vagy engedélyezd a privát műveleteket a Jarvisban.")
-                return
-            }
-            if (!VoiceCalling.canCall(this)) {
-                speak("Hívás indításához engedélyezd a Telefon hozzáférést az Engedélyközpontban.")
-                return
-            }
-            when (val match = VoiceCalling.lookup(this, calledName)) {
-                is VoiceCalling.Lookup.Found -> {
-                    proposedCall = match.target
-                    proposedCallUntil = now + 30_000L
-                    speak(callMessage("confirm", match.target.label, match.target.number))
-                }
-                VoiceCalling.Lookup.NoContactsAccess -> speak(callMessage("noContacts"))
-                VoiceCalling.Lookup.Ambiguous -> speak(callMessage("ambiguous"))
-                VoiceCalling.Lookup.NotFound -> speak(callMessage("missing"))
-            }
+            proposePhoneCall(calledName, now)
             return
         }
         LocalConversation.reply(command)?.let {
@@ -940,6 +970,7 @@ class HandsFreeService : Service(), RecognitionListener {
         clearProposal()
         proposedCall = null
         proposedCallUntil = 0L
+        awaitingCallTargetUntil = 0L
         proposedSequence = null
         proposedSequenceUntil = 0L
         awaitingExternalDraft = null
