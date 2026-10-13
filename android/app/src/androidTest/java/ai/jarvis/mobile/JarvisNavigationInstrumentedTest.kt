@@ -119,8 +119,19 @@ class JarvisNavigationInstrumentedTest {
         composeRule.onNodeWithTag("jarvis-home-drawer-trigger").performClick()
         composeRule.onNodeWithText("Ismerősök").assertDoesNotExist()
         composeRule.onNodeWithText("Hívás").assertDoesNotExist()
+        composeRule.onNodeWithText("Navigáció").assertDoesNotExist()
         composeRule.onNodeWithText("Névjegyek").assertDoesNotExist()
         composeRule.onNodeWithText(displayedRoute("Főoldal")).assertExists()
+    }
+
+    @Test fun savedPlacesImportRemainsAccessibleFromSettingsWithoutNavigationMenu() {
+        finishOnboarding()
+        composeRule.onNodeWithTag("jarvis-home-drawer-trigger").performClick()
+        composeRule.onNodeWithText(displayedRoute("Beállítások")).performClick()
+        composeRule.onNodeWithText("Mentett helyek és otthoni cím")
+            .performScrollTo().performClick()
+        composeRule.onNodeWithText("Otthoni cím mentése").assertExists()
+        composeRule.onNodeWithText("Mentett helyek importálása").assertExists()
     }
 
     @Test fun homeMenusAndTwoNewPagesCanBeOpened() {
