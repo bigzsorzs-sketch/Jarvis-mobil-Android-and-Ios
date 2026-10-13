@@ -55,7 +55,7 @@ internal fun JarvisAiSettings(context: Context) {
     Text(
         "Jelenleg mentett kapcsolat: " +
             if (savedMode == JarvisAiGateway.DIRECT_TEST)
-                "Közvetlen OpenRouter (modell: openai/gpt-4o-mini)"
+                "Közvetlen OpenRouter (modell: " + JarvisAiGateway.TEST_MODEL + ")"
             else "Saját Jarvis AI-szerver (/v1/chat)",
         style = MaterialTheme.typography.bodySmall
     )
