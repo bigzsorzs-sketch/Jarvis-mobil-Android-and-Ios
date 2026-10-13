@@ -274,6 +274,27 @@ class HandsFreeService : Service(), RecognitionListener {
             shutdown("A hangfigyelés leállt.")
             return
         }
+        // An explicit NEW app-launch request interrupts any pending call.
+        // Do not consume "nyisd meg a Messengert" as a phone number or
+        // respond with an expired call confirmation.
+        val freshAppCommand = (VoiceIntentParser.afterWakeWord(heard) ?: heard).trim()
+        if ((tapActivated || awaitingCommand ||
+                VoiceIntentParser.afterWakeWord(heard) != null) &&
+            JarvisInstalledApps.requestedLabel(freshAppCommand) != null) {
+            proposedCall = null
+            awaitingCallTargetUntil = 0L
+            if (!privateVoiceAllowed()) {
+                speak("Oldd fel a telefont az alkalmazás megnyitásához.")
+            } else {
+                HandsFreeNavigation.installedApp = PendingInstalledApp(
+                    freshAppCommand, now
+                )
+                speak(if (HandsFreeNavigation.appIsForeground)
+                    "Megnyitom a kért alkalmazást."
+                else "Hozd előtérbe Jarvist az alkalmazás megnyitásához.")
+            }
+            return
+        }
         if (proposedSequence != null) {
             val plan = proposedSequence
             if (!privateVoiceAllowed() || now > proposedSequenceUntil) {
