@@ -68,10 +68,15 @@ internal fun JarvisHomeScreen(
     onMessageConfirm: () -> Unit,
     onMessageDismiss: () -> Unit,
     onCallConfirm: () -> Unit,
-    onCallDismiss: () -> Unit
+    onCallDismiss: () -> Unit,
+    onAttachmentsSubmit: (String, List<JarvisAttachment>) -> Unit = { command, _ ->
+        onCommand(command)
+    }
 ) {
     // Retain unsent writing if Android recreates this screen while the IME changes.
     var text by rememberSaveable { mutableStateOf("") }
+    // Staged files belong to THIS chat composer. Selection alone never uploads.
+    val stagedAttachments = remember { mutableStateListOf<JarvisAttachment>() }
     // A small-height layout is essential: without it, the fixed-height orb
     // pushes the composer below the IME on smaller screens.
     val density = LocalDensity.current
@@ -95,7 +100,10 @@ internal fun JarvisHomeScreen(
         }
     }
     fun submit(value: String) {
-        val command = value.trim()
+        val selectedFiles = stagedAttachments.toList()
+        val command = value.trim().ifBlank {
+            if (selectedFiles.isNotEmpty()) "Elemezd a csatolt fájlokat." else ""
+        }
         if (command.isBlank()) return
         // User may manually send a partial dictation; stop listening first so
         // a delayed final-recognition callback cannot execute it twice.
@@ -105,7 +113,13 @@ internal fun JarvisHomeScreen(
         issue = ""
         // The existing Chat command executor handles the actual operation;
         // the home does not invent a second, divergent command handler.
-        onCommand(VoiceIntentParser.afterWakeWord(command)?.takeIf { it.isNotBlank() } ?: command)
+        val normalized = VoiceIntentParser.afterWakeWord(command)?.takeIf { it.isNotBlank() } ?: command
+        if (selectedFiles.isEmpty()) onCommand(normalized)
+        else {
+            // The user's SEND gesture is explicit cloud upload consent.
+            onAttachmentsSubmit(normalized, selectedFiles)
+            stagedAttachments.clear()
+        }
     }
     fun startVoice() {
         try {
@@ -345,7 +359,8 @@ internal fun JarvisHomeScreen(
                 .padding(start = 3.dp, end = 5.dp, top = 5.dp, bottom = 5.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            JarvisAttachmentPicker(context, isDark, onStatus = { issue = it })
+            JarvisAttachmentPicker(context, isDark, onStatus = { issue = it },
+                items = stagedAttachments)
             BasicTextField(
                 value = text,
                 onValueChange = { text = it },
