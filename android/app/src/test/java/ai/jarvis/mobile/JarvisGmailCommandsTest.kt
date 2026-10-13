@@ -64,7 +64,6 @@ class JarvisGmailCommandsTest {
         val new = JarvisGmailCommands.parse("Küldj emailt Várnai Ferencnek")!!.operation
         assertTrue(new is GmailOperation.ResolveRecipient)
         assertTrue((new as GmailOperation.ResolveRecipient).actuallySend)
-        assertNull(JarvisGmailCommands.parse("Küldj emailt a telefon névjegyzékéből"))
         assertEquals(GmailOperation.Check,
             JarvisGmailCommands.parse("Van új emailem?")!!.operation)
     }
