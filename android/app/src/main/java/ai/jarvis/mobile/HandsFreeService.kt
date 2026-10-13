@@ -348,7 +348,7 @@ class HandsFreeService : Service(), RecognitionListener {
             } else if (VoiceIntentParser.isNo(heard)) {
                 proposedCall = null
                 speak(callMessage("cancel"))
-            } else if (VoiceIntentParser.isCallYes(heard)) {
+            } else if (VoiceCalling.callConfirmationYes(heard)) {
                 val target = proposedCall
                 proposedCall = null
                 speak(callMessage(if (target != null && VoiceCalling.place(this, target))
