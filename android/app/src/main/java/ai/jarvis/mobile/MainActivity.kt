@@ -340,6 +340,12 @@ fun JarvisApp(context: Context) {
         pendingSequenceUntilMs = android.os.SystemClock.elapsedRealtime() + 40_000L
     }
     fun openTool(destination: String, asPage: Boolean = false): String {
+        // Legacy AI/tool requests must not reopen the removed Contacts screen.
+        // Phonebook lookup and confirmed calls still run through VoiceCalling.
+        if (destination == "Névjegyek" || destination == "Hívás") {
+            return "A külön Hívás és Névjegyek oldal már nincs a menüben. " +
+                "Híváshoz mondd vagy írd be: Hívd fel Esztert."
+        }
         if (!asPage && (destination == "Navigáció" || destination == "Térkép")) {
             val opened = openMap(context)
             if (!opened) page = "Főoldal"
