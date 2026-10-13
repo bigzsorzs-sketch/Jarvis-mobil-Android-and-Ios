@@ -118,6 +118,8 @@ class JarvisNavigationInstrumentedTest {
         finishOnboarding()
         composeRule.onNodeWithTag("jarvis-home-drawer-trigger").performClick()
         composeRule.onNodeWithText("Ismerősök").assertDoesNotExist()
+        composeRule.onNodeWithText("Hívás").assertDoesNotExist()
+        composeRule.onNodeWithText("Névjegyek").assertDoesNotExist()
         composeRule.onNodeWithText(displayedRoute("Főoldal")).assertExists()
     }
 
