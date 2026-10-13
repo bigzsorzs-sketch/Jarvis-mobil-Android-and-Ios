@@ -37,6 +37,23 @@ class JarvisGmailCommandsTest {
             JarvisGmailCommands.parse("check my emails")!!.operation)
     }
 
+    @Test fun hungarianEmailListingsRouteToGmailNotGenericAi() {
+        listOf(
+            "milyen új emailek vannak?",
+            "Milyen új levelek vannak?",
+            "Sorold fel az új emailjeimet",
+            "Mutasd az új emaileket",
+            "What new emails do I have?",
+            "show unread emails"
+        ).forEach { input ->
+            assertEquals(input, GmailOperation.ListUnread,
+                JarvisGmailCommands.parse(input)?.operation)
+        }
+        assertEquals(GmailOperation.Check,
+            JarvisGmailCommands.parse("van új emailem?")?.operation)
+        assertNull(JarvisGmailCommands.parse("milyen új filmek vannak?"))
+    }
+
     @Test fun replyKeepsUserContentAndSender() {
         val op = JarvisGmailCommands.parse(
             "Válaszolj Ferenc emailjére hogy Holnap délután jó")!!.operation
