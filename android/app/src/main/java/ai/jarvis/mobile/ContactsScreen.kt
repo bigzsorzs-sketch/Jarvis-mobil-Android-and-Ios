@@ -63,8 +63,18 @@ internal fun ContactsScreen(context: Context, onPermissions: () -> Unit) {
 
     Text("Névjegyek", style = MaterialTheme.typography.headlineSmall, color = Color.White)
     Spacer(Modifier.height(10.dp))
-    Text("A névjegyeket csak a telefonon olvassuk. Nem továbbítjuk AI-nak vagy szerverre.",
-        color = Color(0xFFB5C3D8))
+    androidx.compose.material3.Text(
+        listOf(
+            "A névjegykeresés a telefonon történik. Ha engedélyezed az AI-hangot, a hangosan kimondott nevek és számok a hangszolgáltatóhoz kerülhetnek.",
+            "Contact lookup stays on your phone. If cloud AI voice is enabled, spoken names and numbers may be sent to the voice provider.",
+            "Die Kontaktsuche bleibt auf dem Telefon. Mit KI-Stimme können vorgelesene Namen und Nummern an den Anbieter gesendet werden.",
+            "La recherche de contacts reste sur le téléphone. Avec la voix IA, noms et numéros prononcés peuvent être transmis au fournisseur.",
+            "La búsqueda de contactos es local. Con voz IA, nombres y números pronunciados pueden enviarse al proveedor.",
+            "La ricerca contatti è locale. Con voce IA, nomi e numeri pronunciati possono essere inviati al fornitore.",
+            "Wyszukiwanie kontaktów jest lokalne. Głos AI może przesyłać wypowiadane imiona i numery do dostawcy."
+        )[LocalJarvisLanguage.current.ordinal],
+        color = Color(0xFFB5C3D8)
+    )
     OutlinedButton(onClick = onPermissions) {
         Text(if (allowed) "Engedélyek kezelése" else "Névjegy-hozzáférés engedélyezése")
     }
