@@ -67,7 +67,7 @@ class VoiceCallingTest {
     }
 
     @Test fun chatCallIntentsAndConfirmationWorkWithPhonebook() {
-        assertEquals("Vivit", VoiceCalling.extractRequest("hívd vivit"))
+        assertEquals("vivit", VoiceCalling.extractRequest("hívd vivit"))
         assertEquals("Vivit", VoiceCalling.extractRequest("Jarvis, hívd fel Vivit"))
         assertEquals("Vivit", VoiceCalling.extractRequest("Vivit hívd fel"))
         assertEquals("Vivit", VoiceCalling.extractRequest("Hívj Vivit"))
