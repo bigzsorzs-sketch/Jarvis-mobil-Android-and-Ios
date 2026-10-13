@@ -17,7 +17,9 @@ import java.util.Locale
 
 /**
  * Mail data is fetched on the phone directly from Gmail with a short-lived
- * Google Identity access token. No token or message is sent to the AI gateway.
+ * Google Identity access token. Tokens never leave the phone except directly to Gmail.
+ * Only an explicit read-aloud request may pass message text to the separately
+ * consented cloud speech provider. Content is never passed to the reasoning model.
  */
 internal sealed interface GmailOperation {
     data object Connect : GmailOperation
