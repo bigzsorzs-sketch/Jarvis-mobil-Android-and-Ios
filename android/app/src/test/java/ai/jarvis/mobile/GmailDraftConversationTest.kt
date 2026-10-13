@@ -9,6 +9,8 @@ class GmailDraftConversationTest {
             "Várnai Ferenc", "\"Várnai Ferenc\" <ferenc@example.com>"))
         assertEquals(setOf("ferenc@example.com"), GmailMailboxHeader.matchAddress(
             "Várnai Ferenc", "Other Person <other@example.com>, Várnai Ferenc <ferenc@example.com>"))
+        assertEquals(setOf("ferenc@example.com"), GmailMailboxHeader.matchAddress(
+            "Várnai Ferenc", "Ferenc Várnai <ferenc@example.com>"))
         assertTrue(GmailMailboxHeader.matchAddress(
             "Várnai Ferenc", "Várnai Ferencz <different@example.com>").isEmpty())
         assertTrue(GmailMailboxHeader.matchAddress(
