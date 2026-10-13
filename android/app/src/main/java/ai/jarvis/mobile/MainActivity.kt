@@ -1212,6 +1212,12 @@ private fun MoreScreen(context: Context, notes: MutableList<String>, persist: ()
                 result = "Az otthoni címed titkosított helyi tárhelyre került."
             }
         }, commandLabel = "Otthoni cím mentése") { Text("Otthoni cím mentése") }
+        ControlledButton(onClick = {
+            result = if (VoiceNavigation.resolve(context, "HOME") == null)
+                "Előbb add meg és mentsd el az otthoni címedet."
+            else JarvisNavigationText.result(
+                JarvisLanguageSettings.load(context), VoiceNavigation.openDetailed(context, "HOME"))
+        }, commandLabel = "Navigálás haza") { Text("Navigálás haza") }
         ControlledOutlinedButton(onClick = { result = if (openMap(context)) "Térkép megnyitva."
             else "Nincs térképalkalmazás." }, commandLabel = "Térkép megnyitása") { Text("Térkép megnyitása") }
         // Keep the local saved-places file picker accessible after removing
