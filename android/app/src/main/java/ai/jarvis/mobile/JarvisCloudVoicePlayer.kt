@@ -27,6 +27,8 @@ internal class JarvisCloudVoicePlayer(context: Context) {
     private var player: MediaPlayer? = null
     private var activeFile: File? = null
     private var closed = false
+    var lastFailure: String = ""
+        private set
 
     /** Returns false immediately when speech lacks explicit separate cloud consent. */
     fun speak(text: String, language: JarvisLanguage, onStart: () -> Unit = {}, completed: (Boolean) -> Unit): Boolean {
@@ -36,12 +38,15 @@ internal class JarvisCloudVoicePlayer(context: Context) {
         val chunks = JarvisSpeechChunks.split(text, maxChars = 1200)
         if (chunks.isEmpty()) return false
         stop()
+        lastFailure = ""
         val request = serial
         work = scope.launch {
             for (chunk in chunks) {
                 val audio = JarvisAiGateway.speechBytes(appContext, chunk, language)
                 if (request != serial) return@launch
                 if (audio == null) {
+                    lastFailure = JarvisAiGateway.lastSpeechError
+                        .ifBlank { "A felhős AI-hang nem adott lejátszható választ." }
                     completed(false)
                     return@launch
                 }
@@ -71,6 +76,7 @@ internal class JarvisCloudVoicePlayer(context: Context) {
                 }
                 if (request != serial) return@launch
                 if (!played) {
+                    lastFailure = "Az Android nem tudta lejátszani a kapott MP3-hangot."
                     completed(false)
                     return@launch
                 }
