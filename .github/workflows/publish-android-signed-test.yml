@@ -1,5 +1,9 @@
 name: Publish signed Jarvis Android APK (no AI server)
 on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/publish-android-signed-test.yml"
   workflow_dispatch:
     inputs:
       confirmation:
@@ -15,6 +19,9 @@ concurrency:
 jobs:
   signed-test-apk:
     if: >-
+      (github.event_name == 'push' &&
+       github.ref == 'refs/heads/main' &&
+       github.repository == 'bigzsorzs-sketch/Jarvis-mobil-Android-and-Ios') ||
       (github.event_name == 'workflow_dispatch' &&
        github.ref == 'refs/heads/main' &&
        inputs.confirmation == 'SIGNED_TEST_APPROVED') ||
