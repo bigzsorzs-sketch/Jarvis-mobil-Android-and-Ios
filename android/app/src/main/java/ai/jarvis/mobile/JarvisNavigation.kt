@@ -109,8 +109,8 @@ internal fun JarvisToolLanding(context: Context, page: String, onOpen: (String) 
             Button(onClick = {
                 message = if (VoiceNavigation.resolve(context, "HOME") == null)
                     "Előbb mentsd el az otthoni címet az Eszközök menüben."
-                else if (VoiceNavigation.open(context, "HOME")) "Átadtam az útvonalat a térképnek."
-                else "Nem érhető el térképalkalmazás."
+                else JarvisNavigationText.result(
+                    JarvisLanguageSettings.load(context), VoiceNavigation.openDetailed(context, "HOME"))
             }) { Text("Navigálás haza") }
             OutlinedButton(onClick = { onOpen("Továbbiak") }) { Text("Otthoni cím beállítása") }
         }
