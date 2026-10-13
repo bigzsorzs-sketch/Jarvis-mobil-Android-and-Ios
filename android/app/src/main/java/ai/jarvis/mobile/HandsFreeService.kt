@@ -274,12 +274,23 @@ class HandsFreeService : Service(), RecognitionListener {
             shutdown("A hangfigyelés leállt.")
             return
         }
-        // An explicit NEW app-launch request interrupts any pending call.
-        // Do not consume "nyisd meg a Messengert" as a phone number or
-        // respond with an expired call confirmation.
+        // The same precedence contract as the text command handler.
+        // A NEW user request (app, Jarvis page, setting, navigation or question)
+        // immediately cancels all stale phone and draft confirmations.
         val freshAppCommand = (VoiceIntentParser.afterWakeWord(heard) ?: heard).trim()
-        if ((tapActivated || awaitingCommand ||
-                VoiceIntentParser.afterWakeWord(heard) != null) &&
+        val isActiveTurn = tapActivated || awaitingCommand ||
+            VoiceIntentParser.afterWakeWord(heard) != null
+        if (isActiveTurn && JarvisCommandContext.independentRequest(freshAppCommand)) {
+            proposedCall = null
+            awaitingCallTargetUntil = 0L
+            proposedSequence = null
+            awaitingExternalDraft = null
+            externalProposal = null
+            proposed = null
+        }
+        if (isActiveTurn &&
+            JarvisCapabilities.localPageToOpen(freshAppCommand) == null &&
+            JarvisPhoneActions.requestedAction(freshAppCommand) == null &&
             JarvisInstalledApps.requestedLabel(freshAppCommand) != null) {
             proposedCall = null
             awaitingCallTargetUntil = 0L
