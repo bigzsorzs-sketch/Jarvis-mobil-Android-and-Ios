@@ -105,6 +105,10 @@ fun JarvisApp(context: Context) {
     }
     val onboardingPrefs = remember { context.getSharedPreferences("jarvis_onboarding_v1", Context.MODE_PRIVATE) }
     var isDark by remember { mutableStateOf(securePrefs.read("ui_dark_mode", "false") == "true") }
+    val commandDark = JarvisLocalPreferences.requestedDark
+    LaunchedEffect(commandDark) {
+        if (commandDark != null) isDark = commandDark
+    }
     val toggleTheme = {
         isDark = !isDark
         securePrefs.write("ui_dark_mode", isDark.toString())
@@ -457,6 +461,10 @@ fun JarvisApp(context: Context) {
         // The optional Android accessibility bridge can perform only
         // deterministic, user-requested, one-step operations. No AI-selected
         // buttons or automatic security confirmations.
+        JarvisLocalPreferences.parse(command)?.let { change ->
+            addHistory(command to JarvisLocalPreferences.apply(context, change))
+            return
+        }
         JarvisScreenControl.parse(command)?.let { action ->
             addHistory(command to JarvisScreenControl.execute(context, action))
             return
