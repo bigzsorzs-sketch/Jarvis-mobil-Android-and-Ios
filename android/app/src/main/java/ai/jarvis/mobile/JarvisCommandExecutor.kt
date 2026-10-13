@@ -37,9 +37,10 @@ internal object JarvisCommandExecutor {
                 when {
                     VoiceNavigation.resolve(context, destination) == null ->
                         "Ehhez a személyhez nem mentettél el címet."
-                    VoiceNavigation.open(context, destination) ->
-                        "Az útvonalat átadtam a térképalkalmazásnak."
-                    else -> "Nem sikerült elindítani a térképalkalmazást."
+                    else -> JarvisNavigationText.result(
+                        JarvisLanguageSettings.load(context),
+                        VoiceNavigation.openDetailed(context, destination)
+                    )
                 }
             }
             VoiceCalling.extractRequest(text) != null -> {
