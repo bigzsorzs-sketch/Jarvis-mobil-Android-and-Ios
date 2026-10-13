@@ -61,7 +61,13 @@ internal object JarvisScreenControl {
                     """^(?:koppints|erintsd meg|nyomd meg|tap|click)\s+(?:(?:az|a|the)\s+)?(.+?)(?:\s+(?:gombra|gombot|button))?$"""
                 ).matchEntire(raw) ?: return null
                 val label = m.groupValues[1].trim()
-                if (label.length !in 2..50 || sensitive.containsMatchIn(label)) return null
+                // Generic "OK"/"Continue" buttons may approve a payment or
+                // permission without revealing the operation. Never click them.
+                if (label.length !in 2..50 || sensitive.containsMatchIn(label) ||
+                    label in setOf("ok", "igen", "yes", "rendben", "continue",
+                        "next", "accept", "agree", "done", "finish", "save",
+                        "mentes", "mentesek", "folytatas", "tovabb", "elfogadom",
+                        "jo", "kesz", "confirmar", "accepter", "weiter")) return null
                 Action.TapLabel(label)
             }
         }
