@@ -231,6 +231,14 @@ fun JarvisApp(context: Context) {
         pendingMessageUntilMs = 0L
         pendingSequence = null
         pendingSequenceUntilMs = 0L
+        if (JarvisUpdateVoice.isRequest(command)) {
+            JarvisUpdateNavigation.request(JarvisUpdateVoice.shouldInstall(command))
+            val message = JarvisUpdateTexts.get(language,
+                if (JarvisUpdateVoice.shouldInstall(command)) "voiceInstall" else "voiceCheck")
+            addHistory(command to message)
+            openTool("Beállítások", asPage = true)
+            return
+        }
         // A visible, authorized notification preview is local data, not an AI prompt.
         if (VoiceIntentParser.isReadMessage(command)) {
             val source = VoiceIntentParser.messengerHint(command)
@@ -668,7 +676,8 @@ fun JarvisApp(context: Context) {
                                 "Beállítások" -> JarvisSettingsScreen(
                                     context, isDark, toggleTheme,
                                     onVoice = { page = "Hangbeállítások" },
-                                    onAi = { page = "AI-agy" }
+                                    onAi = { page = "AI-agy" },
+                                    language = language
                                 )
                                 "Hangbeállítások" -> HandsFreePanel(context)
                                 "AI-agy" -> JarvisAiSettings(context)
