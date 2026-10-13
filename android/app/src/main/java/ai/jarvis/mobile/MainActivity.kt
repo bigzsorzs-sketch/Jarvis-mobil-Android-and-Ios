@@ -183,9 +183,44 @@ fun JarvisApp(context: Context) {
     }
     var pendingCall by remember { mutableStateOf<VoiceCalling.Target?>(null) }
     var pendingCallUntilMs by remember { mutableLongStateOf(0L) }
+    // A multi-turn CALL is a local state machine. It never goes to OpenRouter.
+    // Keep only the pending intent within this foreground Activity, not a saved contact.
+    var awaitingCallTarget by remember { mutableStateOf<String?>(null) }
+    var awaitingCallTargetUntilMs by remember { mutableLongStateOf(0L) }
+    fun clearCallFlow() {
+        pendingCall = null
+        pendingCallUntilMs = 0L
+        awaitingCallTarget = null
+        awaitingCallTargetUntilMs = 0L
+    }
     fun prepareCallConfirmation(person: VoiceCalling.Target) {
+        awaitingCallTarget = null
+        awaitingCallTargetUntilMs = 0L
         pendingCall = person
-        pendingCallUntilMs = android.os.SystemClock.elapsedRealtime() + 30_000L
+        pendingCallUntilMs = android.os.SystemClock.elapsedRealtime() + 45_000L
+    }
+    fun resolveCallTarget(target: String): String {
+        return when (val found = VoiceCalling.lookup(context, target)) {
+            is VoiceCalling.Lookup.Found -> {
+                prepareCallConfirmation(found.target)
+                "Ezt a számot hívjam: ${found.target.label}, ${found.target.number}? Mondd: igen, hívd – vagy: nem."
+            }
+            VoiceCalling.Lookup.NotFound -> {
+                awaitingCallTarget = target
+                awaitingCallTargetUntilMs = android.os.SystemClock.elapsedRealtime() + 90_000L
+                "Nem találtam ezt a nevet a telefon névjegyeiben. Mondd vagy írd be a teljes telefonszámot."
+            }
+            VoiceCalling.Lookup.NoContactsAccess -> {
+                awaitingCallTarget = target
+                awaitingCallTargetUntilMs = android.os.SystemClock.elapsedRealtime() + 90_000L
+                "A Névjegyek engedély hiányzik. Engedélyezd a Jarvisnak, vagy add meg a teljes telefonszámot."
+            }
+            VoiceCalling.Lookup.Ambiguous -> {
+                awaitingCallTarget = ""
+                awaitingCallTargetUntilMs = android.os.SystemClock.elapsedRealtime() + 90_000L
+                "Több ilyen nevű névjegy van. Mondd a teljes nevet vagy a pontos telefonszámot."
+            }
+        }
     }
     var pendingMessage by remember { mutableStateOf<OutgoingMessage?>(null) }
     var pendingMessageUntilMs by remember { mutableLongStateOf(0L) }
@@ -224,8 +259,73 @@ fun JarvisApp(context: Context) {
         // any in-flight AI result; a stale network response cannot act later.
         commandRevision += 1
         val requestRevision = commandRevision
-        pendingCall = null
-        pendingCallUntilMs = 0L
+        val now = android.os.SystemClock.elapsedRealtime()
+        // BEFORE invalidating earlier approvals, consume explicit follow-ups
+        // on the original user-initiated call. A bare "igen, hívd" is allowed
+        // only for a fresh, unambiguous, resolved telephone number.
+        if (pendingCall != null) {
+            val person = pendingCall
+            if (now > pendingCallUntilMs) {
+                clearCallFlow()
+                addHistory(command to "Lejárt a hívás jóváhagyása. Mondd újra, kit hívjak.")
+                return
+            }
+            if (VoiceCalling.callConfirmationYes(command)) {
+                clearCallFlow()
+                val result = if (person != null && VoiceCalling.place(context, person))
+                    "A híváskérést átadtam az Androidnak: ${person.label}. A hívás létrejöttét a telefonon ellenőrizd."
+                else "A hívás nem indult el. Ellenőrizd a Telefon engedélyét."
+                addHistory(command to result)
+                return
+            }
+            if (VoiceIntentParser.isNo(command)) {
+                clearCallFlow()
+                addHistory(command to "Rendben, nem indítok hívást.")
+                return
+            }
+            if (VoiceCalling.extractRequest(command) == null && !VoiceCalling.needsTarget(command)) {
+                addHistory(command to "A hívás indításához válaszolj: igen, hívd – vagy: nem. Ha másik személyt hívnál, mondd a teljes hívási parancsot.")
+                return
+            }
+            clearCallFlow()
+        }
+        if (awaitingCallTarget != null) {
+            val previousTarget = awaitingCallTarget.orEmpty()
+            if (now > awaitingCallTargetUntilMs) {
+                clearCallFlow()
+                addHistory(command to "A korábbi híváskérés lejárt. Mondd újra a címzettet.")
+                return
+            }
+            if (VoiceIntentParser.isNo(command)) {
+                clearCallFlow()
+                addHistory(command to "Rendben, megszakítottam a híváskérést.")
+                return
+            }
+            // A user can state "ez a Vivi száma 07478 ...". Only the exact
+            // user-supplied number is accepted; never accept the LLM's guess.
+            val supplied = VoiceCalling.statedNumber(command)
+            if (supplied != null) {
+                if (previousTarget.isNotBlank() && supplied.label != supplied.number &&
+                    !VoiceCalling.matchesContactName(previousTarget, supplied.label) &&
+                    !VoiceCalling.matchesFirstName(previousTarget, supplied.label)) {
+                    addHistory(command to "A megadott név eltér a kért címzettől. Mondd újra a teljes hívási parancsot.")
+                    clearCallFlow()
+                    return
+                }
+                val label = previousTarget.ifBlank { supplied.label }.removeSuffix("t")
+                prepareCallConfirmation(VoiceCalling.Target(label, supplied.number))
+                addHistory(command to "Ezt a számot hívjam: $label, ${supplied.number}? Mondd: igen, hívd – vagy: nem.")
+                return
+            }
+            val candidate = VoiceCalling.extractRequest(command) ?: VoiceCalling.followUpTarget(command)
+            if (candidate == null || VoiceCalling.callConfirmationYes(command)) {
+                addHistory(command to "Melyik pontos névjegyet vagy telefonszámot hívjam? Hívás nem indult.")
+                return
+            }
+            clearCallFlow()
+            addHistory(command to resolveCallTarget(candidate))
+            return
+        }
         pendingMessage = null
         pendingMessageUntilMs = 0L
         pendingSequence = null
@@ -314,7 +414,15 @@ fun JarvisApp(context: Context) {
         // A bare "hívd fel a telefonszámot" has no safe number to dial:
         // ask for the contact instead of accidentally opening the dialer.
         if (VoiceCalling.needsTarget(command)) {
+            awaitingCallTarget = ""
+            awaitingCallTargetUntilMs = now + 90_000L
             addHistory(command to "Melyik telefonszámot vagy névjegyet hívjam? Mondd vagy írd le pontosan.")
+            return
+        }
+        // Never ask GPT to interpret an explicit phone call. Resolve via
+        // Android Contacts/Telecom and require a separate positive confirmation.
+        VoiceCalling.extractRequest(command)?.let { target ->
+            addHistory(command to resolveCallTarget(target))
             return
         }
         // Explicit page navigation must take priority over modules that see a
@@ -656,10 +764,7 @@ fun JarvisApp(context: Context) {
                                 else "A hívást nem sikerült elindítani. Ellenőrizd a telefonengedélyt."
                                 addHistory("Hívás megerősítve" to answer)
                             },
-                            onCallDismiss = {
-                                pendingCall = null
-                                pendingCallUntilMs = 0L
-                            }
+                            onCallDismiss = { clearCallFlow() }
                         )
                     } else {
                         Row(
