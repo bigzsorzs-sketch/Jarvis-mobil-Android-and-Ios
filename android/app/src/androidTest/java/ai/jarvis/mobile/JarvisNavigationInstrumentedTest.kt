@@ -131,6 +131,7 @@ class JarvisNavigationInstrumentedTest {
         composeRule.onNodeWithText("Mentett helyek és otthoni cím")
             .performScrollTo().performClick()
         composeRule.onNodeWithText("Otthoni cím mentése").assertExists()
+        composeRule.onNodeWithText("Navigálás haza").assertExists()
         composeRule.onNodeWithText("Mentett helyek importálása").assertExists()
     }
 
