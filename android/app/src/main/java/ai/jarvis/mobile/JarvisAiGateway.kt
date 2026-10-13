@@ -27,7 +27,7 @@ internal object JarvisAiGateway {
     internal const val SPEECH_MODEL = "openai/gpt-4o-mini-tts-2025-12-15"
     private const val MAX_MESSAGE = 8000
     private const val OPENROUTER_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions"
-    internal const val TEST_MODEL = "openai/gpt-4o-mini"
+    internal const val TEST_MODEL = "openai/gpt-5.2"
 
     const val DIRECT_TEST = "direct"
     const val SERVER = "server"
