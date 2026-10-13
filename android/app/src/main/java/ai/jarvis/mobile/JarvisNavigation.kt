@@ -28,6 +28,7 @@ internal object JarvisToolCatalog {
         JarvisTool("Vércukor", "Vércukor", "♧"),
         JarvisTool("Számlázás", "Számlák", "▤"),
         JarvisTool("Email", "Email", "✉"),
+        JarvisTool("Amazon", "Amazon", "▣"),
         JarvisTool("Üzenetek", "Üzenetek", "▢"),
         JarvisTool("Hívás", "Névjegyek", "☎"),
         JarvisTool("Naptár", "Naptár", "▦"),
@@ -91,7 +92,7 @@ internal fun JarvisToolLanding(context: Context, page: String, onOpen: (String) 
         "Munka" -> {
             Text("Eszközök", color = JarvisPalette.subtleText)
             JarvisToolCatalog.all.filter {
-                it.route in setOf("Számlák", "Naptár", "Jegyzetek")
+                it.route in setOf("Számlák", "Naptár", "Jegyzetek", "Amazon")
             }.forEach { item ->
                 ControlledOutlinedButton(
                     onClick = { onOpen(item.route) },
