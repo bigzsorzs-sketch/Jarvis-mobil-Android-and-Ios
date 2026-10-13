@@ -1066,6 +1066,7 @@ fun JarvisApp(context: Context) {
                                     context, isDark, toggleTheme,
                                     onVoice = { page = "Hangbeállítások" },
                                     onAi = { page = "AI-agy" },
+                                    onMore = { page = "Továbbiak" },
                                     language = language
                                 )
                                 "Hangbeállítások" -> HandsFreePanel(context)
