@@ -83,6 +83,7 @@ internal fun JarvisAttachmentPicker(
         } else target?.delete()
     }
 
+    RegisterJarvisControl("Fájl csatolása", click = { open = true })
     IconButton(onClick = { open = true }) {
         Text("+", fontSize = 29.sp,
             color = JarvisPalette.mainText)
@@ -137,7 +138,7 @@ internal fun JarvisAttachmentPicker(
                 }
             },
             confirmButton = {
-                TextButton(onClick = { inspectedVideo = null }) {
+                ControlledTextButton(onClick = { inspectedVideo = null }, commandLabel = "Bezárás") {
                     Text("Bezárás")
                 }
             }
@@ -153,8 +154,8 @@ internal fun JarvisAttachmentPicker(
                 Text("Csatolás Jarvishoz", style = MaterialTheme.typography.titleLarge,
                     color = JarvisPalette.mainText)
                 Spacer(Modifier.height(12.dp))
-                TextButton(onClick = {
-                    if (busy) return@TextButton
+                ControlledTextButton(onClick = {
+                    if (busy) return@ControlledTextButton
                     try {
                         val folder = File(context.cacheDir, "jarvis_attachments").apply { mkdirs() }
                         val temp = File.createTempFile("camera_", ".jpg", folder)
@@ -164,21 +165,21 @@ internal fun JarvisAttachmentPicker(
                         open = false
                         camera.launch(uri)
                     } catch (_: Exception) { onStatus("Nem sikerült megnyitni a kamerát.") }
-                }, enabled = !busy) {
+                }, enabled = !busy, commandLabel = "📷  Kamera") {
                     Text("📷  Kamera", color = JarvisPalette.mainText)
                 }
-                TextButton(onClick = {
+                ControlledTextButton(onClick = {
                     open = false
                     gallery.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo))
-                }, enabled = !busy) {
+                }, enabled = !busy, commandLabel = "▧  Fényképek és videók") {
                     Text("▧  Fényképek és videók", color = JarvisPalette.mainText)
                 }
-                TextButton(onClick = {
+                ControlledTextButton(onClick = {
                     open = false
                     // Unrestricted scoped system picker: common and uncommon
                     // formats remain selectable; no unrestricted storage access.
                     files.launch(arrayOf("*/*"))
-                }, enabled = !busy) {
+                }, enabled = !busy, commandLabel = "▤  Fájlok") {
                     Text("▤  Fájlok", color = JarvisPalette.mainText)
                 }
                 if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
@@ -206,7 +207,7 @@ internal fun JarvisAttachmentPicker(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
-                        TextButton(onClick = {
+                        ControlledTextButton(onClick = {
                             open = false
                             val result = JarvisExternalApps.openFile(context, attachment)
                             onStatus(when (result) {
@@ -214,9 +215,9 @@ internal fun JarvisAttachmentPicker(
                                 AppHandoffResult.SEARCH_OPENED -> "Alkalmazást keresek a fájl megnyitásához."
                                 AppHandoffResult.UNAVAILABLE -> "Nem sikerült megnyitni a fájlt."
                             })
-                        }, enabled = !busy) { Text("Megnyitás") }
+                        }, enabled = !busy, commandLabel = "Megnyitás") { Text("Megnyitás") }
                         if (attachment.mimeType.startsWith("video/")) {
-                            TextButton(onClick = {
+                            ControlledTextButton(onClick = {
                                 if (!busy) {
                                     busy = true
                                     scope.launch {
@@ -240,15 +241,15 @@ internal fun JarvisAttachmentPicker(
                                         }
                                     }
                                 }
-                            }, enabled = !busy) {
+                            }, enabled = !busy, commandLabel = "Képkockák") {
                                 Text("Képkockák")
                             }
                         }
-                        TextButton(onClick = {
+                        ControlledTextButton(onClick = {
                             JarvisVideoInspector.removeCache(context, attachment.id)
                             JarvisAttachments.delete(attachment)
                             items.remove(attachment)
-                        }, enabled = !busy) { Text("Eltávolítás") }
+                        }, enabled = !busy, commandLabel = "Eltávolítás") { Text("Eltávolítás") }
                         }
                     }
                 }

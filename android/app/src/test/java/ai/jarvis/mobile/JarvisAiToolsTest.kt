@@ -19,7 +19,7 @@ class JarvisAiToolsTest {
                 .put("arguments", params.toString()))
 
     @Test fun routesAreRealMenuDestinationsOnly() {
-        assertEquals(JarvisToolCatalog.all.map { it.route }.distinct(), JarvisAiTools.allowedRoutes)
+        assertEquals((JarvisToolCatalog.all + JarvisToolCatalog.subpages).map { it.route }.distinct(), JarvisAiTools.allowedRoutes)
         assertFalse(JarvisAiTools.allowedRoutes.contains("Delete files"))
         assertTrue(JarvisAiTools.toolDefinition().toString().contains("additionalProperties"))
     }

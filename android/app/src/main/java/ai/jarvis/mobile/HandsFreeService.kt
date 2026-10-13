@@ -133,6 +133,12 @@ class HandsFreeService : Service(), RecognitionListener {
             return START_NOT_STICKY
         }
         running = true
+        JarvisForegroundCommands.interruptSpeech = {
+            aiJob?.cancel()
+            cloudVoice?.stop()
+            activeVoiceCommand = null
+            finishSpokenReply()
+        }
         HandsFreeStatus.running = true
         cloudVoice = JarvisCloudVoicePlayer(applicationContext)
         try {
@@ -273,6 +279,23 @@ class HandsFreeService : Service(), RecognitionListener {
                 VoiceIntentParser.afterWakeWord(heard).orEmpty())) {
             shutdown("A hangfigyelés leállt.")
             return
+        }
+        // All foreground speech, including follow-ups on typed calls, uses the
+        // SAME Activity session. Only microphone transport belongs to this service.
+        val wake = VoiceIntentParser.afterWakeWord(heard)
+        if ((tapActivated || awaitingCommand || wake != null) && privateVoiceAllowed()) {
+            val sharedCommand = (wake ?: heard).trim()
+            if (sharedCommand.isNotBlank()) {
+                aiJob?.cancel()
+                activeVoiceCommand = null // Activity writes the single shared history entry.
+                val delivered = JarvisForegroundCommands.submit(sharedCommand) { answer ->
+                    if (running) speak(answer)
+                }
+                if (delivered) {
+                    awaitingCommand = true
+                    return
+                }
+            }
         }
         // The same precedence contract as the text command handler.
         // A NEW user request (app, Jarvis page, setting, navigation or question)
@@ -1005,6 +1028,7 @@ class HandsFreeService : Service(), RecognitionListener {
     }
     private fun shutdown(status: String) {
         running = false
+        JarvisForegroundCommands.interruptSpeech = null
         HandsFreeStatus.running = false
         HandsFreeStatus.speaking = false
         HandsFreeStatus.userSpeaking = false

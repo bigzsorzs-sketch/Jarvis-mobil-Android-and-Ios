@@ -121,6 +121,7 @@ internal fun JarvisHomeScreen(
             stagedAttachments.clear()
         }
     }
+    RegisterJarvisControl("Küldés", text.isNotBlank() || stagedAttachments.isNotEmpty(), click = { submit(text) })
     fun startVoice() {
         try {
             ContextCompat.startForegroundService(
@@ -252,10 +253,10 @@ internal fun JarvisHomeScreen(
                         "\n\nA második lépés csak sikeres ébresztőbeállítás után indul.")
                 },
                 confirmButton = {
-                    TextButton(onClick = onSequenceConfirm) { Text("Mindkét lépés indítása") }
+                    ControlledTextButton(onClick = onSequenceConfirm, commandLabel = "Mindkét lépés indítása") { Text("Mindkét lépés indítása") }
                 },
                 dismissButton = {
-                    TextButton(onClick = onSequenceDismiss) { Text("Mégse") }
+                    ControlledTextButton(onClick = onSequenceDismiss, commandLabel = "Mégse") { Text("Mégse") }
                 }
             )
         }
@@ -274,10 +275,10 @@ internal fun JarvisHomeScreen(
                     }
                 },
                 confirmButton = {
-                    TextButton(onClick = onMessageConfirm) { Text("Piszkozat megnyitása") }
+                    ControlledTextButton(onClick = onMessageConfirm, commandLabel = "Piszkozat megnyitása") { Text("Piszkozat megnyitása") }
                 },
                 dismissButton = {
-                    TextButton(onClick = onMessageDismiss) { Text("Mégse") }
+                    ControlledTextButton(onClick = onMessageDismiss, commandLabel = "Mégse") { Text("Mégse") }
                 }
             )
         }
@@ -288,10 +289,10 @@ internal fun JarvisHomeScreen(
                 text = { Text(JarvisCallText.get(language, "dialog",
                     pendingCall.label, pendingCall.number)) },
                 confirmButton = {
-                    TextButton(onClick = onCallConfirm) { Text("Hívás indítása") }
+                    ControlledTextButton(onClick = onCallConfirm, commandLabel = "Hívás indítása") { Text("Hívás indítása") }
                 },
                 dismissButton = {
-                    TextButton(onClick = onCallDismiss) { Text("Mégse") }
+                    ControlledTextButton(onClick = onCallDismiss, commandLabel = "Mégse") { Text("Mégse") }
                 }
             )
         }
@@ -305,7 +306,7 @@ internal fun JarvisHomeScreen(
             if (hasOlderHistory) {
                 item {
                     Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                        OutlinedButton(
+                        ControlledOutlinedButton(
                             enabled = !loadingOlderHistory,
                             onClick = {
                                 chatScope.launch {
@@ -320,7 +321,7 @@ internal fun JarvisHomeScreen(
                                 }
                             },
                             modifier = Modifier.testTag("jarvis-chat-older")
-                        ) { Text(if (loadingOlderHistory) "Betöltés…" else "Korábbi üzenetek") }
+                        , commandLabel = if (loadingOlderHistory) "Betöltés…" else "Korábbi üzenetek") { Text(if (loadingOlderHistory) "Betöltés…" else "Korábbi üzenetek") }
                     }
                 }
             }
@@ -381,14 +382,14 @@ internal fun JarvisHomeScreen(
             IconButton(
                 modifier = Modifier.testTag("jarvis-home-send"),
                 onClick = {
-                    if (text.isNotBlank()) submit(text)
+                    if (text.isNotBlank() || stagedAttachments.isNotEmpty()) submit(text)
                     else if (ContextCompat.checkSelfPermission(
                             context, Manifest.permission.RECORD_AUDIO) ==
                         PackageManager.PERMISSION_GRANTED) startDictation()
                     else dictatePermission.launch(Manifest.permission.RECORD_AUDIO)
                 }
             ) {
-                Text(if (text.isBlank()) "🎙" else "➤",
+                Text(if (text.isBlank() && stagedAttachments.isEmpty()) "🎙" else "➤",
                     fontSize = 23.sp, color = JarvisInk)
             }
             Surface(

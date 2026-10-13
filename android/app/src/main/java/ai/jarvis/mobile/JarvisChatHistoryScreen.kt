@@ -50,10 +50,10 @@ internal fun JarvisChatHistoryScreen(context: Context) {
         "A keresés offline történik. Más alkalmazások teljes chatjeit nem olvassa.",
         style = MaterialTheme.typography.bodySmall)
     Spacer(Modifier.height(12.dp))
-    OutlinedTextField(value = term, onValueChange = { term = it.take(120) },
+    ControlledOutlinedTextField(value = term, onValueChange = { term = it.take(120) },
         singleLine = true, label = { Text("Keresés az előzményekben") },
-        modifier = Modifier.fillMaxWidth())
-    Button(onClick = { refresh() }, enabled = !busy) {
+        modifier = Modifier.fillMaxWidth(), commandLabel = "Keresés az előzményekben")
+    ControlledButton(onClick = { refresh() }, enabled = !busy, commandLabel = if (busy) "Keresés…" else "Helyi keresés") {
         Text(if (busy) "Keresés…" else "Helyi keresés")
     }
     Text(count.toString() + " mentett beszélgetési forduló; legfeljebb 60 találat látható.",

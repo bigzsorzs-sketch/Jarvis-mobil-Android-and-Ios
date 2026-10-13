@@ -351,11 +351,11 @@ internal fun JarvisLanguagePicker(
         }
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             JarvisLanguage.entries.forEach { option ->
-                DropdownMenuItem(
+                ControlledDropdownMenuItem(
                     text = { androidx.compose.material3.Text(option.flag + "  " + option.label) },
                     onClick = { expanded = false; onSelect(option) },
                     modifier = Modifier.testTag("jarvis-language-" + option.tag)
-                )
+                , commandLabel = option.flag + "  " + option.label)
             }
         }
     }

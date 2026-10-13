@@ -111,7 +111,9 @@ internal object JarvisCapabilities {
                 "jarvis ebreszto kezelese")
         )
         val matches = (JarvisToolCatalog.all + JarvisToolCatalog.subpages).filter { tool ->
-            (listOf(tool.name, tool.route) + aliases[tool.route].orEmpty()).any { alias ->
+            (listOf(tool.name, tool.route) + JarvisLanguage.entries.flatMap { lang ->
+                listOf(JarvisTranslations.text(tool.name, lang), JarvisTranslations.text(tool.route, lang))
+            } + aliases[tool.route].orEmpty()).any { alias ->
                 Regex("""\b${Regex.escape(normalized(alias))}[a-z]{0,8}\b""")
                     .containsMatchIn(n)
             }
@@ -122,7 +124,7 @@ internal object JarvisCapabilities {
         }
         if ("Továbbiak" in matches) matches.remove("Ébresztő")
         val route = matches.singleOrNull() ?: return null
-        val explicitPage = Regex("""\b(oldal[a-z]*|menu[a-z]*|kepernyo[a-z]*|page|screen)\b""")
+        val explicitPage = Regex("""\b(oldal[a-z]*|menu[a-z]*|kepernyo[a-z]*|page|screen|seite|pagina|ecran|strone)\b""")
             .containsMatchIn(n)
         if (!explicitPage && route in setOf("Navigáció", "Email", "Naptár", "Ébresztő")) {
             return null

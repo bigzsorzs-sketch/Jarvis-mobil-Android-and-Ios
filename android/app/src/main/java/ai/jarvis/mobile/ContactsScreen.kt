@@ -75,17 +75,17 @@ internal fun ContactsScreen(context: Context, onPermissions: () -> Unit) {
         )[LocalJarvisLanguage.current.ordinal],
         color = Color(0xFFB5C3D8)
     )
-    OutlinedButton(onClick = onPermissions) {
+    ControlledOutlinedButton(onClick = onPermissions, commandLabel = if (allowed) "Engedélyek kezelése" else "Névjegy-hozzáférés engedélyezése") {
         Text(if (allowed) "Engedélyek kezelése" else "Névjegy-hozzáférés engedélyezése")
     }
     if (!allowed) {
         Text("A névjegyek megtekintéséhez előbb engedélyt kell adnod.", color = Color(0xFFB5C3D8))
         return
     }
-    OutlinedTextField(
+    ControlledOutlinedTextField(
         value = query, onValueChange = { query = it },
         label = { Text("Névjegy keresése") }, modifier = Modifier.fillMaxWidth()
-    )
+    , commandLabel = "Névjegy keresése")
     Spacer(Modifier.height(12.dp))
     contacts.filter { query.isBlank() || it.name.contains(query, ignoreCase = true) }
         .take(30).forEach { contact ->
@@ -93,11 +93,11 @@ internal fun ContactsScreen(context: Context, onPermissions: () -> Unit) {
                 Column(Modifier.fillMaxWidth().padding(12.dp)) {
                     Text(contact.name, color = Color.White, fontWeight = FontWeight.Bold)
                     Text(contact.number, color = Color(0xFFB5C3D8))
-                    OutlinedButton(onClick = {
+                    ControlledOutlinedButton(onClick = {
                         val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:" + Uri.encode(contact.number)))
                         result = if (openSystemIntent(context, intent)) "Tárcsázó megnyitva." else
                             "A tárcsázót nem sikerült megnyitni."
-                    }) { Text("Tárcsázás előkészítése") }
+                    }, commandLabel = "Tárcsázás előkészítése") { Text("Tárcsázás előkészítése") }
                 }
             }
             Spacer(Modifier.height(8.dp))

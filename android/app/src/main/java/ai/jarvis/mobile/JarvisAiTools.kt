@@ -27,7 +27,7 @@ internal object JarvisAiTools {
 
     // Use the same menu inventory as the actual UI; no fabricated tools.
     val allowedRoutes: List<String>
-        get() = JarvisToolCatalog.all.map { it.route }.distinct()
+        get() = (JarvisToolCatalog.all + JarvisToolCatalog.subpages).map { it.route }.distinct()
 
     /** OpenRouter / OpenAI-compatible function specification (read-only plan).
      * A server must not execute returned tool calls: validation is on-device.
@@ -154,7 +154,9 @@ internal object JarvisAiTools {
             "nyisd ", "nyit ", "nyitnad ", "megnyit ", "megnyitnad ",
             "mutasd ", "mutatnad ", "lepj ", "menj ", "inditsd ",
             "szeretnem megnyitni", "szeretnem latni", "szeretnek belepni",
-            "open ", "show ", "launch ", "go to ", "take me to "
+            "open ", "show ", "launch ", "go to ", "take me to ",
+            "offne ", "zeige ", "ouvre ", "affiche ", "abre ", "muestra ",
+            "apri ", "mostra ", "otworz ", "pokaz "
         ).any { input.startsWith(it) }
     }
 
@@ -163,6 +165,7 @@ internal object JarvisAiTools {
      * One explicitly named destination per command; no guessed app.
      */
     private fun routeMatchesUser(route: String, input: String): Boolean {
+        JarvisCapabilities.localPageToOpen(input)?.let { return it == route }
         val normalized = normal(input)
         val targets = mapOf(
             "Főoldal" to listOf("fooldal", "kezdolap", "home"),

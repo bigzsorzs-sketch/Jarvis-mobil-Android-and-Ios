@@ -136,7 +136,7 @@ internal fun PermissionCenter(
     }
     if (showContinue) {
         Spacer(Modifier.height(20.dp))
-        Button(onClick = onDone, modifier = Modifier.fillMaxWidth()) { Text("Folytatás") }
+        ControlledButton(onClick = onDone, modifier = Modifier.fillMaxWidth(), commandLabel = "Folytatás") { Text("Folytatás") }
     }
     Spacer(Modifier.height(16.dp))
 }

@@ -22,26 +22,26 @@ internal fun JarvisInstalledAppsScreen(context: Context) {
         "nem küldöm sem a Jarvis szerverre, sem az AI-szolgáltatónak.",
         style = MaterialTheme.typography.bodySmall)
     Spacer(Modifier.height(12.dp))
-    OutlinedTextField(
+    ControlledOutlinedTextField(
         value = filter, onValueChange = { filter = it.take(100) },
         label = { Text("Keresés az alkalmazások között") },
         singleLine = true, modifier = Modifier.fillMaxWidth()
-    )
-    TextButton(onClick = { apps = JarvisInstalledApps.list(context); feedback = "" }) {
+    , commandLabel = "Keresés az alkalmazások között")
+    ControlledTextButton(onClick = { apps = JarvisInstalledApps.list(context); feedback = "" }, commandLabel = "Lista frissítése") {
         Text("Lista frissítése")
     }
     if (feedback.isNotBlank()) Text(feedback, color = MaterialTheme.colorScheme.primary)
     val visible = apps.filter { it.label.contains(filter, ignoreCase = true) }
     Text(visible.size.toString() + " alkalmazás", style = MaterialTheme.typography.labelMedium)
     visible.take(40).forEach { app ->
-        OutlinedButton(
+        ControlledOutlinedButton(
             modifier = Modifier.fillMaxWidth(),
             onClick = {
                 feedback = if (JarvisInstalledApps.open(context, app))
                     "Az Androidnak átadtam: " + app.label
                 else "Nem sikerült megnyitni: " + app.label
             }
-        ) { Text(app.label, modifier = Modifier.weight(1f)); Text("Megnyitás") }
+        , commandLabel = app.label) { Text(app.label, modifier = Modifier.weight(1f)); Text("Megnyitás") }
     }
     if (visible.size > 40) Text("További találatokhoz pontosítsd a keresést.")
 }

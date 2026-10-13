@@ -22,6 +22,7 @@ internal object JarvisCommandContext {
         if (s.isBlank()) return false
         if (VoiceCalling.extractRequest(raw) != null || VoiceCalling.needsTarget(raw) ||
             JarvisScreenControl.parse(raw) != null ||
+            JarvisControlCommand.parse(raw) != null ||
             JarvisLocalPreferences.parse(raw) != null) return true
         if (JarvisInstalledApps.requestedLabel(raw) != null ||
             JarvisCapabilities.localPageToOpen(raw) != null ||
