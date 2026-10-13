@@ -199,7 +199,10 @@ fun JarvisApp(context: Context) {
         }
     }
     fun addHistory(turn: Pair<String, String>) {
+        // Voice answers are still delivered, but successful local actions
+        // no longer fill the visible or encrypted chat conversation.
         completeCommand(turn.first, turn.second)
+        if (JarvisQuietActions.hideSuccessfulTurn(turn.first, turn.second)) return
         conversation.add(turn)
         saveChatTurn(turn)
     }
@@ -250,17 +253,26 @@ fun JarvisApp(context: Context) {
         val fromVoice = voiceReply?.first == request.instruction
         completeCommand(request.instruction, if (fromVoice && outcome.speak != null)
             outcome.speak else outcome.status)
-        val safeCommand = when (request.operation) {
-            is GmailOperation.Send -> "Gmail levélírás / küldés"
-            is GmailOperation.Reply -> "Gmail válasz küldése"
-            else -> "Gmail művelet"
+        // Never record mailbox-derived addresses, message body, recipient
+        // resolution or completed sends as "Gmail művelet" chat entries.
+        // Only a genuine next-step prompt or failure is displayed transiently.
+        val mailPrompt = when (request.operation) {
+            is GmailOperation.ResolveRecipient -> when (outcome.recipientCandidates.size) {
+                0 -> outcome.status
+                1 -> "Megtaláltam a címzettet a Gmailben. Mi legyen a tárgy?"
+                else -> {
+                    page = "Email"
+                    "Több megfelelő emailcím van. A kiválasztáshoz nézd meg az Email oldalt, és mondd vagy írd be a sorszámot."
+                }
+            }
+            is GmailOperation.Incomplete -> outcome.status
+            else -> if (JarvisGmailFeedback.needsAttention(outcome.status))
+                outcome.status else null
         }
-        // Mailbox-derived recipient lists must not be written to chat history.
-        val turn = safeCommand to if (request.operation is GmailOperation.ResolveRecipient)
-            "A Gmail címzettkeresése befejeződött. Az eredmény csak a képernyőn látható."
-            else outcome.status
-        conversation.add(turn)
-        saveChatTurn(turn)
+        if (mailPrompt != null) {
+            conversation.add("Jarvis" to mailPrompt)
+            // This prompt is not persisted: Gmail content stays in memory.
+        }
         // The microphone service speaks its own response. Do not start a
         // second cloud player over the top of it for the same email.
         if (!fromVoice && request.operation is GmailOperation.Read) outcome.speak?.let {
@@ -435,7 +447,7 @@ fun JarvisApp(context: Context) {
             if (now > choice.expiresAtMs || GmailDraftConversationFlow.isCancel(command)) {
                 gmailChoice = null
                 completeCommand(command, "Megszakítottam a Gmail-címzett kiválasztását.")
-                conversation.add("Gmail címzett" to "Címzettválasztás megszakítva.")
+                conversation.add("Jarvis" to "Nem küldtem emailt.")
                 return
             }
             val chosen = GmailDraftConversationFlow.choice(command, choice.options.size)
@@ -445,7 +457,7 @@ fun JarvisApp(context: Context) {
                     expiresAtMs = now + 180_000L)
                 gmailChoice = null
                 completeCommand(command, "Kiválasztottam a címzettet a Gmailből. Mi legyen a tárgy?")
-                conversation.add("Gmail címzett kiválasztása" to
+                conversation.add("Jarvis" to
                     "Kiválasztottam a címzettet a Gmailből. Mi legyen a tárgy?")
                 return
             }
@@ -459,7 +471,7 @@ fun JarvisApp(context: Context) {
                 GmailDraftNext.Cancelled -> {
                     gmailDraft = null
                     completeCommand(command, "Megszakítottam az emailt. Nem küldtem el.")
-                    conversation.add("Gmail művelet" to "Email megszakítva, nem küldtem el.")
+                    conversation.add("Jarvis" to "Email megszakítva, nem küldtem el.")
                     return
                 }
                 GmailDraftNext.NotRelated -> gmailDraft = null
@@ -467,7 +479,7 @@ fun JarvisApp(context: Context) {
                     gmailDraft = next.draft.copy(expiresAtMs = now + 180_000L)
                     val response = "Rögzítettem a tárgyat. Mi legyen a levél szövege?"
                     completeCommand(command, response)
-                    conversation.add("Gmail tárgy megadva" to response)
+                    conversation.add("Jarvis" to response)
                     return
                 }
                 is GmailDraftNext.Complete -> {
