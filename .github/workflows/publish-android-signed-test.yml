@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
     inputs:
       confirmation:
-        description: 'Type SIGNED_TEST_APPROVED to build a signed TEST APK without the hosted AI gateway'
+        description: 'Type SIGNED_TEST_APPROVED for the clean-install 0.2.18 signing baseline (NOT an in-place upgrade of 0.2.17)'
         required: true
         type: string
 permissions:
@@ -77,7 +77,7 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.11.1'
-      - name: Restore EXISTING protected signing keystore
+      - name: Restore permanent protected signing keystore
         env:
           KEYSTORE_BASE64: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_BASE64 }}
           STORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_STORE_PASSWORD }}
@@ -86,7 +86,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test -n "$KEYSTORE_BASE64" || { echo 'Missing existing upload keystore secret'; exit 1; }
+          test -n "$KEYSTORE_BASE64" || { echo 'Missing permanent Jarvis signing keystore secret'; exit 1; }
           test -n "$STORE_PASSWORD" && test -n "$KEY_ALIAS" && test -n "$KEY_PASSWORD" || { echo 'Missing Android signing credentials'; exit 1; }
           printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/jarvis-upload.jks"
           test -s "$RUNNER_TEMP/jarvis-upload.jks"
@@ -116,29 +116,19 @@ jobs:
           cp "$apk" dist/Jarvis-Android-0.2.18-signed-test.apk
           cp "$RUNNER_TEMP/new-signature.txt" dist/SIGNING-CERTIFICATE.txt
           (cd dist && sha256sum Jarvis-Android-0.2.18-signed-test.apk > SHA256SUMS.txt)
-      - name: Verify signing identity MATCHES prior in-app upgrade APK
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Validate permanent 0.2.18 baseline signing identity
         shell: bash
         run: |
           set -euo pipefail
-          # This gate deliberately refuses to claim a seamless update unless
-          # the new APK has exactly the certificate from the prior public build.
-          mkdir -p "$RUNNER_TEMP/previous"
-          gh release download v0.2.17-dev-test.1 \
-            --repo "${{ github.repository }}" \
-            --pattern SIGNING-CERTIFICATE.txt \
-            --dir "$RUNNER_TEMP/previous"
-          old="$(grep -iE 'Signer #1 certificate SHA-256 digest: [0-9a-f]{64}' \
-            "$RUNNER_TEMP/previous/SIGNING-CERTIFICATE.txt" | awk '{print $NF}' | tr 'A-F' 'a-f')"
+          # The old 0.2.17 is a CI debug-signed test APK. The user explicitly
+          # approved a clean first install of 0.2.18 with a NEW permanent key.
+          # Do NOT claim the new signature can upgrade the old debug app.
           current="$(grep -iE 'Signer #1 certificate SHA-256 digest: [0-9a-f]{64}' \
             dist/SIGNING-CERTIFICATE.txt | awk '{print $NF}' | tr 'A-F' 'a-f')"
-          test "${#old}" -eq 64 && test "${#current}" -eq 64
-          if [ "$old" != "$current" ]; then
-            echo "::error::The protected signing key differs from the previous 0.2.17 APK. This cannot be published as an in-place update."
-            exit 1
-          fi
-          echo "Same APK signing certificate confirmed; installer will independently verify the installed app signature."
+          test "${#current}" -eq 64 || { echo "::error::No valid signing certificate fingerprint"; exit 1; }
+          echo "Permanent signing baseline certificate SHA-256: $current"
+          # Future signed releases MUST match this baseline certificate.
+          # The immutable release asset SIGNING-CERTIFICATE.txt records its identity.
       - name: Publish signed APK as clearly labeled prerelease (NOT public AI launch)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -154,7 +144,11 @@ jobs:
           fi
           cat > "$RUNNER_TEMP/jarvis-signed-test-notes.md" <<'EOF'
           # Jarvis Android 0.2.18 — SIGNED TEST APK
-          This APK is built only when the existing protected keystore exactly matches the previous published 0.2.17 signing certificate. Signature, versionCode, package name, checksum and Android build are validated in CI.
+          This is the FIRST Jarvis Android TEST APK signed with the new permanent production keystore.
+          Its signer fingerprint is published in SIGNING-CERTIFICATE.txt; every future in-place update MUST use the exact same key and application ID.
+          The previous 0.2.17 build was CI debug-signed. This 0.2.18 APK is NOT guaranteed to install over it.
+          The user confirmed no important 0.2.17 local data. To migrate, back up any data if needed, uninstall the old test app with explicit user approval, then install this 0.2.18 APK once.
+          The build validates package identity, versionCode, APK signature, checksum, Kotlin tests and lint.
           This is a PRE-RELEASE for controlled testing, not a verified full AI-service/public launch.
           The Jarvis hosted AI gateway is NOT bundled or connected. Hosted AI requests need a future
           HTTPS gateway deployment. Direct OpenRouter mode is AVAILABLE in this signed APK:
@@ -162,9 +156,9 @@ jobs:
           The key is encrypted locally using Android Keystore; no shared key is embedded in this APK.
           AI model availability and provider errors depend on your OpenRouter account.
           Installing from GitHub may still show Android unknown-source or Play Protect warnings.
-          This release is blocked when the old and new signing certificates differ.
-          Never uninstall the previous Jarvis just to force an update: encrypted local
-          conversations, readings, billing records and settings may be lost.
+          Before uninstalling 0.2.17, understand that local chats, readings, invoices and settings can be permanently lost.
+          Only uninstall when the tester explicitly confirms they have no needed local data.
+          For 0.2.18 onward, keep the signing keystore safely backed up and NEVER rotate it without a proper migration.
           EOF
           gh release create "$tag" \
             dist/Jarvis-Android-0.2.18-signed-test.apk dist/SHA256SUMS.txt dist/SIGNING-CERTIFICATE.txt \
