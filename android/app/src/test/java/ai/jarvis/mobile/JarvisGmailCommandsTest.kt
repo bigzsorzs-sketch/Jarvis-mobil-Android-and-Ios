@@ -22,8 +22,14 @@ class JarvisGmailCommandsTest {
     }
 
     @Test fun incompleteMailDoesNotSend() {
-        assertTrue(JarvisGmailCommands.parse("írj egy emailt a Várnai Ferencnek")!!.operation
-            is GmailOperation.Incomplete)
+        val named = JarvisGmailCommands.parse("írj egy emailt a Várnai Ferencnek")!!
+            .operation as GmailOperation.ResolveRecipient
+        assertEquals("Várnai Ferenc", named.name)
+        assertFalse(named.actuallySend)
+        val sendNamed = JarvisGmailCommands.parse("küld email Várnai Ferencnek")!!
+            .operation as GmailOperation.ResolveRecipient
+        assertEquals("Várnai Ferenc", sendNamed.name)
+        assertTrue(sendNamed.actuallySend)
         assertTrue(JarvisGmailCommands.parse("küldj emailt anna@example.com")!!.operation
             is GmailOperation.Incomplete)
     }
@@ -52,6 +58,15 @@ class JarvisGmailCommandsTest {
         assertEquals(GmailOperation.Check,
             JarvisGmailCommands.parse("van új emailem?")?.operation)
         assertNull(JarvisGmailCommands.parse("milyen új filmek vannak?"))
+    }
+
+    @Test fun mailboxNameResolutionNotPhoneContactDraft() {
+        val new = JarvisGmailCommands.parse("Küldj emailt Várnai Ferencnek")!!.operation
+        assertTrue(new is GmailOperation.ResolveRecipient)
+        assertTrue((new as GmailOperation.ResolveRecipient).actuallySend)
+        assertNull(JarvisGmailCommands.parse("Küldj emailt a telefon névjegyzékéből"))
+        assertEquals(GmailOperation.Check,
+            JarvisGmailCommands.parse("Van új emailem?")!!.operation)
     }
 
     @Test fun replyKeepsUserContentAndSender() {
