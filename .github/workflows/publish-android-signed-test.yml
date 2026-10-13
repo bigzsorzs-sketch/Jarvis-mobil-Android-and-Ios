@@ -48,7 +48,7 @@ jobs:
           TESTED_SHA="$SOURCE_SHA"
           # Manual dispatch can use the prior green Android commit only when
           # every intervening change affects THIS release workflow alone.
-          baseline="b47d8e7be1241550781d563abb1708efe54cf644"
+          baseline="0b1196351ed16ce50d1ab889fe215dc14895caa0"
           if [ "$SOURCE_SHA" != "$baseline" ]; then
             comparison="$(gh api "repos/${{ github.repository }}/compare/$baseline...$SOURCE_SHA")"
             status="$(printf '%s' "$comparison" | jq -r '.status')"
@@ -182,6 +182,7 @@ jobs:
           Navigation: "Nyisd meg a térképet és navigálj Harrogate-be", "Vigyél Leedsbe" and multilingual supported destination commands are prioritized over generic Maps opening.
           Destination is sent to Google Maps' documented turn-by-turn navigation intent with driving mode when Maps is available.
           Android/Google Maps may still require location permission, foreground activity or user action; no guarantee of uninterrupted background map control.
+          Phone calling regression fixed: "Hívd fel Vivit", "Vivit hívd fel", and explicit phone numbers use verified on-device contact lookup and explicit yes/no confirmation. A missing number asks for a follow-up instead of opening the Android dialer.
           Contacts, confirmed calls, other local commands and the self-update panel remain included.
           The in-app updater verifies SHA256, increasing versionCode, same Android package and exact installed signing certificate before invoking Android's system installer.
           The signature fingerprint MUST match the fixed Jarvis 0.2.18/0.2.19 signing identity. User must approve installation; do NOT uninstall to update.
