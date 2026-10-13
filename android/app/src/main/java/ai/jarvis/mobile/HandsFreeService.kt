@@ -503,6 +503,13 @@ class HandsFreeService : Service(), RecognitionListener {
             }
             return
         }
+        // Gmail needs Activity-owned Google OAuth. If the shared foreground
+        // command bridge is unavailable, never pretend to read/send mail and
+        // never pass this personal-data command to the reasoning model.
+        if (JarvisGmailCommands.parse(command) != null) {
+            speak("Gmail-művelethez nyisd meg Jarvist a feloldott telefonon, és ismételd meg a parancsot.")
+            return
+        }
         // Existing authorized notification/glucose/billing readers take priority.
         val readAloud = if (JarvisGlucoseVoice.isQuery(command) ||
             BillingVoice.isCandidate(command) || VoiceIntentParser.isReadMessage(command))

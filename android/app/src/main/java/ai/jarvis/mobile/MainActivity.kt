@@ -203,6 +203,33 @@ fun JarvisApp(context: Context) {
         conversation.add(turn)
         saveChatTurn(turn)
     }
+    var gmailStatus by remember { mutableStateOf("") }
+    var gmailReadText by remember { mutableStateOf("") }
+    val gmailAction = rememberJarvisGmail { request, outcome ->
+        gmailStatus = outcome.status
+        gmailReadText = outcome.speak.orEmpty()
+        if (request.operation is GmailOperation.Read && outcome.speak != null) page = "Email"
+        // Keep private Gmail bodies out of the persisted chat history.
+        // Still deliver the asynchronous answer to a pending hands-free turn.
+        val fromVoice = voiceReply?.first == request.instruction
+        completeCommand(request.instruction, if (fromVoice && outcome.speak != null)
+            outcome.speak else outcome.status)
+        val safeCommand = when (request.operation) {
+            is GmailOperation.Send -> "Gmail levélírás / küldés"
+            is GmailOperation.Reply -> "Gmail válasz küldése"
+            else -> "Gmail művelet"
+        }
+        val turn = safeCommand to outcome.status
+        conversation.add(turn)
+        saveChatTurn(turn)
+        // The microphone service speaks its own response. Do not start a
+        // second cloud player over the top of it for the same email.
+        if (!fromVoice) outcome.speak?.let {
+            if (!narrator.read(it, language)) {
+                gmailStatus = outcome.status + " A hangos felolvasás nem indult el; a szöveg az Email oldalon olvasható."
+            }
+        }
+    }
     // Spoken commands share the same encrypted local timeline as typed messages.
     // Consume exactly once even when the Activity is recomposed.
     val completedVoiceTurn = HandsFreeNavigation.completedVoiceTurn
@@ -514,6 +541,12 @@ fun JarvisApp(context: Context) {
                 // Do not persist a third-party private notification into chat history.
                 addHistory(command to JarvisReadAloudCommand.response(language, "started"))
             }
+            return
+        }
+        // Route user-originated Gmail actions before generic narration or AI.
+        // Only the real Google authorization flow can grant email access.
+        JarvisGmailCommands.parse(command)?.let { request ->
+            gmailAction(request)
             return
         }
         // Read-aloud is a device action. It does not ask a model to synthesize audio.
@@ -1026,6 +1059,7 @@ fun JarvisApp(context: Context) {
                                     securePrefs.write("readings", writeReadings(readings))
                                 }
                                 "Számlák" -> JarvisBillingScreen(context, billingRepo, language)
+                                "Email" -> JarvisGmailScreen(language, gmailStatus, gmailReadText, gmailAction)
                                 "Jegyzetek" -> LocalNotesScreen(notes) {
                                     securePrefs.write("notes", JSONArray(notes).toString())
                                 }
