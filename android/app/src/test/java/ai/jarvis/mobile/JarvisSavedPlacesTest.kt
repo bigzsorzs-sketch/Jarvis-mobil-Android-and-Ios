@@ -26,10 +26,10 @@ class JarvisSavedPlacesTest {
           ]}
         """.trimIndent()
         val entries = JarvisSavedPlaces.parseGeoJson(json)
-        assertEquals(3, entries.size)
+        assertEquals(2, entries.size)
         assertEquals("53.795,-1.548", entries[0].destination)
         assertEquals("William Brown Street", entries[1].destination)
-        assertEquals("Bad coords", entries[2].destination)
+        // Unknown or invalid coordinates must never be mistaken for a real route.
     }
 
     @Test fun locationMetadataMayBeExportedAsAnArray() {
