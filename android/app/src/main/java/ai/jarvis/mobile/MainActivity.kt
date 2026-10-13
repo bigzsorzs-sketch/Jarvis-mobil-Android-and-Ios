@@ -311,6 +311,12 @@ fun JarvisApp(context: Context) {
             addHistory(command to result)
             return
         }
+        // A bare "hívd fel a telefonszámot" has no safe number to dial:
+        // ask for the contact instead of accidentally opening the dialer.
+        if (VoiceCalling.needsTarget(command)) {
+            addHistory(command to "Melyik telefonszámot vagy névjegyet hívjam? Mondd vagy írd le pontosan.")
+            return
+        }
         // Explicit page navigation must take priority over modules that see a
         // keyword inside "Nyisd meg a Vércukor oldalt".
         JarvisCapabilities.localPageToOpen(command)?.let { route ->
