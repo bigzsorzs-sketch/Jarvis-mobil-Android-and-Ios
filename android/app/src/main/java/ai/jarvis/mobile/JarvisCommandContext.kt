@@ -55,6 +55,9 @@ internal object JarvisCommandContext {
     fun possibleContactReply(raw: String): String? {
         if (independentRequest(raw)) return null
         if (VoiceCalling.callConfirmationYes(raw) || VoiceIntentParser.isNo(raw)) return null
+        if (normalize(raw) in setOf("elso", "az elso", "elsot", "masodik",
+                "a masodik", "harmadik", "a harmadik", "first", "second", "third",
+                "1", "2", "3")) return null
         val candidate = VoiceCalling.followUpTarget(raw) ?: return null
         val simple = normalize(candidate)
         if (simple.split(' ').size > 3) return null
