@@ -232,6 +232,10 @@ class HandsFreeService : Service(), RecognitionListener {
             finishSpokenReply()
         }
     }
+    private fun callMessage(key: String, name: String = "", number: String = "") =
+        JarvisCallText.get(recognizedUtteranceLanguage ?:
+            JarvisLanguageSettings.load(applicationContext), key, name, number)
+
     private fun privateVoiceAllowed(): Boolean {
         val guard = getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager
         val locked = guard.isDeviceLocked
@@ -323,17 +327,16 @@ class HandsFreeService : Service(), RecognitionListener {
             }
             if (now > proposedCallUntil) {
                 proposedCall = null
-                speak("Lejárt a hívás megerősítési ideje. Nem indítottam hívást.")
+                speak(callMessage("timeout"))
             } else if (VoiceIntentParser.isNo(heard)) {
                 proposedCall = null
-                speak("Rendben, a hívást nem indítottam el.")
+                speak(callMessage("cancel"))
             } else if (VoiceIntentParser.isCallYes(heard)) {
                 val target = proposedCall
                 proposedCall = null
-                speak(if (target != null && VoiceCalling.place(this, target))
-                    "Átadtam a híváskérést az Android telefonrendszernek."
-                    else "A hívást nem tudtam elindítani. Ellenőrizd a Telefon engedélyét.")
-            } else speak("Csak az igen vagy nem választ várom a hívás előtt.")
+                speak(callMessage(if (target != null && VoiceCalling.place(this, target))
+                    "submitted" else "failed"))
+            } else speak(callMessage("yesNo"))
             return
         }
         if (proposed != null) {
@@ -692,12 +695,11 @@ class HandsFreeService : Service(), RecognitionListener {
                 is VoiceCalling.Lookup.Found -> {
                     proposedCall = match.target
                     proposedCallUntil = now + 30_000L
-                    speak("Fel szeretnéd hívni " + match.target.label +
-                        " névjegyet? A szám: " + match.target.number + ". Mondj igent vagy nemet.")
+                    speak(callMessage("confirm", match.target.label, match.target.number))
                 }
-                VoiceCalling.Lookup.NoContactsAccess -> speak("A névjegy kereséséhez engedélyezd a Névjegyek hozzáférést.")
-                VoiceCalling.Lookup.Ambiguous -> speak("Több azonos névjegyet találtam. Pontosítsd a nevet.")
-                VoiceCalling.Lookup.NotFound -> speak("Nem találtam ilyen nevű névjegyet.")
+                VoiceCalling.Lookup.NoContactsAccess -> speak(callMessage("noContacts"))
+                VoiceCalling.Lookup.Ambiguous -> speak(callMessage("ambiguous"))
+                VoiceCalling.Lookup.NotFound -> speak(callMessage("missing"))
             }
             return
         }
@@ -807,16 +809,14 @@ class HandsFreeService : Service(), RecognitionListener {
                                         is VoiceCalling.Lookup.Found -> {
                                             proposedCall = match.target
                                             proposedCallUntil = SystemClock.elapsedRealtime() + 30_000L
-                                            speak("Fel szeretnéd hívni " + match.target.label +
-                                                " névjegyet? A szám: " + match.target.number +
-                                                ". Mondj igent vagy nemet.")
+                                            speak(callMessage("confirm", match.target.label, match.target.number))
                                         }
                                         VoiceCalling.Lookup.NoContactsAccess ->
-                                            speak("A névjegy kereséséhez engedélyezd a Névjegyek hozzáférést.")
+                                            speak(callMessage("noContacts"))
                                         VoiceCalling.Lookup.Ambiguous ->
-                                            speak("Több azonos nevű címzett van. Pontosítsd a nevet.")
+                                            speak(callMessage("ambiguous"))
                                         VoiceCalling.Lookup.NotFound ->
-                                            speak("Nem találtam a címzettet. Hívást nem indítottam.")
+                                            speak(callMessage("missing"))
                                     }
                                 }
                                 else -> speak(outcome.message)
