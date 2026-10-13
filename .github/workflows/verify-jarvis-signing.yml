@@ -39,6 +39,13 @@ jobs:
           test "$(wc -c < "$tmp/verify.jks")" -gt 1000 || {
             echo "::error::Keystore is unexpectedly small"; exit 1;
           }
+          # Verify the ENTIRE JKS file byte-for-byte against the supplied ZIP,
+          # not just its public signing certificate.
+          expected_keystore_sha256="23ef21069291667dccd59b9390beebb8574a09d2c1cd3b2509fba10a41b88ad3"
+          actual_keystore_sha256="$(sha256sum "$tmp/verify.jks" | awk '{print $1}')"
+          if [ "$actual_keystore_sha256" != "$expected_keystore_sha256" ]; then
+            echo "::error::GitHub keystore does not match the original supplied JKS file"; exit 1
+          }
           if ! keytool -list -v -keystore "$tmp/verify.jks" -storepass:env STORE_PASSWORD -alias "$KEY_ALIAS" > "$tmp/certificate-info.txt" 2>/dev/null; then
             echo "::error::Keystore password or alias does not match"; exit 1
           fi
