@@ -20,7 +20,8 @@ internal object JarvisCommandContext {
     fun independentRequest(raw: String): Boolean {
         val s = normalize(raw)
         if (s.isBlank()) return false
-        if (VoiceCalling.extractRequest(raw) != null || VoiceCalling.needsTarget(raw)) return true
+        if (VoiceCalling.extractRequest(raw) != null || VoiceCalling.needsTarget(raw) ||
+            JarvisScreenControl.parse(raw) != null) return true
         if (JarvisInstalledApps.requestedLabel(raw) != null ||
             JarvisCapabilities.localPageToOpen(raw) != null ||
             JarvisCapabilities.isDiscoveryRequest(raw) ||
