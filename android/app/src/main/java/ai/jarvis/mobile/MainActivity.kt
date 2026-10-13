@@ -1077,9 +1077,6 @@ fun JarvisApp(context: Context) {
                                 "Üzenetek" -> MessageInboxScreen(context, onPermissions = {
                                     page = "Engedélyek"
                                 })
-                                "Névjegyek" -> ContactsScreen(context, onPermissions = {
-                                    page = "Engedélyek"
-                                })
                                 "Vércukor" -> JarvisGlucoseDashboard(context, readings) {
                                     securePrefs.write("readings", writeReadings(readings))
                                 }
@@ -1250,7 +1247,6 @@ private fun MoreScreen(context: Context, notes: MutableList<String>, persist: ()
             color = Soft, fontSize = 12.sp)
         ControlledButton(onClick = { onGo("Engedélyek") }, commandLabel = "Engedélyközpont megnyitása") { Text("Engedélyközpont megnyitása") }
         ControlledOutlinedButton(onClick = { onGo("Üzenetek") }, commandLabel = "WhatsApp / Messenger / üzenetek") { Text("WhatsApp / Messenger / üzenetek") }
-        ControlledOutlinedButton(onClick = { onGo("Névjegyek") }, commandLabel = "Névjegyek megtekintése") { Text("Névjegyek megtekintése") }
     }
     Spacer(Modifier.height(12.dp))
     SurfaceCard {
