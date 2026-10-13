@@ -80,10 +80,33 @@ internal object JarvisAmazon {
         return AmazonAction.ViewProduct(code, marketplace)
     }
 
+    /**
+     * Search with the actual product, not Hungarian case endings.
+     * A deliberately narrow, deterministic noun dictionary: brand, model,
+     * quantity and size remain exactly as said. No AI-invented item or price.
+     */
+    fun productKeywords(query: String, marketplace: AmazonMarketplace): String {
+        var value = query.trim().replace(Regex("""\s+"""), " ")
+        if (marketplace == AmazonMarketplace.UK || marketplace == AmazonMarketplace.US) {
+            value = value.replace(
+                Regex("""(?iu)\bk[aá]v[eé]\s*bab(?:ot|ok|okat)?\b|\bk[aá]v[eé]bab(?:ot|ok|okat)?\b"""),
+                "coffee beans"
+            )
+            value = value.replace(
+                Regex("""(?iu)\b(?:szemes\s+k[aá]v[eé]|szemesk[aá]v[eé])\b"""),
+                "whole bean coffee"
+            )
+            value = value.replace(Regex("""(?iu)^\s*(?:egy|az?\s+|a\s+)\s*"""), "")
+        }
+        return value.replace(Regex("""\s+"""), " ").trim()
+    }
+
     fun searchUrl(search: AmazonAction.Search): String {
         require(search.query.length in 2..160)
+        val keywords = productKeywords(search.query, search.marketplace)
+        require(keywords.length in 2..160)
         return "https://" + search.marketplace.host + "/s?k=" +
-            URLEncoder.encode(search.query, "UTF-8")
+            URLEncoder.encode(keywords, "UTF-8")
     }
 
     fun productUrl(product: AmazonAction.ViewProduct): String {

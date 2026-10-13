@@ -138,6 +138,10 @@ internal fun JarvisHomeScreen(
     }
     RegisterJarvisControl("Küldés", text.isNotBlank() || stagedAttachments.isNotEmpty(), click = { submit(text) })
     fun startVoice() {
+        if (HandsFreeStatus.running) return
+        // Explicitly switching FROM one-shot dictation TO continuous voice
+        // releases the small microphone before requesting the service.
+        dictation.stop()
         try {
             ContextCompat.startForegroundService(
                 context,
@@ -158,25 +162,24 @@ internal fun JarvisHomeScreen(
         else issue = "A kéz nélküli módhoz mikrofonengedély szükséges."
     }
     fun startDictation() {
-        chatScope.launch {
-            // Only one Android SpeechRecognizer may own the microphone at a time.
-            if (HandsFreeStatus.running) {
-                context.startService(Intent(context, HandsFreeService::class.java)
-                    .setAction(HandsFreeService.STOP))
-                delay(650)
-            }
-            dictation.start(
-                partial = { recognized -> text = recognized },
-                complete = { recognized ->
-                    text = recognized
-                    submit(recognized)
-                },
-                status = { feedback -> issue = feedback },
-                onLanguageDetected = { detected ->
-                    JarvisSpeechLanguageEvents.detected = detected
-                }
-            )
+        // Do NOT stop the live voice conversation just because the user tapped
+        // the small dictation icon: two recognizers cannot share Android audio.
+        // The large mic alone owns the continuous session until explicit STOP.
+        if (HandsFreeStatus.running) {
+            issue = "A folyamatos hangbeszélgetés már aktív. Beszélj Jarvishoz, vagy a nagy kék mikrofonnal állítsd le, ha külön diktálni szeretnél."
+            return
         }
+        dictation.start(
+            partial = { recognized -> text = recognized },
+            complete = { recognized ->
+                text = recognized
+                submit(recognized)
+            },
+            status = { feedback -> issue = feedback },
+            onLanguageDetected = { detected ->
+                JarvisSpeechLanguageEvents.detected = detected
+            }
+        )
     }
     val dictatePermission = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()

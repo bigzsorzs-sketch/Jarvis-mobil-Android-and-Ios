@@ -13,6 +13,19 @@ class JarvisAmazonTest {
         assertTrue(JarvisAmazon.searchUrl(cmd).startsWith("https://www.amazon.co.uk/s?k="))
     }
 
+    @Test fun hungarianCoffeeSearchUsesEnglishProductTermsNotCaseSuffixes() {
+        val request = JarvisAmazon.parse("keress az amazonon Costa kávé babot")
+            as AmazonAction.Search
+        assertEquals("Costa kávé babot", request.query)
+        assertEquals("Costa coffee beans",
+            JarvisAmazon.productKeywords(request.query, request.marketplace))
+        assertTrue(JarvisAmazon.searchUrl(request).contains("Costa+coffee+beans"))
+        assertEquals("Costa 1 kg coffee beans",
+            JarvisAmazon.productKeywords("Costa 1 kg kávébabot", AmazonMarketplace.UK))
+        assertEquals("Costa kávé babot",
+            JarvisAmazon.productKeywords("Costa kávé babot", AmazonMarketplace.DE))
+    }
+
     @Test fun amazonBusinessUsesSameExactProductQuery() {
         val cmd = JarvisAmazon.parse("keress Amazon Business Costa Coffee Signature Blend")
             as AmazonAction.Search
