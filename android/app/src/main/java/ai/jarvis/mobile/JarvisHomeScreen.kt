@@ -275,8 +275,8 @@ internal fun JarvisHomeScreen(
             AlertDialog(
                 onDismissRequest = onCallDismiss,
                 title = { Text("Hívás jóváhagyása") },
-                text = { Text("Fel szeretnéd hívni " + pendingCall.label +
-                    " számát: " + pendingCall.number + "?") },
+                text = { Text(JarvisCallText.get(language, "dialog",
+                    pendingCall.label, pendingCall.number)) },
                 confirmButton = {
                     TextButton(onClick = onCallConfirm) { Text("Hívás indítása") }
                 },
