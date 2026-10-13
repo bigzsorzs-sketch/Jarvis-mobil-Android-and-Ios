@@ -603,15 +603,6 @@ fun JarvisApp(context: Context) {
                             onSelectLanguage = selectLanguage,
                             onMenu = { drawerScope.launch { drawerState.open() } },
                             onCommand = { command -> executeHome(command) },
-                            onReadText = { readText ->
-                                if (HandsFreeStatus.running) context.startService(
-                                    Intent(context, HandsFreeService::class.java)
-                                        .setAction(HandsFreeService.STOP))
-                                narrator.read(readText, language)
-                            },
-                            onStopReading = { narrator.stop() },
-                            reading = narrator.isSpeaking,
-                            readingStatus = narrator.status,
                             history = conversation,
                             hasOlderHistory = hasOlderChat,
                             loadingOlderHistory = loadingOlderChat,
