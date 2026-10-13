@@ -340,11 +340,17 @@ internal object JarvisAiGateway {
                 402 -> JarvisAiOutcome("Az OpenRouter-egyenleg vagy a kulcshoz tartozó keret nem elegendő.")
                 403 -> JarvisAiOutcome("Az AI-hozzáférés nincs engedélyezve.")
                 404 -> JarvisAiOutcome(
-                    if (direct && JarvisAiToolPolicy.selectedTools(question).length() > 0)
-                        "Az OpenRouter nem talált eszközhívásra alkalmas modellt ehhez a kéréshez. " +
+                    when {
+                        direct && JarvisAiToolPolicy.selectedTools(question).length() > 0 ->
+                            "Az OpenRouter nem talált eszközhívásra alkalmas modellt ehhez a kéréshez. " +
                             "Az Android-műveletet nem hajtottam végre. A támogatott helyi parancsok " +
                             "AI-kapcsolat nélkül is használhatók."
-                    else http404Message(direct))
+                        direct && JarvisAiToolPolicy.needsLiveWeb(question) ->
+                            "Az OpenRouter webes keresője most nem elérhető ehhez a modellhez (HTTP 404). " +
+                            "Nem állítok ellenőrizetlen, aktuális eredményt. Próbáld újra később, " +
+                            "vagy nézd meg az OpenRouter eszközhozzáférését."
+                        else -> http404Message(direct)
+                    })
                 429 -> JarvisAiOutcome("Elérted az ideiglenes használati limitet. Próbáld később.")
                 301, 302, 303, 307, 308 -> JarvisAiOutcome(
                     "A szerver átirányított; biztonsági okból megszakítottam.")
