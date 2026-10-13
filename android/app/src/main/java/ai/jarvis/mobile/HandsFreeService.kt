@@ -30,6 +30,7 @@ internal data class PendingInstalledApp(val original: String, val createdAtMs: L
 internal data class PendingSystemPanel(val kind: String, val original: String, val createdAtMs: Long)
 internal data class PendingSequence(val plan: JarvisSequencePlan, val createdAtMs: Long)
 internal data class PendingExternalTask(val task: HandoffTask, val createdAtMs: Long)
+internal data class PendingNavigation(val destination: String, val createdAtMs: Long)
 internal data class CompletedVoiceTurn(val id: Long, val request: String, val answer: String)
 
 internal object HandsFreeNavigation {
@@ -40,7 +41,7 @@ internal object HandsFreeNavigation {
     var installedApp by mutableStateOf<PendingInstalledApp?>(null)
     var systemPanel by mutableStateOf<PendingSystemPanel?>(null)
     var sequence by mutableStateOf<PendingSequence?>(null)
-    var mapTarget by mutableStateOf<String?>(null)
+    var mapTarget by mutableStateOf<PendingNavigation?>(null)
     var mailDraft by mutableStateOf<EmailDraft?>(null)
     var external by mutableStateOf<PendingExternalTask?>(null)
     var completedVoiceTurn by mutableStateOf<CompletedVoiceTurn?>(null)
@@ -674,11 +675,17 @@ class HandsFreeService : Service(), RecognitionListener {
         }
         val nav = VoiceNavigation.destinationFrom(command)
         if (nav != null) {
+            val chosen = recognizedUtteranceLanguage
+                ?: JarvisLanguageSettings.load(applicationContext)
             if (VoiceNavigation.resolve(this, nav) == null) {
-                speak("Először add meg az otthoni címedet a Jarvis Eszközök képernyőjén.")
+                speak(JarvisNavigationText.missingDestination(chosen))
             } else {
-                HandsFreeNavigation.mapTarget = nav
-                speak("Előkészítettem az útvonalat. A térkép akkor nyílik meg, ha Jarvis előtérben van.")
+                // A foreground activity immediately launches Google Maps. A service
+                // cannot bypass Android's background-activity-launch restrictions.
+                HandsFreeNavigation.mapTarget = PendingNavigation(nav, SystemClock.elapsedRealtime())
+                speak(if (HandsFreeNavigation.appIsForeground)
+                    JarvisNavigationText.starting(chosen)
+                else JarvisNavigationText.awaitingForeground(chosen))
             }
             return
         }
