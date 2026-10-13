@@ -18,7 +18,16 @@ internal object JarvisCapabilities {
     private fun isCapabilityQuestion(n: String): Boolean =
         n.contains("mire vagy kepes") ||
         n.contains("mire kepes a jarvis") ||
+        n.contains("milyen funkciokat") ||
+        n.contains("milyen funkciokat tudsz") ||
+        n.contains("milyen funkciok") ||
+        n.contains("milyen funkciokkal") ||
         n.contains("milyen funkcioid") ||
+        n.contains("milyen funkciod") ||
+        n.contains("mik a funkcioid") ||
+        n.contains("mit tudsz hasznalni") ||
+        n.contains("sorold fel a funkcioid") ||
+        n.contains("melyik funkciokat") ||
         n.contains("milyen funkcioi") ||
         n.contains("milyen eszkozeid") ||
         n.contains("milyen eszkozei") ||
