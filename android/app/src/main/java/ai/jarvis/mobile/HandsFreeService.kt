@@ -437,6 +437,28 @@ class HandsFreeService : Service(), RecognitionListener {
             null -> Unit
         }
         if (readAloud != null) return
+        // Navigation with a destination is a single local operation. Never
+        // let "open Google Maps AND navigate to Leeds" turn into just openMap().
+        VoiceNavigation.destinationFrom(command)?.let { destination ->
+            val chosen = recognizedUtteranceLanguage ?: JarvisLanguageSettings.load(applicationContext)
+            when {
+                !privateVoiceAllowed() ->
+                    speak("Oldd fel a telefont a navigáció indításához.")
+                VoiceNavigation.resolve(this, destination) == null ->
+                    speak(JarvisNavigationText.missingDestination(chosen))
+                else -> {
+                    // Android permits launching Maps from our foreground Activity,
+                    // not arbitrarily from a microphone foreground service.
+                    HandsFreeNavigation.mapTarget = PendingNavigation(
+                        destination, SystemClock.elapsedRealtime()
+                    )
+                    speak(if (HandsFreeNavigation.appIsForeground)
+                        JarvisNavigationText.starting(chosen)
+                    else JarvisNavigationText.awaitingForeground(chosen))
+                }
+            }
+            return
+        }
         // Page-opening intent wins over a glucose keyword inside its page name.
         JarvisCapabilities.localPageToOpen(command)?.let { route ->
             if (!privateVoiceAllowed()) {
