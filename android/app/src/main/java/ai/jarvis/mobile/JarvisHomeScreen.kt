@@ -56,10 +56,6 @@ internal fun JarvisHomeScreen(
     onSelectLanguage: (JarvisLanguage) -> Unit,
     onMenu: () -> Unit,
     onCommand: (String) -> Unit,
-    onReadText: (String) -> Unit,
-    onStopReading: () -> Unit,
-    reading: Boolean,
-    readingStatus: String,
     history: List<Pair<String, String>>,
     hasOlderHistory: Boolean,
     loadingOlderHistory: Boolean,
@@ -337,41 +333,7 @@ internal fun JarvisHomeScreen(
                                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp))
                         }
                     }
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.Start
-                    ) {
-                        TextButton(
-                            onClick = { onReadText(answer) },
-                            modifier = Modifier.testTag("jarvis-read-answer")
-                        ) {
-                            androidx.compose.material3.Text("🔊 " +
-                                JarvisReadAloudCommand.response(language, "read"), fontSize = 12.sp)
-                        }
-                        TextButton(
-                            onClick = { onReadText(request) },
-                            modifier = Modifier.testTag("jarvis-read-question")
-                        ) { androidx.compose.material3.Text("🔊", fontSize = 12.sp) }
-                    }
                 }
-            }
-        }
-        if (reading || readingStatus.isNotBlank()) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                if (readingStatus.isNotBlank()) androidx.compose.material3.Text(
-                    readingStatus, fontSize = 12.sp, color = JarvisMuted,
-                    modifier = Modifier.weight(1f))
-                if (reading) TextButton(
-                    onClick = onStopReading,
-                    modifier = Modifier.testTag("jarvis-stop-reading")
-                ) { androidx.compose.material3.Text(
-                    "■ " + JarvisReadAloudCommand.response(language, "stop"),
-                    fontSize = 12.sp, color = JarvisBlue
-                ) }
             }
         }
         Row(
