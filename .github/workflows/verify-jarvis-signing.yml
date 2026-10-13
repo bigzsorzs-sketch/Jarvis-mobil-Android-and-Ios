@@ -1,0 +1,53 @@
+name: Verify Jarvis Android signing configuration
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/verify-jarvis-signing.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify-production-signing:
+    name: Verify original Jarvis key package against GitHub production secrets
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 10
+    steps:
+      - name: Check credentials without displaying any signing secret
+        shell: bash
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_UPLOAD_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          umask 077
+          for variable in KEYSTORE_BASE64 STORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
+            if [ -z "${!variable}" ]; then
+              echo "::error::Missing signing value for $variable in production job context"
+              exit 1
+            fi
+          done
+          tmp="$(mktemp -d)"
+          trap 'rm -rf "$tmp"' EXIT
+          if ! printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$tmp/verify.jks"; then
+            echo "::error::ANDROID_UPLOAD_KEYSTORE_BASE64 is not valid base64"
+            exit 1
+          fi
+          test "$(wc -c < "$tmp/verify.jks")" -gt 1000 || {
+            echo "::error::Keystore is unexpectedly small"; exit 1;
+          }
+          if ! keytool -list -v -keystore "$tmp/verify.jks" -storepass:env STORE_PASSWORD -alias "$KEY_ALIAS" > "$tmp/certificate-info.txt" 2>/dev/null; then
+            echo "::error::Keystore password or alias does not match"; exit 1
+          fi
+          actual="$(sed -n 's/^[[:space:]]*SHA256: //p' "$tmp/certificate-info.txt" | head -n 1 | tr -d ':' | tr 'A-F' 'a-f')"
+          expected="955338795da61366091ed256b0f6b2a948b9aaf9d7771b022a65b88a94b2d86a"
+          if [ "$actual" != "$expected" ]; then
+            echo "::error::The configured keystore certificate does NOT match the original supplied Jarvis 0.2.18 key package"; exit 1
+          fi
+          if ! keytool -importkeystore -noprompt -srckeystore "$tmp/verify.jks" -srcstorepass:env STORE_PASSWORD -srcalias "$KEY_ALIAS" -srckeypass:env KEY_PASSWORD -destkeystore "$tmp/check.p12" -deststoretype PKCS12 -deststorepass:env STORE_PASSWORD -destkeypass:env KEY_PASSWORD -destalias jarvis-verify >/dev/null 2>&1; then
+            echo "::error::Private signing key password does not match"; exit 1
+          fi
+          echo "PASS: all four GitHub secret values are usable and the private signing key exactly matches the supplied Jarvis signing certificate."
