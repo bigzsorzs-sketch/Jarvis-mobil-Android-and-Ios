@@ -115,6 +115,7 @@ jobs:
           set -euo pipefail
           # This gate deliberately refuses to claim a seamless update unless
           # the new APK has exactly the certificate from the prior public build.
+          mkdir -p "$RUNNER_TEMP/previous"
           gh release download v0.2.17-dev-test.1 \
             --repo "${{ github.repository }}" \
             --pattern SIGNING-CERTIFICATE.txt \
@@ -152,8 +153,9 @@ jobs:
           The key is encrypted locally using Android Keystore; no shared key is embedded in this APK.
           AI model availability and provider errors depend on your OpenRouter account.
           Installing from GitHub may still show Android unknown-source or Play Protect warnings.
-          Before replacing a debug-signed installation, back up conversations and app data:
-          a different signing key may require uninstalling the earlier build.
+          This release is blocked when the old and new signing certificates differ.
+          Never uninstall the previous Jarvis just to force an update: encrypted local
+          conversations, readings, billing records and settings may be lost.
           EOF
           gh release create "$tag" \
             dist/Jarvis-Android-0.2.18-signed-test.apk dist/SHA256SUMS.txt dist/SIGNING-CERTIFICATE.txt \
