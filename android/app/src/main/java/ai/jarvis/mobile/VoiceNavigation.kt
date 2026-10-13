@@ -49,6 +49,9 @@ internal object VoiceNavigation {
 
     fun destinationFrom(command: String): String? {
         val initial = command.trim().replace(spokenPrefix, "").replace(pleasePrefix, "").trim()
+        // Keep legacy named-contact address navigation before removing the
+        // "open Maps and" prefix used by direct city navigation.
+        personDestination.matchEntire(initial)?.let { return "PERSON:" + it.groupValues[1].trim() }
         val clean = (mapsPreamble.matchEntire(initial)?.groupValues?.get(1) ?: initial).trim()
         if (clean.isBlank() || clean.length > 240 || clean.any { it == '\n' || it == '\r' }) return null
         personDestination.matchEntire(clean)?.let { return "PERSON:" + it.groupValues[1].trim() }
