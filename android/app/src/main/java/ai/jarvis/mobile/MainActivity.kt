@@ -203,6 +203,23 @@ fun JarvisApp(context: Context) {
         conversation.add(turn)
         saveChatTurn(turn)
     }
+    var lastAmazonSearch by remember { mutableStateOf<AmazonAction.Search?>(null) }
+    fun executeAmazon(action: AmazonAction): String = when (action) {
+        is AmazonAction.Search -> {
+            lastAmazonSearch = action
+            JarvisAmazon.open(context, action)
+        }
+        is AmazonAction.ChangeToBusiness -> {
+            val earlier = lastAmazonSearch
+            if (earlier == null) "Melyik terméket keressem az Amazon Businessben?"
+            else {
+                val next = earlier.copy(business = true)
+                lastAmazonSearch = next
+                JarvisAmazon.open(context, next)
+            }
+        }
+        else -> JarvisAmazon.open(context, action)
+    }
     var gmailStatus by remember { mutableStateOf("") }
     var gmailReadText by remember { mutableStateOf("") }
     val gmailAction = rememberJarvisGmail { request, outcome ->
@@ -547,6 +564,12 @@ fun JarvisApp(context: Context) {
         // Only the real Google authorization flow can grant email access.
         JarvisGmailCommands.parse(command)?.let { request ->
             gmailAction(request)
+            return
+        }
+        // Native Amazon search gets the exact original user query. The AI is
+        // never allowed to fabricate a price or select a hidden checkout action.
+        JarvisAmazon.parse(command)?.let { action ->
+            addHistory(command to executeAmazon(action))
             return
         }
         // Read-aloud is a device action. It does not ask a model to synthesize audio.
@@ -1060,6 +1083,7 @@ fun JarvisApp(context: Context) {
                                 }
                                 "Számlák" -> JarvisBillingScreen(context, billingRepo, language)
                                 "Email" -> JarvisGmailScreen(language, gmailStatus, gmailReadText, gmailAction)
+                                "Amazon" -> JarvisAmazonScreen(language, ::executeAmazon)
                                 "Jegyzetek" -> LocalNotesScreen(notes) {
                                     securePrefs.write("notes", JSONArray(notes).toString())
                                 }
