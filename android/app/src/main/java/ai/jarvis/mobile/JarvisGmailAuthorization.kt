@@ -49,7 +49,16 @@ internal fun rememberJarvisGmail(
         scope.launch {
             val response = withContext(Dispatchers.IO) {
                 runCatching { JarvisGmailApi.execute(activity, token, item.operation) }
-                    .getOrElse { GmailResult(it.message ?: "Nem sikerült a Gmail-kérés. Nem igazolt a végrehajtás.") }
+                    .getOrElse { failure ->
+                        // After a network timeout Gmail may already have accepted
+                        // the message. Never invite automatic resend or claim failure.
+                        if ((item.operation is GmailOperation.Send &&
+                                    item.operation.actuallySend ||
+                                item.operation is GmailOperation.Reply) &&
+                            failure is java.io.IOException) {
+                            GmailResult("A küldés eredménye bizonytalan. Ellenőrizd a Gmail Elküldött levelek mappáját, és ne küldd újra automatikusan.")
+                        } else GmailResult(failure.message ?: "Nem sikerült a Gmail-kérés. Nem igazolt a végrehajtás.")
+                    }
             }
             if (pending == item) finish(response)
         }
