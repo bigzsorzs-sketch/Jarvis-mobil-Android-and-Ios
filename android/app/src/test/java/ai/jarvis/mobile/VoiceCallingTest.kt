@@ -30,6 +30,24 @@ class VoiceCallingTest {
         assertNull(VoiceCalling.extractRequest("Don't call Vivi"))
     }
 
+    @Test fun naturalHungarianCallOrdersAndMissingTargetAskForNumber() {
+        assertEquals("Vivit", VoiceCalling.extractRequest("Vivit hívd fel"))
+        assertEquals("Esztert", VoiceCalling.extractRequest("Esztert tárcsázd"))
+        assertEquals("+441234567890", VoiceCalling.extractRequest("A +441234567890 számot hívd fel"))
+        assertNull(VoiceCalling.extractRequest("az adott telefonszámot hívd fel"))
+        assertNull(VoiceCalling.extractRequest("hívd fel az adott telefonszámot"))
+        assertNull(VoiceCalling.extractRequest("hívd fel"))
+        assertTrue(VoiceCalling.needsTarget("az adott telefonszámot hívd fel"))
+        assertTrue(VoiceCalling.needsTarget("Hívd fel a telefonszámot"))
+        assertTrue(VoiceCalling.needsTarget("Hívd fel"))
+        assertFalse(VoiceCalling.needsTarget("Hívd fel Esztert"))
+        assertFalse(VoiceCalling.needsTarget("Ne hívd fel Esztert"))
+        assertEquals("+447911123456", VoiceCalling.followUpTarget("+447911123456"))
+        assertEquals("Vivit", VoiceCalling.followUpTarget("Vivit"))
+        assertNull(VoiceCalling.followUpTarget("az adott telefonszámot"))
+        assertNull(VoiceCalling.followUpTarget("Nyisd meg a térképet"))
+    }
+
     @Test fun hungarianDialCommands() {
         assertEquals("Esztert", VoiceCalling.extractRequest("Hívd fel Esztert"))
         assertEquals("George", VoiceCalling.extractRequest("Tárcsázd George"))
