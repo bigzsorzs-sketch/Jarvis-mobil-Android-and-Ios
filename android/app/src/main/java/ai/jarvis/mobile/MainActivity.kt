@@ -203,9 +203,29 @@ fun JarvisApp(context: Context) {
         conversation.add(turn)
         saveChatTurn(turn)
     }
+    var gmailDraft by remember { mutableStateOf<GmailDraftConversation?>(null) }
+    var gmailChoice by remember { mutableStateOf<GmailRecipientChoice?>(null) }
+    var gmailLookupInstruction by remember { mutableStateOf<String?>(null) }
     var gmailStatus by remember { mutableStateOf("") }
     var gmailReadText by remember { mutableStateOf("") }
     val gmailAction = rememberJarvisGmail { request, outcome ->
+        if (request.operation is GmailOperation.ResolveRecipient) {
+            // Ignore stale authorization/lookup results after a different user
+            // command. Never attach old recipient to a new message.
+            if (gmailLookupInstruction != request.instruction) return@rememberJarvisGmail
+            gmailLookupInstruction = null
+            val addresses = outcome.recipientCandidates
+            gmailDraft = null
+            gmailChoice = null
+            when {
+                addresses.size == 1 -> gmailDraft = GmailDraftConversation(
+                    addresses.single(), request.operation.actuallySend,
+                    expiresAtMs = android.os.SystemClock.elapsedRealtime() + 180_000L)
+                addresses.size > 1 -> gmailChoice = GmailRecipientChoice(
+                    addresses, request.operation.actuallySend,
+                    android.os.SystemClock.elapsedRealtime() + 90_000L)
+            }
+        }
         gmailStatus = outcome.status
         gmailReadText = outcome.speak.orEmpty()
         if ((request.operation is GmailOperation.Read || request.operation == GmailOperation.ListUnread) &&
@@ -220,7 +240,10 @@ fun JarvisApp(context: Context) {
             is GmailOperation.Reply -> "Gmail válasz küldése"
             else -> "Gmail művelet"
         }
-        val turn = safeCommand to outcome.status
+        // Do not persist private mailbox-derived address suggestions.
+        val turn = safeCommand to if (request.operation is GmailOperation.ResolveRecipient)
+            "A Gmail címzettkeresése befejeződött. Az eredmény csak a képernyőn látható."
+            else outcome.status
         conversation.add(turn)
         saveChatTurn(turn)
         // The microphone service speaks its own response. Do not start a
@@ -378,6 +401,61 @@ fun JarvisApp(context: Context) {
         commandRevision += 1
         val requestRevision = commandRevision
         val now = android.os.SystemClock.elapsedRealtime()
+        // Any new independent input invalidates a pending Gmail lookup, even
+        // when Google authorization returns later out of order.
+        if (gmailLookupInstruction != null) gmailLookupInstruction = null
+        if (gmailChoice != null) {
+            val choice = gmailChoice!!
+            if (now > choice.expiresAtMs || GmailDraftConversationFlow.isCancel(command)) {
+                gmailChoice = null
+                completeCommand(command, "Megszakítottam a Gmail-címzett kiválasztását.")
+                conversation.add("Gmail címzett" to "Címzettválasztás megszakítva.")
+                return
+            }
+            val chosen = GmailDraftConversationFlow.choice(command, choice.options.size)
+            if (chosen != null) {
+                gmailDraft = GmailDraftConversation(
+                    choice.options[chosen], choice.actuallySend,
+                    expiresAtMs = now + 180_000L)
+                gmailChoice = null
+                completeCommand(command, "Kiválasztottam a címzettet a Gmailből. Mi legyen a tárgy?")
+                conversation.add("Gmail címzett kiválasztása" to
+                    "Kiválasztottam a címzettet a Gmailből. Mi legyen a tárgy?")
+                return
+            }
+            // An unrelated new command cancels the old context. Never treat
+            // arbitrary followups as recipient IDs.
+            gmailChoice = null
+        }
+        if (gmailDraft != null) {
+            val oldDraft = gmailDraft!!
+            if (now > oldDraft.expiresAtMs) {
+                gmailDraft = null
+            } else when (val next = GmailDraftConversationFlow.advance(oldDraft, command)) {
+                GmailDraftNext.Cancelled -> {
+                    gmailDraft = null
+                    completeCommand(command, "Megszakítottam az emailt. Nem küldtem el.")
+                    conversation.add("Gmail művelet" to "Email megszakítva, nem küldtem el.")
+                    return
+                }
+                GmailDraftNext.NotRelated -> gmailDraft = null
+                is GmailDraftNext.Updated -> {
+                    gmailDraft = next.draft.copy(expiresAtMs = now + 180_000L)
+                    val response = "Rögzítettem a tárgyat. Mi legyen a levél szövege?"
+                    completeCommand(command, response)
+                    conversation.add("Gmail tárgy megadva" to response)
+                    // Never save the dictated subject in chat history.
+                    return
+                }
+                is GmailDraftNext.Complete -> {
+                    gmailDraft = null  // Consume once, before asynchronous Gmail send.
+                    gmailAction(GmailRequest(command, next.send))
+                    // The Gmail callback, not this immediate handoff, will
+                    // truthfully report whether the provider accepted the mail.
+                    return
+                }
+            }
+        }
         JarvisControlCommand.parse(command)?.let { control ->
             val result = controls.execute(control, language)
             clearCallFlow()
@@ -547,6 +625,11 @@ fun JarvisApp(context: Context) {
         // Route user-originated Gmail actions before generic narration or AI.
         // Only the real Google authorization flow can grant email access.
         JarvisGmailCommands.parse(command)?.let { request ->
+            if (request.operation is GmailOperation.ResolveRecipient) {
+                gmailLookupInstruction = request.instruction
+                gmailDraft = null
+                gmailChoice = null
+            }
             gmailAction(request)
             return
         }
