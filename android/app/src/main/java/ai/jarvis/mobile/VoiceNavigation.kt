@@ -20,7 +20,9 @@ internal object VoiceNavigation {
     private val destinationCommands = listOf(
         // Hungarian: accept standard accents and common grave-accent keyboard typos, e.g. "navigàlj".
         // "Vigyél Harrogate-be", "Navigálj Leedsbe", "Indítsd el a navigációt Yorkba".
-        Regex("""(?iu)^(?:navig[aáà]lj(?:\s+el)?|vigy[eé]l(?:\s+el)?|vezess(?:\s+el)?|[uú]tvonal(?:at)?|ind[ií]tsd\s+el\s+a\s+navig[aá]ci[oó]t|[aá]ll[ií]tsd\s+be\s+az?\s+[uú]tvonalat|mutasd\s+meg(?:\s+az\s+[uú]tvonalat)?)\s+(.+)$"""),
+        // Also treat "Állítsd be a térképet Londonba" as destination navigation,
+        // not a generic empty map open. Destination cities are NOT hard-coded.
+        Regex("""(?iu)^(?:navig[aáà]lj(?:\s+el)?|vigy[eé]l(?:\s+el)?|vezess(?:\s+el)?|[uú]tvonal(?:at)?|ind[ií]tsd\s+el\s+a\s+navig[aá]ci[oó]t|[aáà]ll[iíì]tsd\s+be\s+(?:(?:a|az)\s+)?(?:(?:google\s+)?t[eéè]rk[eéè]pet|google\s*maps(?:-?et)?|maps(?:-?et)?)|[aá]ll[ií]tsd\s+be\s+az?\s+[uú]tvonalat|mutasd\s+meg(?:\s+az\s+[uú]tvonalat)?)\s+(.+)$"""),
         // English.
         Regex("""(?iu)^(?:navigate|drive|go|take\s+me|guide\s+me|route|start\s+navigation|show\s+(?:me\s+)?directions|get\s+directions)\s+to\s+(.+)$"""),
         // German.
