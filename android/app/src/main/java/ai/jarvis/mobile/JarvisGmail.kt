@@ -52,8 +52,10 @@ internal object JarvisGmailCommands {
             Regex("""(?iu)^(?:(?:hey|szia)\s+)?jarvis[\s,:!]*"""), "").trim()
         val n = normal(command)
         if (command.isBlank() || command.length > 6000) return null
-        val mentionsMail = Regex("""\b(emails?|e mail|gmail|mail|level|levelek|levelet|levelem|leveleim|levelre|leveled|level[eé]re)\b""")
-            .containsMatchIn(n) || listOf("emailt", "emailem", "emailje", "emailre", "emailja", "emailjeim", "gmail").any { it in n }
+        // Hungarian declensions such as "emailek", "emaileket",
+        // "emailjeimet" and "leveleim" must not fall through to generic AI.
+        val mentionsMail = Regex("""\b(?:e[- ]?mail[a-z]*|gmail[a-z]*|level[a-z]*|levelek[a-z]*)\b""")
+            .containsMatchIn(n)
         if (!mentionsMail) return null
         val operation: GmailOperation = when {
             listOf("levalaszt", "disconnect gmail", "gmail kijelentkez", "gmail fiok eltavolit").any { it in n } ->
