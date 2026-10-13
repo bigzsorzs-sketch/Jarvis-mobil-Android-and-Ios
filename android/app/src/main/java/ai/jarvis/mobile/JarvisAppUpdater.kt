@@ -79,7 +79,7 @@ internal object JarvisUpdateRules {
             if (release.optBoolean("draft")) continue
             val tag = release.optString("tag_name")
             val version = version(tag) ?: continue
-            if (version.take(3) <= oldVersion) continue
+            if (version.take(3).zip(oldVersion).firstOrNull { it.first != it.second }?.let { it.first < it.second } != false) continue
             val assets = release.optJSONArray("assets") ?: continue
             for (idx in 0 until assets.length()) {
                 val asset = assets.optJSONObject(idx) ?: continue
@@ -187,19 +187,19 @@ internal object JarvisAppUpdater {
         error("Too many redirects")
     }
 
+    @Suppress("DEPRECATION")
     private fun validateApk(context: Context, file: File): JarvisInstallResult {
         val flags = if (Build.VERSION.SDK_INT >= 28) PackageManager.GET_SIGNING_CERTIFICATES
                     else PackageManager.GET_SIGNATURES
-        @Suppress("DEPRECATION")
         val apk = context.packageManager.getPackageArchiveInfo(file.absolutePath, flags)
             ?: return JarvisInstallResult.CORRUPTED_APK
         if (apk.packageName != context.packageName)
             return JarvisInstallResult.DIFFERENT_PACKAGE
         val old = installedInfo(context)
         val oldVersion = if (Build.VERSION.SDK_INT >= 28) old.longVersionCode
-                         else @Suppress("DEPRECATION") old.versionCode.toLong()
+                         else old.versionCode.toLong()
         val newVersion = if (Build.VERSION.SDK_INT >= 28) apk.longVersionCode
-                         else @Suppress("DEPRECATION") apk.versionCode.toLong()
+                         else apk.versionCode.toLong()
         if (newVersion <= oldVersion) return JarvisInstallResult.NOT_NEWER
         if (!JarvisUpdateRules.sameSigner(certs(old), certs(apk)))
             return JarvisInstallResult.SIGNATURE_MISMATCH
@@ -254,10 +254,11 @@ internal object JarvisAppUpdater {
         }
     }
 
-    fun installWithAndroid(context: Context, file: File): Boolean = try {
+    fun installWithAndroid(context: Context, file: File): Boolean {
         if (!file.isFile || !file.canonicalPath.startsWith(
                 File(context.cacheDir, "jarvis_updates").canonicalPath + File.separator))
             return false
+        return try {
         val uri = FileProvider.getUriForFile(context, context.packageName + ".files", file)
         val intent = Intent(Intent.ACTION_VIEW).apply {
             setDataAndType(uri, "application/vnd.android.package-archive")
@@ -265,7 +266,8 @@ internal object JarvisAppUpdater {
         }
         context.startActivity(intent)
         true
-    } catch (_: Exception) { false }
+        } catch (_: Exception) { false }
+    }
 
     fun requestInstallerPermission(context: Context) {
         if (Build.VERSION.SDK_INT >= 26) {
