@@ -26,6 +26,23 @@ class VoiceNavigationTest {
         assertEquals("HOME", VoiceNavigation.destinationFrom("Vigyél haza"))
     }
 
+    @Test fun openingMapsAndNavigatingIsOneDirectDestinationCommand() {
+        val commands = listOf(
+            "Nyisd meg a térképet és navigálj Harrogate-be" to "Harrogate",
+            "Jarvis, nyisd meg a Google Maps-et és vigyél Leeds-be" to "Leeds",
+            "Nyisd meg a térképet majd navigálj Yorkba" to "York",
+            "Nyisd meg a Google térképet és navigálj Leedsbe" to "Leeds",
+            "Hey Jarvis, nyisd meg a térképet és vigyél el Harrogate -be" to "Harrogate"
+        )
+        for ((command, expected) in commands) {
+            assertEquals(command, expected, VoiceNavigation.destinationFrom(command))
+            assertFalse(command, JarvisAiRouting.shouldAskAi(command))
+        }
+        assertNull(VoiceNavigation.destinationFrom("Nyisd meg a térképet"))
+        assertNull(VoiceNavigation.destinationFrom("Ne nyisd meg a térképet és navigálj Yorkba"))
+        assertEquals("Leeds", VoiceNavigation.destinationFrom("Navigálj Leeds-be"))
+    }
+
     @Test fun everySupportedLanguageCanAskForNavigation() {
         assertEquals("Leeds", VoiceNavigation.destinationFrom("Navigate to Leeds"))
         assertEquals("Harrogate", VoiceNavigation.destinationFrom("Take me to Harrogate"))
