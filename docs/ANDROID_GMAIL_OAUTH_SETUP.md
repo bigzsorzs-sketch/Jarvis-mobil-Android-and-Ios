@@ -19,7 +19,10 @@ and OAuth tokens must not be saved in preferences or sent to the AI gateway.
    - Signing SHA-1: fingerprint of the exact APK signing certificate installed
      on the test phone. It must match the existing Jarvis signing keystore,
      not a freshly generated certificate or the repository commit SHA.
-     Inspect a local APK with Android SDK:
+     Jarvis official signed release includes the public certificate fingerprint:
+       https://github.com/bigzsorzs-sketch/Jarvis-mobil-Android-and-Ios/releases/download/v0.2.24-signed-test.1/SIGNING-CERTIFICATE.txt
+     Copy the Signer #1 certificate SHA-1 digest shown there (not SHA-256).
+     Alternatively inspect the installed APK using Android SDK:
        apksigner verify --print-certs path/to/Jarvis-Android.apk
 4. Use an Android phone with Google Play services and launch Jarvis → Email →
    Connect Google account. Choose the intended account and authorize Gmail.
