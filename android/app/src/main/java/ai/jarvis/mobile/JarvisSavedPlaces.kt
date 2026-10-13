@@ -118,6 +118,8 @@ internal object JarvisSavedPlaces {
             if (feature.optString("type") != "Feature") continue
             val props = feature.optJSONObject("properties") ?: JSONObject()
             val location = props.optJSONObject("location") ?: feature.optJSONObject("location")
+                ?: props.optJSONArray("location")?.optJSONObject(0)
+                ?: feature.optJSONArray("location")?.optJSONObject(0)
             val name = (location?.optString("name").orEmpty().ifBlank {
                 props.optString("name").ifBlank { props.optString("title") }
             }).trim().take(120)
