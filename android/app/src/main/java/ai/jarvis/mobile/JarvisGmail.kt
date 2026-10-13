@@ -89,15 +89,15 @@ internal object JarvisGmailCommands {
             listOf("van uj", "jott uj", "mennyi uj", "hany uj", "check ",
                 "any new", "how many unread", "hany olvasatlan").any { n.startsWith(it) } ->
                 GmailOperation.Check
-            listOf("kuldd", "kuldj", "irj", "keszits", "send", "write", "compose").any { n.startsWith(it) } -> {
-                val actuallySend = listOf("kuldd", "kuldj", "send").any { n.startsWith(it) }
+            listOf("kuld ", "kuldd ", "kuldj ", "irj ", "keszits ", "send ", "write ", "compose ").any { n.startsWith(it) } -> {
+                val actuallySend = listOf("kuld ", "kuldd ", "kuldj ", "send ").any { n.startsWith(it) }
                 val subject = Regex("""(?iu)\b(?:t[aá]rgy|subject)\s*[: ]\s*(.+?)(?=\s+(?:[uü]zenet|sz[oö]veg|message|body)\b|$)""")
                     .find(command)?.groupValues?.get(1)?.trim().orEmpty()
                 val body = Regex("""(?iu)\b(?:[uü]zenet|sz[oö]veg|message|body)\s*[: ]\s*(.+)$""")
                     .find(command)?.groupValues?.get(1)?.trim().orEmpty()
                 val head = Regex("""(?iu)\b(?:t[aá]rgy|subject|[uü]zenet|sz[oö]veg|message|body)\b""")
                     .find(command)?.range?.first?.let { command.substring(0, it) } ?: command
-                val recipient = head.replace(Regex("""(?iu)^(?:k[uü]ldj|k[uü]ldd|[ií]rj|k[eé]sz[ií]ts|send|write|compose)\s+(?:el\s+)?"""), "")
+                val recipient = head.replace(Regex("""(?iu)^(?:k[uü]ldj|k[uü]ldd|k[uü]ld|[ií]rj|k[eé]sz[ií]ts|send|write|compose)\s+(?:el\s+)?"""), "")
                     .replace(Regex("""(?iu)^(?:egy\s+)?(?:e-?mailt?|levelet|mail|an?\s+email)\s*(?:a\s+|az\s+|to\s+)?"""), "")
                     .trim().removeSuffix("nek").removeSuffix("nak").trim()
                 when {
