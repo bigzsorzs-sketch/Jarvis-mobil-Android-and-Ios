@@ -4,7 +4,7 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class JarvisAiToolPolicyTest {
-    @Test fun plainQuestionsMustHaveNoToolsOrToolChoice() {
+    @Test fun plainQuestionsOfferOnlyServerWebSearch() {
         for (question in listOf(
             "Mennyit fogyaszt egy Ford Focus?",
             "Mit tudsz elmondani magadról?",
@@ -13,8 +13,10 @@ class JarvisAiToolPolicyTest {
             "Szia, mesélj a naptárakról!"
         )) {
             val body = JarvisAiToolPolicy.providerPayload(question)
-            assertFalse(question, body.has("tools"))
-            assertFalse(question, body.has("tool_choice"))
+            assertEquals(1, body.getJSONArray("tools").length())
+            assertEquals("openrouter:web_search",
+                body.getJSONArray("tools").getJSONObject(0).getString("type"))
+            assertEquals("auto", body.getString("tool_choice"))
             assertEquals(JarvisAiGateway.TEST_MODEL, body.optString("model"))
             assertEquals(question,
                 body.getJSONArray("messages").getJSONObject(1).getString("content"))
