@@ -47,7 +47,7 @@ internal object VoiceCalling {
     // Some spontaneous Hungarian call requests put the target before the verb,
     // e.g. "Esztert hívd fel". Empty/placeholder targets MUST NOT be dialed.
     private val callPrefix = Regex(
-        """(?iu)^(?:h[ií]vd\s+fel|t[aá]rcs[aá]zd|telefon[aá]lj|fel\s+tudn[aá]d\s+h[ií]vni|felh[ií]vn[aá]d|szeretn[eé]m\s+ha\s+felh[ií]vn[aá]d|call|phone|ruf\s+an|rufe|anrufen|appelle|appeler|llama\s+a|llamar|chiama|chiamare|zadzwo[nń]\s+do|zadzwo[nń])(?:\s+(?:(?:a|az|the|le|la|el|il|den|die|do)\s+)?(.+?))?\s*[.!?]?$"""
+        """(?iu)^(?:h[ií]vd(?:\s+fel)?|h[ií]vj(?:\s+fel)?|t[aá]rcs[aá]zd|telefon[aá]lj|fel\s+tudn[aá]d\s+h[ií]vni|felh[ií]vn[aá]d|szeretn[eé]m\s+ha\s+felh[ií]vn[aá]d|call|phone|ruf\s+an|rufe|anrufen|appelle|appeler|llama\s+a|llamar|chiama|chiamare|zadzwo[nń]\s+do|zadzwo[nń])(?:\s+(?:(?:a|az|the|le|la|el|il|den|die|do)\s+)?(.+?))?\s*[.!?]?$"""
     )
     private val callSuffix = Regex(
         """(?iu)^(?:(?:a|az)\s+)?(.+?)\s+(?:h[ií]vd\s+fel|t[aá]rcs[aá]zd)\s*[.!?]?$"""
@@ -104,6 +104,31 @@ internal object VoiceCalling {
         if (needsTarget(text)) return null
         if (text.contains(Regex("""(?iu)\b(?:nyisd|keress|navig[aá]lj|t[oö]r[oö]ld|ind[ií]tsd|h[ií]vd|k[uü]ldj|[ií]rj)\b"""))) return null
         return text
+    }
+
+    /** User-supplied phone number for the CURRENT explicit call only.
+     * Never write this value to Contacts or treat the model's text as a number.
+     */
+    fun statedNumber(text: String): Target? {
+        val cleaned = cleanCommand(text).trim().trimEnd('.', '!', '?').trim()
+        val pattern = Regex(
+            """(?iu)^(?:(?:ez|itt)\s+)?(?:(?:a|az)\s+)?(.+?)\s+(?:telefon)?sz[aá]ma\s*[:,-]?\s*(\+?\d[\d\s().-]{3,24}\d)$"""
+        )
+        val named = pattern.matchEntire(cleaned)
+        val numberSource = if (named != null) named.groupValues[2] else cleaned
+        val number = numberSource.replace(Regex("""[\s().-]"""), "")
+        if (!number.matches(Regex("""\+?[0-9]{5,16}"""))) return null
+        val name = named?.groupValues?.get(1)?.trim().orEmpty()
+        if (name.length > 70 || (name.isNotBlank() && forbiddenParts.containsMatchIn(name))) return null
+        return Target(name.ifBlank { number }, number)
+    }
+
+    fun callConfirmationYes(text: String): Boolean {
+        val normalized = normalize(cleanCommand(text))
+        return VoiceIntentParser.isCallYes(text) ||
+            normalized in setOf("igen hivd", "igen hivd fel", "igen hivhatod",
+                "igen telefonalj", "igen inditsd a hivast", "yes call",
+                "yes call now", "ok hivd fel", "rendben hivd fel")
     }
 
     /**
