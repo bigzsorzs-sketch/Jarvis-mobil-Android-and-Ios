@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="jarvis_accessibility_description">Opcionális Android-képernyővezérlés. Csak a felhasználó által kimondott vagy leírt egyedi parancsot hajtja végre (például Vissza, Főképernyő, görgetés, egyértelmű gomb). A megnyitott alkalmazások tartalmát nem küldi az AI-nak, nem menti vagy továbbítja. Fizetés, küldés, törlés és engedélyek automatikus jóváhagyása nem támogatott. Bármikor kikapcsolható az Android Beállításokban.</string>
+</resources>
