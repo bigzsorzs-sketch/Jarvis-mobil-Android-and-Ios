@@ -147,6 +147,27 @@ internal object VoiceCalling {
             (fromUser.length > 4 && fromUser.endsWith("t") && fromUser.dropLast(1) == fromModel)
     }
 
+    /** Choose from ACTUAL phone contacts only. Prefer a full display-name
+     * match; duplicate Android rows for the same name/number are one contact
+     * choice. Distinct numbers or identical first names remain ambiguous.
+     */
+    internal fun selectPhonebookMatch(spoken: String, rows: List<Target>): Lookup {
+        val unique = rows.filter { it.label.isNotBlank() && it.number.isNotBlank() }
+            .distinctBy { target ->
+                normalize(target.label) + "|" +
+                    target.number.replace(Regex("""[\\s().-]"""), "")
+            }
+        val exact = unique.filter { matchesContactName(spoken, it.label) }
+        val chosen = exact.ifEmpty {
+            unique.filter { matchesFirstName(spoken, it.label) }
+        }
+        return when (chosen.size) {
+            0 -> Lookup.NotFound
+            1 -> Lookup.Found(chosen.single())
+            else -> Lookup.Ambiguous
+        }
+    }
+
     fun lookup(context: Context, spoken: String): Lookup {
         // Only system phonebook contacts are used for name resolution.
         val query = spoken.trim()
@@ -158,6 +179,8 @@ internal object VoiceCalling {
             != PackageManager.PERMISSION_GRANTED) return Lookup.NoContactsAccess
         val candidates = mutableListOf<Target>()
         try {
+            // Android ContactsContract is the ONLY named-contact source.
+            // No Jarvis contact store and no OpenRouter/AI name resolution.
             context.contentResolver.query(
                 ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
                 arrayOf(
@@ -167,19 +190,20 @@ internal object VoiceCalling {
             )?.use { cursor ->
                 val nameAt = cursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME)
                 val numberAt = cursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.NUMBER)
-                while (cursor.moveToNext() && candidates.size <= 2) {
+                // Scan the entire phonebook, not just the first few matches.
+                // A full-name match may appear AFTER a first-name collision.
+                while (cursor.moveToNext()) {
                     val name = cursor.getString(nameAt).orEmpty()
                     val phone = cursor.getString(numberAt).orEmpty()
-                    val matches = matchesContactName(query, name) || matchesFirstName(query, name)
-                    if (matches && phone.isNotBlank()) candidates.add(Target(name, phone))
+                    if (phone.isNotBlank() &&
+                        (matchesContactName(query, name) || matchesFirstName(query, name))) {
+                        candidates.add(Target(name, phone))
+                    }
                 }
             }
-        } catch (_: Exception) { return Lookup.NotFound }
-        return when (candidates.size) {
-            0 -> Lookup.NotFound
-            1 -> Lookup.Found(candidates.single())
-            else -> Lookup.Ambiguous
-        }
+        } catch (_: SecurityException) { return Lookup.NoContactsAccess }
+          catch (_: Exception) { return Lookup.NotFound }
+        return selectPhonebookMatch(query, candidates)
     }
 
     fun canCall(context: Context): Boolean =
