@@ -1,9 +1,13 @@
-name: Publish signed Jarvis Android APK (no AI server)
+name: Publish signed Jarvis Android 0.2.19 update
 on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/publish-android-signed-test.yml"
   workflow_dispatch:
     inputs:
       confirmation:
-        description: 'Type SIGNED_TEST_APPROVED for the clean-install 0.2.18 signing baseline (NOT an in-place upgrade of 0.2.17)'
+        description: 'Type SIGNED_TEST_APPROVED to publish the 0.2.19 in-place signed update after CI verification'
         required: true
         type: string
 permissions:
@@ -15,14 +19,12 @@ concurrency:
 jobs:
   signed-test-apk:
     if: >-
+      (github.event_name == 'push' &&
+       github.ref == 'refs/heads/main' &&
+       github.repository == 'bigzsorzs-sketch/Jarvis-mobil-Android-and-Ios') ||
       (github.event_name == 'workflow_dispatch' &&
        github.ref == 'refs/heads/main' &&
-       inputs.confirmation == 'SIGNED_TEST_APPROVED') ||
-      (github.event_name == 'workflow_run' &&
-       github.event.workflow_run.conclusion == 'success' &&
-       github.event.workflow_run.event == 'push' &&
-       github.event.workflow_run.head_branch == 'main' &&
-       github.event.workflow_run.head_repository.full_name == github.repository)
+       inputs.confirmation == 'SIGNED_TEST_APPROVED')
     environment: production
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -31,28 +33,27 @@ jobs:
       - name: Verify main commit and matching tested Android source before signing
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SOURCE_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+          SOURCE_SHA: ${{ github.sha }}
         shell: bash
         run: |
           set -euo pipefail
           current="$(gh api "repos/${{ github.repository }}/git/ref/heads/main" --jq '.object.sha')"
           test "$current" = "$SOURCE_SHA"
           test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
-          if gh release view "v0.2.18-signed-test.1" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+          if gh release view "v0.2.19-signed-test.1" --repo "${{ github.repository }}" >/dev/null 2>&1; then
             echo "Signed test release already exists; nothing to replace"
             exit 1
           fi
           TESTED_SHA="$SOURCE_SHA"
           # Manual dispatch can use the prior green Android commit only when
           # every intervening change affects THIS release workflow alone.
-          baseline="d47f0e1d644d51d501fd5a382210d3fe91790946"
+          baseline="beeaaa889e521d2fb93906d35f8d855d39974a70"
           if [ "$SOURCE_SHA" != "$baseline" ]; then
             comparison="$(gh api "repos/${{ github.repository }}/compare/$baseline...$SOURCE_SHA")"
             status="$(printf '%s' "$comparison" | jq -r '.status')"
             allowed="$(printf '%s' "$comparison" | jq -r '
               [.files[].filename] | if length == 0 then false
-              else all(.[]; . == ".github/workflows/publish-android-signed-test.yml" or
-                                . == ".github/workflows/verify-jarvis-signing.yml") end
+              else all(.[]; . == ".github/workflows/publish-android-signed-test.yml") end
             ')"
             if [ "$status" = "ahead" ] && [ "$allowed" = "true" ]; then
               TESTED_SHA="$baseline"
@@ -61,11 +62,23 @@ jobs:
           # Require completed, successful main-branch build AND emulator tests
           # for the exact Android source being signed. No blind green claim.
           for workflow in android-debug.yml android-ui-emulator.yml; do
-            state="$(gh api "repos/${{ github.repository }}/actions/workflows/$workflow/runs?head_sha=$TESTED_SHA&event=push&per_page=10" | jq -r --arg sha "$TESTED_SHA" --arg repo "${{ github.repository }}" '
-              [.workflow_runs[] | select(.head_sha == $sha and .head_branch == "main" and
-                .head_repository.full_name == $repo and .event == "push" and .status == "completed")][0].conclusion // ""
-            ')"
-            test "$state" = "success" || { echo "Required verified $workflow status is not success: $state"; exit 1; }
+            verified=""
+            for attempt in $(seq 1 90); do
+              state="$(gh api "repos/${{ github.repository }}/actions/workflows/$workflow/runs?head_sha=$TESTED_SHA&event=push&per_page=10" | jq -r --arg sha "$TESTED_SHA" --arg repo "${{ github.repository }}" '
+                [.workflow_runs[] | select(.head_sha == $sha and .head_branch == "main" and
+                  .head_repository.full_name == $repo and .event == "push")][0] |
+                    if . == null then "" else
+                      if .status == "completed" then .conclusion // "" else "pending" end
+                    end
+              ')"
+              case "$state" in
+                success) verified=yes; break ;;
+                failure|cancelled|timed_out|action_required|stale)
+                  echo "::error::Required $workflow failed: $state"; exit 1 ;;
+              esac
+              sleep 10
+            done
+            test "$verified" = yes || { echo "::error::Required verified $workflow is not green"; exit 1; }
           done
       - uses: actions/setup-java@v4
         with:
@@ -113,28 +126,37 @@ jobs:
           apk=android/app/build/outputs/apk/release/app-release.apk
           test -s "$apk"
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$apk" > "$RUNNER_TEMP/new-signature.txt"
-          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$apk" | grep -F "package: name='ai.jarvis.mobile' versionCode='29' versionName='0.2.18'"
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$apk" | grep -F "package: name='ai.jarvis.mobile' versionCode='30' versionName='0.2.19'"
           "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$apk" | grep "targetSdkVersion:'36'"
           unzip -t "$apk" > /dev/null
           mkdir -p dist
-          cp "$apk" dist/Jarvis-Android-0.2.18-signed-test.apk
+          cp "$apk" dist/Jarvis-Android-0.2.19-signed-test.apk
           cp "$RUNNER_TEMP/new-signature.txt" dist/SIGNING-CERTIFICATE.txt
           (cd dist && sha256sum Jarvis-Android-0.2.18-signed-test.apk > SHA256SUMS.txt)
-      - name: Validate permanent 0.2.18 baseline signing identity
+      - name: Verify permanent signature exactly matches installed 0.2.18 baseline
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
         run: |
           set -euo pipefail
-          # The old 0.2.17 is a CI debug-signed test APK. The user explicitly
-          # approved a clean first install of 0.2.18 with a NEW permanent key.
-          # Do NOT claim the new signature can upgrade the old debug app.
+          # This must install IN PLACE over the user's permanently signed 0.2.18.
+          # Keep the original Jarvis production signing identity forever.
           current="$(grep -iE 'Signer #1 certificate SHA-256 digest: [0-9a-f]{64}' \
             dist/SIGNING-CERTIFICATE.txt | awk '{print $NF}' | tr 'A-F' 'a-f')"
           test "${#current}" -eq 64 || { echo "::error::No valid signing certificate fingerprint"; exit 1; }
           expected="955338795da61366091ed256b0f6b2a948b9aaf9d7771b022a65b88a94b2d86a"
           test "$current" = "$expected" || { echo "::error::Wrong permanent Jarvis 0.2.18 signing certificate"; exit 1; }
           echo "Permanent Jarvis signing identity verified against the saved baseline."
-          # Future signed releases MUST match this baseline certificate.
-          # The immutable release asset SIGNING-CERTIFICATE.txt records its identity.
+          mkdir -p "$RUNNER_TEMP/previous"
+          gh release download v0.2.18-signed-test.1 \
+            --repo "${{ github.repository }}" --pattern SIGNING-CERTIFICATE.txt \
+            --dir "$RUNNER_TEMP/previous"
+          previous="$(grep -iE 'Signer #1 certificate SHA-256 digest: [0-9a-f]{64}' \
+            "$RUNNER_TEMP/previous/SIGNING-CERTIFICATE.txt" | awk '{print $NF}' | tr 'A-F' 'a-f')"
+          test "$previous" = "$expected" || {
+            echo "::error::New APK signer differs from 0.2.18; refusing unsafe update"; exit 1;
+          }
+          echo "Same signing identity as already published 0.2.18 confirmed."
       - name: Publish signed APK as clearly labeled prerelease (NOT public AI launch)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -149,27 +171,29 @@ jobs:
             exit 1
           fi
           cat > "$RUNNER_TEMP/jarvis-signed-test-notes.md" <<'EOF'
-          # Jarvis Android 0.2.18 — SIGNED TEST APK
-          This is the FIRST Jarvis Android TEST APK signed with the new permanent production keystore.
-          Its signer fingerprint is published in SIGNING-CERTIFICATE.txt; every future in-place update MUST use the exact same key and application ID.
-          The previous 0.2.17 build was CI debug-signed. This 0.2.18 APK is NOT guaranteed to install over it.
-          The user confirmed no important 0.2.17 local data. To migrate, back up any data if needed, uninstall the old test app with explicit user approval, then install this 0.2.18 APK once.
-          The build validates package identity, versionCode, APK signature, checksum, Kotlin tests and lint.
-          This is a PRE-RELEASE for controlled testing, not a verified full AI-service/public launch.
+          # Jarvis Android 0.2.19 — SIGNED IN-PLACE UPDATE
+          This is a signed, controlled pre-release to test upgrading permanently signed Jarvis Android 0.2.18 without uninstalling or wiping data.
+          It retains the same application ID ai.jarvis.mobile and the exact production signing certificate of 0.2.18.
+          Changes: plain AI prompts and connection tests no longer require a web-search-capable provider route.
+          Explicit live-news, weather, traffic and online requests may use OpenRouter live web tools.
+          Native contacts calling with confirmation, foreground Google Maps navigation, and cloud AI speech remain included.
+          CI validates versionCode, package identity, signature, SHA-256, Kotlin tests and lint.
+          Live OpenRouter model/voice provider response and physical-device update success must still be tested on a phone.
           The Jarvis hosted AI gateway is NOT bundled or connected. Hosted AI requests need a future
           HTTPS gateway deployment. Direct OpenRouter mode is AVAILABLE in this signed APK:
           enter your own OpenRouter API key in Settings → AI brain and give explicit cloud consent.
           The key is encrypted locally using Android Keystore; no shared key is embedded in this APK.
           AI model availability and provider errors depend on your OpenRouter account.
           Installing from GitHub may still show Android unknown-source or Play Protect warnings.
-          Before uninstalling 0.2.17, understand that local chats, readings, invoices and settings can be permanently lost.
-          Only uninstall when the tester explicitly confirms they have no needed local data.
-          For 0.2.18 onward, keep the signing keystore safely backed up and NEVER rotate it without a proper migration.
+          Install over the existing 0.2.18 from Jarvis Settings -> Updates, then accept the Android system installer confirmation.
+          Do NOT uninstall 0.2.18 for this update; local data should remain intact with a matching signed upgrade.
+          Do not promise fully hands-free background installation: Android approval is required.
+          Preserve the original production signing keystore securely for every future update.
           EOF
           gh release create "$tag" \
             dist/Jarvis-Android-0.2.18-signed-test.apk dist/SHA256SUMS.txt dist/SIGNING-CERTIFICATE.txt \
             --repo "${{ github.repository }}" --target "$GITHUB_SHA" \
-            --title 'Jarvis Android 0.2.18 — signed TEST APK' \
+            --title 'Jarvis Android 0.2.19 — signed UPDATE' \
             --notes-file "$RUNNER_TEMP/jarvis-signed-test-notes.md" --prerelease --latest=false
       - name: Securely remove signing material
         if: always()
