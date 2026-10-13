@@ -470,6 +470,20 @@ class HandsFreeService : Service(), RecognitionListener {
         aiJob?.cancel()
         aiJob = null
         activeVoiceCommand = command
+        if (JarvisUpdateVoice.isRequest(command)) {
+            val selected = recognizedUtteranceLanguage
+                ?: JarvisLanguageSettings.load(applicationContext)
+            if (!privateVoiceAllowed()) {
+                speak("A frissítéshez oldd fel a telefont.")
+            } else {
+                val install = JarvisUpdateVoice.shouldInstall(command)
+                JarvisUpdateNavigation.request(install)
+                HandsFreeNavigation.destination = "Beállítások"
+                speak(JarvisUpdateTexts.get(selected,
+                    if (install) "voiceInstall" else "voiceCheck"))
+            }
+            return
+        }
         // Existing authorized notification/glucose/billing readers take priority.
         val readAloud = if (JarvisGlucoseVoice.isQuery(command) ||
             BillingVoice.isCandidate(command) || VoiceIntentParser.isReadMessage(command))
