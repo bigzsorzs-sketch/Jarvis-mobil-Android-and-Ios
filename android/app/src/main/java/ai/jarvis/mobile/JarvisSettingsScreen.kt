@@ -60,7 +60,7 @@ internal fun JarvisSettingsRow(icon: String, title: String, detail: String, onCl
 @Composable
 internal fun JarvisSettingsScreen(
     context: Context, isDark: Boolean, onToggleTheme: () -> Unit, onVoice: () -> Unit,
-    onAi: () -> Unit
+    onAi: () -> Unit, language: JarvisLanguage
 ) {
     SettingsSectionTitle("Általános")
     JarvisSettingsGroup {
@@ -81,6 +81,9 @@ internal fun JarvisSettingsScreen(
             }, onAi)
     }
     Spacer(Modifier.height(20.dp))
+    // GitHub updates remain explicitly user-controlled and never wipe local data.
+    JarvisUpdatePanel(context, language)
+    Spacer(Modifier.height(18.dp))
     SettingsSectionTitle("Telefon-hozzáférés")
     PermissionCenter(context, onDone = {}, showContinue = false, showHeading = false)
     Spacer(Modifier.height(16.dp))
