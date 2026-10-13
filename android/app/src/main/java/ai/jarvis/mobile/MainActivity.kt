@@ -299,6 +299,18 @@ fun JarvisApp(context: Context) {
             null -> Unit
         }
         if (readAloud != null) return
+        // Navigation commands have priority over generic "open Maps" shortcuts.
+        // The recognized city/address must be passed directly to Google's
+        // turn-by-turn intent, never dropped in favour of an empty map view.
+        VoiceNavigation.destinationFrom(command)?.let { destination ->
+            val result = if (VoiceNavigation.resolve(context, destination) == null)
+                "Az úti célhoz nem találok mentett címet."
+            else JarvisNavigationText.result(
+                language, VoiceNavigation.openDetailed(context, destination)
+            )
+            addHistory(command to result)
+            return
+        }
         // Explicit page navigation must take priority over modules that see a
         // keyword inside "Nyisd meg a Vércukor oldalt".
         JarvisCapabilities.localPageToOpen(command)?.let { route ->
