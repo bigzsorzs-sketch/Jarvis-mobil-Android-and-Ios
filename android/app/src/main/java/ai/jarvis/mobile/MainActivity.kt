@@ -204,8 +204,11 @@ fun JarvisApp(context: Context) {
         saveChatTurn(turn)
     }
     var gmailStatus by remember { mutableStateOf("") }
+    var gmailReadText by remember { mutableStateOf("") }
     val gmailAction = rememberJarvisGmail { request, outcome ->
         gmailStatus = outcome.status
+        gmailReadText = outcome.speak.orEmpty()
+        if (request.operation is GmailOperation.Read && outcome.speak != null) page = "Email"
         // Keep private Gmail bodies out of the persisted chat history.
         // Still deliver the asynchronous answer to a pending hands-free turn.
         completeCommand(request.instruction, outcome.status)
@@ -217,7 +220,11 @@ fun JarvisApp(context: Context) {
         val turn = safeCommand to outcome.status
         conversation.add(turn)
         saveChatTurn(turn)
-        outcome.speak?.let { narrator.read(it, language) }
+        outcome.speak?.let {
+            if (!narrator.read(it, language)) {
+                gmailStatus = outcome.status + " A hangos felolvasás nem indult el; a szöveg az Email oldalon olvasható."
+            }
+        }
     }
     // Spoken commands share the same encrypted local timeline as typed messages.
     // Consume exactly once even when the Activity is recomposed.
@@ -1048,7 +1055,7 @@ fun JarvisApp(context: Context) {
                                     securePrefs.write("readings", writeReadings(readings))
                                 }
                                 "Számlák" -> JarvisBillingScreen(context, billingRepo, language)
-                                "Email" -> JarvisGmailScreen(language, gmailStatus, gmailAction)
+                                "Email" -> JarvisGmailScreen(language, gmailStatus, gmailReadText, gmailAction)
                                 "Jegyzetek" -> LocalNotesScreen(notes) {
                                     securePrefs.write("notes", JSONArray(notes).toString())
                                 }
