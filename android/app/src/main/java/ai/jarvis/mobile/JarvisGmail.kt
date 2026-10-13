@@ -195,6 +195,24 @@ internal object JarvisGmailApi {
         return null
     }
 
+    // Many modern mailers send HTML-only messages. Convert locally, never
+    // fetch embedded images or follow remote resources.
+    private fun htmlText(part: JSONObject): String? {
+        if (part.optString("mimeType") == "text/html") {
+            val html = decode(part.optJSONObject("body")?.optString("data").orEmpty())
+            if (html.isNotBlank()) {
+                return android.text.Html.fromHtml(html, android.text.Html.FROM_HTML_MODE_LEGACY)
+                    .toString().trim().takeIf { it.isNotBlank() }
+            }
+        }
+        val parts = part.optJSONArray("parts") ?: return null
+        for (i in 0 until parts.length()) {
+            val candidate = htmlText(parts.getJSONObject(i))
+            if (!candidate.isNullOrBlank()) return candidate
+        }
+        return null
+    }
+
     private fun message(token: String, id: String): GmailMessage {
         require(id.matches(Regex("""[A-Za-z0-9_\-]{1,120}""")))
         val o = request(token, "/messages/" + id + "?format=full")
@@ -207,7 +225,7 @@ internal object JarvisGmailApi {
             }
             return ""
         }
-        val body = plainText(payload) ?: o.optString("snippet")
+        val body = plainText(payload) ?: htmlText(payload) ?: o.optString("snippet")
         return GmailMessage(
             id, o.optString("threadId"), header("From"), header("Reply-To"),
             header("Subject"), body.take(10000), header("Message-ID"), header("References")
