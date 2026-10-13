@@ -32,6 +32,15 @@ class JarvisSavedPlacesTest {
         assertEquals("Bad coords", entries[2].destination)
     }
 
+    @Test fun locationMetadataMayBeExportedAsAnArray() {
+        val json = """{"type":"FeatureCollection","features":[
+            {"type":"Feature","properties":{"location":[{"name":"Saved station","address":"Leeds, UK"}]},
+              "geometry":{"type":"Point","coordinates":[0,0]}}
+        ]}"""
+        assertEquals(listOf(JarvisSavedPlace("Saved station", "Leeds, UK")),
+            JarvisSavedPlaces.parseGeoJson(json))
+    }
+
     @Test fun explicitlyAskForSavedPlacesInsteadOfAiOrEmptyMaps() {
         assertTrue(JarvisSavedPlaces.isListRequest("Mutasd a Google Térképben mentett helyeimet"))
         assertTrue(JarvisSavedPlaces.isListRequest("Nézd meg a csillagozott helyeimet"))
