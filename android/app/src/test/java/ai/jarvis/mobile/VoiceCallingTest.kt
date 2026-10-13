@@ -48,6 +48,39 @@ class VoiceCallingTest {
         assertNull(VoiceCalling.followUpTarget("Nyisd meg a térképet"))
     }
 
+    @Test fun phonebookLookupUsesUniqueMatchesNotFirstRowsOrModelGuesses() {
+        val contacts = listOf(
+            VoiceCalling.Target("Vivi Nagy", "07478000001"),
+            VoiceCalling.Target("Vivi Nagy", "07478000001"), // duplicate Android provider row
+            VoiceCalling.Target("Vivi Kovács", "07478000002")
+        )
+        assertEquals(VoiceCalling.Lookup.Ambiguous,
+            VoiceCalling.selectPhonebookMatch("Vivit", contacts))
+        val exact = VoiceCalling.selectPhonebookMatch("Vivi Nagy", contacts)
+        assertTrue(exact is VoiceCalling.Lookup.Found)
+        assertEquals("07478000001", (exact as VoiceCalling.Lookup.Found).target.number)
+        assertEquals(VoiceCalling.Lookup.NotFound,
+            VoiceCalling.selectPhonebookMatch("Marit", contacts))
+        val repeated = VoiceCalling.selectPhonebookMatch(
+            "Vivit", contacts.filter { it.label == "Vivi Nagy" })
+        assertTrue(repeated is VoiceCalling.Lookup.Found)
+    }
+
+    @Test fun chatCallIntentsAndConfirmationWorkWithPhonebook() {
+        assertEquals("Vivit", VoiceCalling.extractRequest("hívd vivit"))
+        assertEquals("Vivit", VoiceCalling.extractRequest("Jarvis, hívd fel Vivit"))
+        assertEquals("Vivit", VoiceCalling.extractRequest("Vivit hívd fel"))
+        assertEquals("Vivit", VoiceCalling.extractRequest("Hívj Vivit"))
+        assertTrue(VoiceCalling.callConfirmationYes("igen hívd"))
+        assertTrue(VoiceCalling.callConfirmationYes("igen, hívd fel"))
+        assertFalse(VoiceCalling.callConfirmationYes("nem"))
+        assertFalse(VoiceCalling.callConfirmationYes("vivi"))
+        assertEquals("Vivi", VoiceCalling.statedNumber("ez a Vivi száma 07478 051290")?.label)
+        assertEquals("07478051290",
+            VoiceCalling.statedNumber("ez a Vivi száma 07478 051290")?.number)
+        assertNull(VoiceCalling.statedNumber("Vivi"))
+    }
+
     @Test fun hungarianDialCommands() {
         assertEquals("Esztert", VoiceCalling.extractRequest("Hívd fel Esztert"))
         assertEquals("George", VoiceCalling.extractRequest("Tárcsázd George"))
