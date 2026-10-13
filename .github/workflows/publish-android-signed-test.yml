@@ -165,7 +165,7 @@ jobs:
           set -euo pipefail
           current="$(gh api "repos/${{ github.repository }}/git/ref/heads/main" --jq '.object.sha')"
           test "$current" = "$GITHUB_SHA"
-          tag=v0.2.18-signed-test.1
+          tag=v0.2.19-signed-test.1
           if gh release view "$tag" --repo "${{ github.repository }}" > /dev/null 2>&1; then
             echo 'Signed-test release already exists; refusing to replace it'
             exit 1
@@ -191,7 +191,7 @@ jobs:
           Preserve the original production signing keystore securely for every future update.
           EOF
           gh release create "$tag" \
-            dist/Jarvis-Android-0.2.18-signed-test.apk dist/SHA256SUMS.txt dist/SIGNING-CERTIFICATE.txt \
+            dist/Jarvis-Android-0.2.19-signed-test.apk dist/SHA256SUMS.txt dist/SIGNING-CERTIFICATE.txt \
             --repo "${{ github.repository }}" --target "$GITHUB_SHA" \
             --title 'Jarvis Android 0.2.19 — signed UPDATE' \
             --notes-file "$RUNNER_TEMP/jarvis-signed-test-notes.md" --prerelease --latest=false
