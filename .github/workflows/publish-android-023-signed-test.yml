@@ -43,7 +43,22 @@ jobs:
             echo "Signed test release already exists; nothing to replace"
             exit 1
           fi
-          # Do not sign or release untested changes: require exact main commit.\n          TESTED_SHA="$SOURCE_SHA"\n          # Require completed, successful main-branch build AND emulator tests
+          # Require exact main HEAD and use only a completed, tested source commit.
+          TESTED_SHA="$SOURCE_SHA"
+          # A publisher-only maintenance commit has no Android changes, so it
+          # may use its single, verified main parent for CI validation.
+          metadata="$(gh api "repos/${{ github.repository }}/commits/$SOURCE_SHA")"
+          only_publisher="$(printf '%s' "$metadata" | jq -r '
+            (.parents | length) == 1 and
+            (.files | length) == 1 and
+            .files[0].filename == ".github/workflows/publish-android-023-signed-test.yml" and
+            .files[0].status == "modified"
+          ')"
+          if [ "$only_publisher" = true ]; then
+            TESTED_SHA="$(printf '%s' "$metadata" | jq -r '.parents[0].sha')"
+          fi
+          test "${#TESTED_SHA}" -eq 40
+          # Require completed, successful main-branch build AND emulator tests
           # for the exact Android source being signed. No blind green claim.
           for workflow in android-debug.yml android-ui-emulator.yml; do
             verified=""
