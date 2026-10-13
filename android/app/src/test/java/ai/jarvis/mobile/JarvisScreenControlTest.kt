@@ -49,7 +49,7 @@ class JarvisScreenControlTest {
             assertTrue("Unsafe label must be rejected: $label",
                 JarvisScreenControl.unsafeTapLabel(label))
         }
-        listOf("Keresés", "Buscar", "Search", "Suchen", "Rechercher", "Cerca", "Szukaj")
+        listOf("Keresés", "Buscar", "Search", "Suchen", "Rechercher", "Cerca", "Szukaj", "Pagina")
             .forEach { label ->
                 assertFalse("Simple search must remain available: $label",
                     JarvisScreenControl.unsafeTapLabel(label))
