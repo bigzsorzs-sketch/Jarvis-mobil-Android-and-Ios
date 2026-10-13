@@ -436,6 +436,16 @@ class HandsFreeService : Service(), RecognitionListener {
             null -> Unit
         }
         if (readAloud != null) return
+        // Page-opening intent wins over a glucose keyword inside its page name.
+        JarvisCapabilities.localPageToOpen(command)?.let { route ->
+            if (!privateVoiceAllowed()) {
+                speak("A telefon zárolva van. Az oldal megnyitásához előbb oldd fel.")
+            } else {
+                HandsFreeNavigation.destination = route
+                speak("Megnyitom a Jarvis $route oldalát, amint Jarvis előtérben van.")
+            }
+            return
+        }
         if (JarvisGlucoseVoice.isQuery(command)) {
             if (!privateVoiceAllowed()) {
                 speak("A telefon zárolva van. A személyes egészségügyi adatokhoz előbb oldd fel.")
@@ -468,15 +478,6 @@ class HandsFreeService : Service(), RecognitionListener {
                     }
                     if (running) speak(answer)
                 }
-            }
-            return
-        }
-        JarvisCapabilities.localPageToOpen(command)?.let { route ->
-            if (!privateVoiceAllowed()) {
-                speak("A telefon zárolva van. Az oldal megnyitásához előbb oldd fel.")
-            } else {
-                HandsFreeNavigation.destination = route
-                speak("Megnyitom a Jarvis $route oldalát, amint Jarvis előtérben van.")
             }
             return
         }
