@@ -29,7 +29,7 @@ internal class JarvisCloudVoicePlayer(context: Context) {
     private var closed = false
 
     /** Returns false immediately when speech lacks explicit separate cloud consent. */
-    fun speak(text: String, language: JarvisLanguage, completed: (Boolean) -> Unit): Boolean {
+    fun speak(text: String, language: JarvisLanguage, onStart: () -> Unit = {}, completed: (Boolean) -> Unit): Boolean {
         if (closed || text.isBlank() || text.length > 30_000 ||
             !JarvisAiGateway.configured(appContext) || !JarvisAiGateway.voiceConsent(appContext))
             return false
@@ -60,7 +60,7 @@ internal class JarvisCloudVoicePlayer(context: Context) {
                 }
                 activeFile = file
                 val played = try {
-                    playFile(file, request)
+                    playFile(file, request, onStart)
                 } catch (_: Exception) {
                     false
                 } finally {
@@ -80,7 +80,7 @@ internal class JarvisCloudVoicePlayer(context: Context) {
         return true
     }
 
-    private suspend fun playFile(file: File, request: Int): Boolean =
+    private suspend fun playFile(file: File, request: Int, onStart: () -> Unit): Boolean =
         suspendCancellableCoroutine { continuation ->
             val media = MediaPlayer()
             player = media
@@ -88,7 +88,7 @@ internal class JarvisCloudVoicePlayer(context: Context) {
                 media.setDataSource(file.absolutePath)
                 media.setOnPreparedListener {
                     if (request == serial && continuation.isActive) {
-                        try { it.start() }
+                        try { it.start(); onStart() }
                         catch (_: Exception) {
                             if (continuation.isActive) continuation.resume(false)
                         }
