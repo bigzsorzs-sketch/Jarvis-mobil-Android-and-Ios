@@ -47,7 +47,7 @@ internal object HandsFreeNavigation {
     var completedVoiceTurn by mutableStateOf<CompletedVoiceTurn?>(null)
 }
 
-/** User-started, time-limited recognition session. Not a true always-on hotword engine. */
+/** User-started continuous listening until manually stopped or Android ends service. */
 class HandsFreeService : Service(), RecognitionListener {
     companion object {
         const val START = "ai.jarvis.mobile.START_VOICE"
@@ -57,11 +57,9 @@ class HandsFreeService : Service(), RecognitionListener {
         const val STOP = "ai.jarvis.mobile.STOP_VOICE"
         private const val CHANNEL = "jarvis_voice"
         private const val ID = 4102
-        private const val MAX_MS = 15 * 60 * 1000L
     }
     private val handler = Handler(Looper.getMainLooper())
     private val restart = Runnable { listen() }
-    private val timeout = Runnable { shutdown("A 15 perces hangos munkamenet lejárt.") }
     private var recognizer: SpeechRecognizer? = null
     private var cloudVoice: JarvisCloudVoicePlayer? = null
     private var activeVoiceCommand: String? = null
@@ -72,7 +70,6 @@ class HandsFreeService : Service(), RecognitionListener {
     private var running = false
     private var speaking = false
     private var errors = 0
-    private var startedAt = 0L
     private var awaitingCommand = false
     private var tapActivated = false
     private var replyWindowUntil = 0L
@@ -120,7 +117,7 @@ class HandsFreeService : Service(), RecognitionListener {
             val notice = Notification.Builder(this, CHANNEL)
                 .setSmallIcon(android.R.drawable.ic_btn_speak_now)
                 .setContentTitle("Jarvis – mikrofon aktív")
-                .setContentText("Hey Jarvis · 15 perc · koppints a leállításhoz")
+                .setContentText("Folyamatos beszélgetés · érintsd meg a leállításhoz")
                 .setContentIntent(openIntent)
                 .setOngoing(true)
                 .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Leállítás", stopIntent)
@@ -135,8 +132,6 @@ class HandsFreeService : Service(), RecognitionListener {
         }
         running = true
         HandsFreeStatus.running = true
-        startedAt = SystemClock.elapsedRealtime()
-        handler.postDelayed(timeout, MAX_MS)
         cloudVoice = JarvisCloudVoicePlayer(applicationContext)
         try {
             usingOnDeviceRecognizer = Build.VERSION.SDK_INT >= 31 &&
@@ -170,10 +165,6 @@ class HandsFreeService : Service(), RecognitionListener {
     }
     private fun listen() {
         if (!running || speaking) return
-        if (SystemClock.elapsedRealtime() - startedAt >= MAX_MS) {
-            shutdown("A hangfigyelés időkorlátja lejárt.")
-            return
-        }
         try {
             recognizedUtteranceLanguage = null
             HandsFreeStatus.status = when {
@@ -956,7 +947,6 @@ class HandsFreeService : Service(), RecognitionListener {
         tapActivated = false
         lastMessageKey = null
         handler.removeCallbacks(restart)
-        handler.removeCallbacks(timeout)
         aiJob?.cancel()
         aiJob = null
         recognizer?.cancel()
