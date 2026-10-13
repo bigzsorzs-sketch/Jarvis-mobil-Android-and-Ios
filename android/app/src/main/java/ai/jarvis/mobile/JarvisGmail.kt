@@ -152,8 +152,16 @@ internal object JarvisGmailApi {
             "Ellenőrizd a címzett nevét, vagy add meg a pontos emailcímet."
         }
         val safe = clean.replace(Regex("""[\r\n"]"""), "").trim()
+        // First query the complete display name. If Gmail does not index it
+        // in an address header, retry using the surname. Only FULL header-name
+        // matches below may be returned (never guess by search ranking).
         val query = "{from:\"" + safe + "\" to:\"" + safe + "\"}"
-        val messageIds = ids(token, query, 80)
+        val messageIds = ids(token, query, 40).ifEmpty {
+            val familyName = safe.substringBefore(' ').trim()
+            if (familyName.length >= 3)
+                ids(token, "{from:$familyName to:$familyName}", 60)
+            else emptyList()
+        }
         val candidates = linkedSetOf<String>()
         for (id in messageIds) {
             require(id.matches(Regex("""[A-Za-z0-9_\-]{1,120}""")))
