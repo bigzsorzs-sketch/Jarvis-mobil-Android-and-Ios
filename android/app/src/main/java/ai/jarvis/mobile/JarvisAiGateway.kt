@@ -7,6 +7,7 @@ import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URI
 import java.net.URL
+import java.io.ByteArrayOutputStream
 
 /**
  * Two AI connection modes:
@@ -22,6 +23,8 @@ internal object JarvisAiGateway {
     private const val KEY_URL = "ai_gateway_base_url"
     private const val KEY_TOKEN = "ai_gateway_access_token"
     private const val KEY_CONSENT = "ai_cloud_text_consent_v1"
+    private const val KEY_SPEECH_CONSENT = "ai_cloud_voice_consent_v1"
+    internal const val SPEECH_MODEL = "openai/gpt-4o-mini-tts-2025-12-15"
     private const val MAX_MESSAGE = 8000
     private const val OPENROUTER_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions"
     internal const val TEST_MODEL = "openai/gpt-4o-mini"
@@ -65,6 +68,14 @@ internal object JarvisAiGateway {
 
     fun cloudConsent(context: Context): Boolean =
         SecurePrefs(context).read(KEY_CONSENT, "false") == "true"
+
+    /** Separate permission: narration may contain private chat, contacts or health data. */
+    fun voiceConsent(context: Context): Boolean =
+        SecurePrefs(context).read(KEY_SPEECH_CONSENT, "false") == "true"
+
+    fun setVoiceConsent(context: Context, approved: Boolean) {
+        SecurePrefs(context).write(KEY_SPEECH_CONSENT, approved.toString())
+    }
 
     fun setCloudConsent(context: Context, approved: Boolean) {
         SecurePrefs(context).write(KEY_CONSENT, approved.toString())
@@ -199,7 +210,66 @@ internal object JarvisAiGateway {
         prefs.write(KEY_URL, "")
         prefs.write(KEY_MODE, DIRECT_TEST)
         prefs.write(KEY_CONSENT, "false")
+        prefs.write(KEY_SPEECH_CONSENT, "false")
     }
+
+    /**
+     * Generate real cloud audio, not Android TTS. Each byte goes directly from
+     * OpenRouter (or the authenticated private Jarvis gateway) to a temporary
+     * local MP3; never keep a voice recording or API key in the repository.
+     */
+    suspend fun speechBytes(context: Context, text: String, language: JarvisLanguage): ByteArray? =
+        withContext(Dispatchers.IO) {
+            if (!cloudConsent(context) || !voiceConsent(context) ||
+                !hasSavedConnection(context) || text.isBlank() || text.length > 1600)
+                return@withContext null
+            val prefs = SecurePrefs(context)
+            val direct = mode(context) == DIRECT_TEST
+            val token = prefs.read(if (direct) KEY_DIRECT else KEY_TOKEN, "")
+            val endpoint = if (direct) "https://openrouter.ai/api/v1/audio/speech"
+                else normalizedBaseUrl(baseUrl(context))?.plus("/v1/speech")
+                    ?: return@withContext null
+            var connection: HttpURLConnection? = null
+            try {
+                connection = URL(endpoint).openConnection() as HttpURLConnection
+                connection.requestMethod = "POST"
+                connection.instanceFollowRedirects = false
+                connection.connectTimeout = 10000
+                connection.readTimeout = 30000
+                connection.doOutput = true
+                connection.setRequestProperty("Authorization", "Bearer $token")
+                connection.setRequestProperty("Content-Type", "application/json; charset=utf-8")
+                connection.setRequestProperty("Accept", "audio/mpeg")
+                val payload = if (direct) JSONObject()
+                    .put("model", SPEECH_MODEL).put("input", text)
+                    .put("voice", "alloy").put("response_format", "mp3")
+                else JSONObject().put("text", text).put("language", language.tag)
+                connection.outputStream.use {
+                    it.write(payload.toString().toByteArray(Charsets.UTF_8))
+                }
+                if (connection.responseCode != 200 ||
+                    !connection.contentType.orEmpty().lowercase()
+                        .startsWith("audio/mpeg")) return@withContext null
+                val audio = ByteArrayOutputStream()
+                val limit = 3 * 1024 * 1024
+                connection.inputStream.use { body ->
+                    val buffer = ByteArray(8192)
+                    var size = 0
+                    while (true) {
+                        val read = body.read(buffer)
+                        if (read == -1) break
+                        size += read
+                        if (size > limit) return@withContext null
+                        audio.write(buffer, 0, read)
+                    }
+                }
+                audio.toByteArray().takeIf { it.size > 100 }
+            } catch (_: Exception) {
+                null
+            } finally {
+                connection?.disconnect()
+            }
+        }
 
     suspend fun ask(context: Context, message: String): String =
         askStructured(context, message).message
