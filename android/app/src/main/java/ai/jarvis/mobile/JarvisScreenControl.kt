@@ -44,7 +44,8 @@ internal object JarvisScreenControl {
         // Generic confirmation or next-step labels: the adjacent screen may be sensitive.
         "ok", "yes", "igen", "rendben", "continue", "next", "accept", "agree",
         "done", "finish", "save", "mentes", "folytatas", "tovabb", "elfogadom",
-        "kesz", "confirmar", "accepter", "weiter", "suivant", "continuer",
+        "kesz", "jo", "mentesek", "speichern", "enregistrer", "guardar",
+        "salva", "zapisz", "confirmar", "accepter", "weiter", "suivant", "continuer",
         "aceptar", "continuar", "siguiente", "accetta", "continua",
         "prosegui", "akceptuj", "dalej", "potwierdz", "zatwierdz",
         // Payments, messages, deletion, authentication, permissions, apps.
