@@ -82,7 +82,7 @@ class JarvisNavigationInstrumentedTest {
         val intent = context.launched
         assertNotNull(intent)
         assertEquals(Intent.ACTION_VIEW, intent?.action)
-        assertEquals("com.google.android.apps.maps", intent?.\u0060package\u0060)
+        assertEquals("com.google.android.apps.maps", intent?.`package`)
         assertEquals("google.navigation:q=Harrogate&mode=d", intent?.dataString)
     }
 
