@@ -1,5 +1,7 @@
 package ai.jarvis.mobile
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageInfo
