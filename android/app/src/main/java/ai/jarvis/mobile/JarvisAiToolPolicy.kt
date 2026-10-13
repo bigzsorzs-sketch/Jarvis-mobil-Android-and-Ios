@@ -33,6 +33,34 @@ internal object JarvisAiToolPolicy {
         return definitions
     }
 
+
+    /**
+     * Only explicit/current-information requests get the optional hosted web tool.
+     * Ordinary chat, AI connection tests, creative answers and commands must work
+     * with a text-only provider. This prevents a text-capable model from failing
+     * merely because its route does not support hosted web tools.
+     */
+    fun needsLiveWeb(question: String): Boolean {
+        val text = question.trim().lowercase(java.util.Locale.ROOT)
+        if (text.isBlank()) return false
+        if (selectedTools(question).length() > 0) return false
+        val markers = listOf(
+            "keress a neten", "keress rá", "keresd meg az interneten",
+            "interneten", "webes keres", "webkeres", "nézz utána",
+            "legfrissebb", "friss hírek", "mai hírek", "aktuális ár",
+            "aktuális információ", "jelenlegi árfolyam", "mostani ár",
+            "mai időjárás", "holnapi időjárás", "most mennyi",
+            "search the web", "look up online", "browse the web",
+            "latest news", "breaking news", "current price",
+            "today's weather", "today’s weather", "up-to-date",
+            "suche im internet", "aktuelle nachrichten", "precio actual",
+            "buscar en internet", "recherche sur internet",
+            "actualités récentes", "cerca sul web", "notizie aggiornate",
+            "szukaj w internecie", "najnowsze wiadomości"
+        )
+        return markers.any { it in text }
+    }
+
     fun providerPayload(question: String, languageTag: String = "hu-HU"): JSONObject {
         val payload = JSONObject()
             .put("model", JarvisAiGateway.TEST_MODEL)
@@ -55,9 +83,9 @@ internal object JarvisAiToolPolicy {
             // Phone tools never share a request with remote web results.
             payload.put("tools", tools)
             payload.put("tool_choice", "auto")
-        } else {
-            // OpenRouter executes this server tool. The model can search when needed,
-            // but cannot turn web text into Android commands. Keep costs bounded.
+        } else if (needsLiveWeb(question)) {
+            // Live search is opt-in per prompt; tool routing is not required
+            // for simple AI questions. Never mix web and Android device tools.
             payload.put("tools", JSONArray().put(JSONObject()
                 .put("type", "openrouter:web_search")
                 .put("parameters", JSONObject()
