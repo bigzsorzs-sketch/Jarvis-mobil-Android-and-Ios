@@ -206,7 +206,11 @@ const server = http.createServer(async (req, res) => {
             { role: "system", content: JARVIS_SYSTEM_PROMPT },
             { role: "user", content: message }
           ],
-          ...(toolsRequested ? { tools: JARVIS_TOOLS, tool_choice: "auto" } : {}),
+          ...(toolsRequested
+            ? { tools: JARVIS_TOOLS, tool_choice: "auto" }
+            : { tools: [{ type: "openrouter:web_search", parameters: {
+                  max_uses: 2, max_results: 4, max_total_results: 8
+                } }], tool_choice: "auto" }),
           stream: false,
           max_tokens: MAX_OUTPUT_TOKENS
         }),
