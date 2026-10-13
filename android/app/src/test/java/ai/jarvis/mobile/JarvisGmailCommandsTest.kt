@@ -31,7 +31,7 @@ class JarvisGmailCommandsTest {
         assertEquals("Várnai Ferenc", sendNamed.name)
         assertTrue(sendNamed.actuallySend)
         assertTrue(JarvisGmailCommands.parse("küldj emailt anna@example.com")!!.operation
-            is GmailOperation.Incomplete)
+            is GmailOperation.ResolveRecipient)
     }
 
     @Test fun canAskUnreadAndReadAloud() {
