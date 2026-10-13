@@ -147,64 +147,98 @@ internal object VoiceCalling {
             (fromUser.length > 4 && fromUser.endsWith("t") && fromUser.dropLast(1) == fromModel)
     }
 
-    /** Choose from ACTUAL phone contacts only. Prefer a full display-name
-     * match; duplicate Android rows for the same name/number are one contact
-     * choice. Distinct numbers or identical first names remain ambiguous.
+    /** Compare UK local mobile / 0-prefixed and +44 numbers as the same number.
+     * Never collapse different numbers for the same display name.
      */
-    internal fun selectPhonebookMatch(spoken: String, rows: List<Target>): Lookup {
-        val unique = rows.filter { it.label.isNotBlank() && it.number.isNotBlank() }
-            .distinctBy { target ->
-                normalize(target.label) + "|" +
-                    target.number.replace(Regex("""[\\s().-]"""), "")
-            }
-        val exact = unique.filter { matchesContactName(spoken, it.label) }
-        val chosen = exact.ifEmpty {
-            unique.filter { matchesFirstName(spoken, it.label) }
+    internal fun canonicalPhone(raw: String): String {
+        val compact = raw.filter { it.isDigit() || it == '+' }
+        return when {
+            compact.startsWith("0044") -> "+44" + compact.drop(4)
+            compact.startsWith("0") && compact.length in 10..11 ->
+                "+44" + compact.drop(1)
+            else -> compact
         }
-        return when (chosen.size) {
+    }
+
+    internal fun matchingPhonebookRows(spoken: String, rows: List<Target>): List<Target> {
+        val unique = rows.filter { it.label.isNotBlank() && it.number.isNotBlank() }
+            .distinctBy { normalize(it.label) + "|" + canonicalPhone(it.number) }
+        val exact = unique.filter { matchesContactName(spoken, it.label) }
+        return exact.ifEmpty { unique.filter { matchesFirstName(spoken, it.label) } }
+    }
+
+    internal fun selectPhonebookMatch(spoken: String, rows: List<Target>): Lookup {
+        val choices = matchingPhonebookRows(spoken, rows)
+        return when (choices.size) {
             0 -> Lookup.NotFound
-            1 -> Lookup.Found(chosen.single())
+            1 -> Lookup.Found(choices.single())
             else -> Lookup.Ambiguous
         }
     }
 
-    fun lookup(context: Context, spoken: String): Lookup {
-        // Only system phonebook contacts are used for name resolution.
-        val query = spoken.trim()
-        val cleanedNumber = query.replace(Regex("[\\s()\\-]"), "")
-        if (cleanedNumber.matches(Regex("\\+?[0-9]{5,16}"))) {
-            return Lookup.Found(Target(query, cleanedNumber))
-        }
+    /** System Contacts is the sole name source, no historic call log scan
+     * or personal cloud upload. Caller must obtain Android READ_CONTACTS.
+     */
+    fun candidates(context: Context, spoken: String): List<Target> {
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CONTACTS)
-            != PackageManager.PERMISSION_GRANTED) return Lookup.NoContactsAccess
-        val candidates = mutableListOf<Target>()
+            != PackageManager.PERMISSION_GRANTED) return emptyList()
+        val rows = mutableListOf<Target>()
         try {
-            // Android ContactsContract is the ONLY named-contact source.
-            // No Jarvis contact store and no OpenRouter/AI name resolution.
             context.contentResolver.query(
                 ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
-                arrayOf(
-                    ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME,
-                    ContactsContract.CommonDataKinds.Phone.NUMBER
-                ), null, null, ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME + " ASC"
+                arrayOf(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME,
+                    ContactsContract.CommonDataKinds.Phone.NUMBER),
+                null, null, ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME + " ASC"
             )?.use { cursor ->
                 val nameAt = cursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME)
                 val numberAt = cursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.NUMBER)
-                // Scan the entire phonebook, not just the first few matches.
-                // A full-name match may appear AFTER a first-name collision.
                 while (cursor.moveToNext()) {
                     val name = cursor.getString(nameAt).orEmpty()
-                    val phone = cursor.getString(numberAt).orEmpty()
-                    if (phone.isNotBlank() &&
-                        (matchesContactName(query, name) || matchesFirstName(query, name))) {
-                        candidates.add(Target(name, phone))
-                    }
+                    val number = cursor.getString(numberAt).orEmpty()
+                    if (number.isNotBlank() &&
+                        (matchesContactName(spoken, name) || matchesFirstName(spoken, name)))
+                        rows.add(Target(name, number))
                 }
             }
-        } catch (_: SecurityException) { return Lookup.NoContactsAccess }
-          catch (_: Exception) { return Lookup.NotFound }
-        return selectPhonebookMatch(query, candidates)
+        } catch (_: SecurityException) { return emptyList() }
+          catch (_: Exception) { return emptyList() }
+        return matchingPhonebookRows(spoken, rows)
     }
+
+    fun lookup(context: Context, spoken: String): Lookup {
+        val query = spoken.trim()
+        val cleaned = query.replace(Regex("[\\s()\\-]"), "")
+        if (cleaned.matches(Regex("\\+?[0-9]{5,16}"))) {
+            return Lookup.Found(Target(query, cleaned))
+        }
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CONTACTS)
+            != PackageManager.PERMISSION_GRANTED) return Lookup.NoContactsAccess
+        return selectPhonebookMatch(query, candidates(context, query))
+    }
+
+    /** A call selection like "első", "második" is valid ONLY after the
+     * application has explicitly displayed numbered matches.
+     */
+    fun selectedChoice(input: String, choices: List<Target>): Target? {
+        val n = normalize(input.trim()).trimEnd('.', '!', '?')
+        val idx = when (n) {
+            "1", "1 es", "elso", "az elso", "elsot", "az elsot", "one", "first" -> 0
+            "2", "2 es", "masodik", "a masodik", "masodikat", "a masodikat", "two", "second" -> 1
+            "3", "3 as", "harmadik", "a harmadik", "harmadikat", "a harmadikat", "three", "third" -> 2
+            else -> return null
+        }
+        return choices.getOrNull(idx)
+    }
+
+    /** Other commands must interrupt a stale call flow, never become
+     * phantom contacts or receive "call timed out" as their reply.
+     */
+    fun isOtherCommand(text: String): Boolean =
+        JarvisInstalledApps.requestedLabel(text) != null ||
+        VoiceNavigation.destinationFrom(text) != null ||
+        JarvisPhoneActions.requestedAction(text) != null ||
+        JarvisUpdateVoice.isRequest(text) ||
+        JarvisMessageIntent.parse(text) != null
 
     fun canCall(context: Context): Boolean =
         ContextCompat.checkSelfPermission(context, Manifest.permission.CALL_PHONE) ==
