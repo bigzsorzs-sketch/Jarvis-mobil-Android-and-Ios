@@ -271,16 +271,12 @@ fun JarvisApp(context: Context) {
         commandRevision += 1
         val requestRevision = commandRevision
         val now = android.os.SystemClock.elapsedRealtime()
-        // An unrelated explicit Android command interrupts any previous call.
-        // Launching Messenger/WhatsApp must NEVER consume a stale phone target.
-        if (VoiceCalling.isOtherCommand(command)) {
-            clearCallFlow()
-            val request = JarvisInstalledApps.requestedLabel(command)
-            if (request != null) {
-                addHistory(command to JarvisInstalledApps.openRequested(context, command))
-                return
-            }
-        }
+        // Every independent typed/voice command preempts stale call flows.
+        // Do NOT execute apps here: normal routing below prioritizes internal
+        // Jarvis pages, Android intents and installed apps in that order.
+        if (JarvisCommandContext.independentRequest(command)) clearCallFlow()
+        if (pendingCall != null && now > pendingCallUntilMs) clearCallFlow()
+        if (awaitingCallTarget != null && now > awaitingCallTargetUntilMs) clearCallFlow()
         // BEFORE invalidating earlier approvals, consume explicit follow-ups
         // on the original user-initiated call. A bare "igen, hívd" is allowed
         // only for a fresh, unambiguous, resolved telephone number.
@@ -343,9 +339,13 @@ fun JarvisApp(context: Context) {
                 addHistory(command to "Ezt a számot hívjam: $label, ${supplied.number}? Mondd: igen, hívd – vagy: nem.")
                 return
             }
-            val candidate = VoiceCalling.extractRequest(command) ?: VoiceCalling.followUpTarget(command)
+            val candidate = VoiceCalling.extractRequest(command)
+                ?: JarvisCommandContext.possibleContactReply(command)
             if (candidate == null || VoiceCalling.callConfirmationYes(command)) {
-                addHistory(command to "Melyik pontos névjegyet vagy telefonszámot hívjam? Hívás nem indult.")
+                // A conversational turn isn't a contact. Do not keep treating
+                // arbitrary new questions as replies to an old call request.
+                clearCallFlow()
+                addHistory(command to "A korábbi híváskérést megszakítottam. Új híváshoz mondd: hívd fel, és a nevet.")
                 return
             }
             clearCallFlow()
