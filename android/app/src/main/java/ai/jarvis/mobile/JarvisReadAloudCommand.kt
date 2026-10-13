@@ -4,9 +4,8 @@ import java.text.Normalizer
 import java.util.Locale
 
 /**
- * Read-aloud intent is handled by Android, not by a remote model pretending to
- * control audio. Requests without supplied text ask the model for the actual
- * content, then the phone narrates that content itself.
+ * Read-aloud requests use consent-gated AI cloud MP3 speech; Android owns
+ * playback and stop. Requests without supplied text ask the AI for the content.
  */
 internal sealed class ReadAloudRequest {
     data object LastAnswer : ReadAloudRequest()
@@ -90,7 +89,7 @@ internal object JarvisReadAloudCommand {
 
 /**
  * Splits at whitespace when available, without silently dropping the tail.
- * Keep each utterance below the Android TTS engine's 4000-character limit.
+ * Keep chunks reasonably small for cloud speech API processing.
  */
 internal object JarvisSpeechChunks {
     fun split(text: String, maxChars: Int = 2600): List<String> {
