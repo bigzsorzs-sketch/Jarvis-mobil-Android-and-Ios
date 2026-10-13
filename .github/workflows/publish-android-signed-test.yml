@@ -1,10 +1,5 @@
 name: Publish signed Jarvis Android APK (no AI server)
 on:
-  # One-time explicit publish request. This workflow-only commit leaves tested Android code unchanged.
-  push:
-    branches: [main]
-    paths:
-      - ".github/workflows/publish-android-signed-test.yml"
   workflow_dispatch:
     inputs:
       confirmation:
@@ -20,9 +15,6 @@ concurrency:
 jobs:
   signed-test-apk:
     if: >-
-      (github.event_name == 'push' &&
-       github.ref == 'refs/heads/main' &&
-       github.repository == 'bigzsorzs-sketch/Jarvis-mobil-Android-and-Ios') ||
       (github.event_name == 'workflow_dispatch' &&
        github.ref == 'refs/heads/main' &&
        inputs.confirmation == 'SIGNED_TEST_APPROVED') ||
@@ -36,11 +28,10 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
-      - name: Verify exact main commit and same-commit emulator before signing
+      - name: Verify main commit and matching tested Android source before signing
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SOURCE_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
-          RUN_KIND: ${{ github.event_name }}
         shell: bash
         run: |
           set -euo pipefail
@@ -52,15 +43,16 @@ jobs:
             exit 1
           fi
           TESTED_SHA="$SOURCE_SHA"
-          if [ "$RUN_KIND" = "push" ]; then
-            # The only untested difference must be this release workflow file.
-            # The actual Android code was verified on the exact parent commit.
-            TESTED_SHA="d47f0e1d644d51d501fd5a382210d3fe91790946"
-            # Allow only workflow-script corrections after the known green app commit.
-            comparison="$(gh api "repos/${{ github.repository }}/compare/$TESTED_SHA...$SOURCE_SHA")"
+          # Manual dispatch can use the prior green Android commit only when
+          # every intervening change affects THIS release workflow alone.
+          baseline="d47f0e1d644d51d501fd5a382210d3fe91790946"
+          if [ "$SOURCE_SHA" != "$baseline" ]; then
+            comparison="$(gh api "repos/${{ github.repository }}/compare/$baseline...$SOURCE_SHA")"
             status="$(printf '%s' "$comparison" | jq -r '.status')"
             changed="$(printf '%s' "$comparison" | jq -r '[.files[].filename] | join(",")')"
-            test "$status" = "ahead" && test "$changed" = ".github/workflows/publish-android-signed-test.yml" || { echo "Non-workflow files changed or source history invalid"; exit 1; }
+            if [ "$status" = "ahead" ] && [ "$changed" = ".github/workflows/publish-android-signed-test.yml" ]; then
+              TESTED_SHA="$baseline"
+            fi
           fi
           # Require completed, successful main-branch build AND emulator tests
           # for the exact Android source being signed. No blind green claim.
