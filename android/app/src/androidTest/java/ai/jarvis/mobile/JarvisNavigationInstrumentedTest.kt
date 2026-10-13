@@ -86,6 +86,34 @@ class JarvisNavigationInstrumentedTest {
         assertEquals("google.navigation:q=Harrogate&mode=d", intent?.dataString)
     }
 
+    @Test fun typedCommandExecutorPassesCitiesToAndroidNavigationInsteadOfEmptyMap() {
+        val context = object : ContextWrapper(composeRule.activity) {
+            var launched: Intent? = null
+            override fun startActivity(intent: Intent) { launched = intent }
+        }
+        val commands = listOf(
+            "navigàlj Harrogate be" to "Harrogate",
+            "Navigálj Leeds -be" to "Leeds",
+            "Állítsd be a térképet Londonba" to "London",
+            "Állítsd be a térképet Liverpoolba" to "Liverpool",
+            "Állítsd be a térképet Manchester -be" to "Manchester",
+            "Nyisd meg a térképet és navigálj Yorkba" to "York"
+        )
+        for ((command, city) in commands) {
+            context.launched = null
+            var openedPage: String? = null
+            val answer = JarvisCommandExecutor.run(
+                context, command,
+                { openedPage = it },
+                { _ -> throw AssertionError("Unexpected call request") }
+            )
+            assertEquals(command, null, openedPage)
+            assertEquals(command, "com.google.android.apps.maps", context.launched?.`package`)
+            assertEquals(command, "google.navigation:q=$city&mode=d", context.launched?.dataString)
+            org.junit.Assert.assertTrue(command, answer.contains("navigációindítási"))
+        }
+    }
+
     @Test fun removedFriendsAliasPageIsAbsentFromDrawer() {
         finishOnboarding()
         composeRule.onNodeWithTag("jarvis-home-drawer-trigger").performClick()
