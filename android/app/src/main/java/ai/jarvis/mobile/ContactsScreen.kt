@@ -35,7 +35,7 @@ private fun readPhoneContacts(context: Context): List<PhoneContact> {
         )?.use { cursor ->
             val nameIndex = cursor.getColumnIndexOrThrow(columns[0])
             val numberIndex = cursor.getColumnIndexOrThrow(columns[1])
-            while (cursor.moveToNext() && result.size < 80) {
+            while (cursor.moveToNext()) {
                 val number = cursor.getString(numberIndex).orEmpty()
                 if (number.isNotBlank()) {
                     result.add(PhoneContact(cursor.getString(nameIndex).orEmpty(), number))
@@ -103,6 +103,6 @@ internal fun ContactsScreen(context: Context, onPermissions: () -> Unit) {
             Spacer(Modifier.height(8.dp))
         }
     if (result.isNotBlank()) Text(result, color = Color(0xFF60D5E5))
-    Text("Legfeljebb 80 névjegyet jelenítünk meg a prototípusban.",
+    Text("A keresés a telefon teljes névjegyzékében történik. Egyszerre 30 találat jelenik meg.",
         color = Color(0xFFB5C3D8))
 }
