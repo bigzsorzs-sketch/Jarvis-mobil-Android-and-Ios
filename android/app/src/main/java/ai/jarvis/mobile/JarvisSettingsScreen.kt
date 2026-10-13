@@ -61,7 +61,7 @@ internal fun JarvisSettingsRow(icon: String, title: String, detail: String, onCl
 @Composable
 internal fun JarvisSettingsScreen(
     context: Context, isDark: Boolean, onToggleTheme: () -> Unit, onVoice: () -> Unit,
-    onAi: () -> Unit, language: JarvisLanguage
+    onAi: () -> Unit, onMore: () -> Unit, language: JarvisLanguage
 ) {
     SettingsSectionTitle("Általános")
     JarvisSettingsGroup {
@@ -70,6 +70,26 @@ internal fun JarvisSettingsScreen(
         SettingsDivider()
         JarvisSettingsRow("≋", "Hangvezérlés",
             if (HandsFreeStatus.running) "Aktív" else "Kikapcsolva", onVoice)
+        SettingsDivider()
+        val placesTitle = when (language) {
+            JarvisLanguage.HUNGARIAN -> "Mentett helyek és otthoni cím"
+            JarvisLanguage.ENGLISH -> "Saved places and home address"
+            JarvisLanguage.GERMAN -> "Gespeicherte Orte und Zuhause"
+            JarvisLanguage.FRENCH -> "Lieux enregistrés et domicile"
+            JarvisLanguage.SPANISH -> "Lugares guardados y domicilio"
+            JarvisLanguage.ITALIAN -> "Luoghi salvati e indirizzo di casa"
+            JarvisLanguage.POLISH -> "Zapisane miejsca i adres domu"
+        }
+        val placesHelp = when (language) {
+            JarvisLanguage.HUNGARIAN -> "Otthoni cím, Google Takeout-importálás"
+            JarvisLanguage.ENGLISH -> "Home address, Google Takeout import"
+            JarvisLanguage.GERMAN -> "Heimadresse, Google Takeout-Import"
+            JarvisLanguage.FRENCH -> "Adresse personnelle, import Google Takeout"
+            JarvisLanguage.SPANISH -> "Dirección de casa, importar Google Takeout"
+            JarvisLanguage.ITALIAN -> "Indirizzo di casa, importazione Google Takeout"
+            JarvisLanguage.POLISH -> "Adres domu, import Google Takeout"
+        }
+        JarvisSettingsRow("➤", placesTitle, placesHelp, onMore)
     }
     Spacer(Modifier.height(16.dp))
     SettingsSectionTitle("AI-kapcsolat")
