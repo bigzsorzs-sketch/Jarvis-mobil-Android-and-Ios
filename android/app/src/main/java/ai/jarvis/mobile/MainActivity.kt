@@ -266,6 +266,7 @@ fun JarvisApp(context: Context) {
                 }
             }
             is GmailOperation.Incomplete -> outcome.status
+            GmailOperation.Check -> outcome.status
             else -> if (JarvisGmailFeedback.needsAttention(outcome.status))
                 outcome.status else null
         }
