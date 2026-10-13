@@ -25,6 +25,9 @@ internal object JarvisAiGateway {
     private const val KEY_CONSENT = "ai_cloud_text_consent_v1"
     private const val KEY_SPEECH_CONSENT = "ai_cloud_voice_consent_v1"
     internal const val SPEECH_MODEL = "openai/gpt-4o-mini-tts-2025-12-15"
+    // No credentials or provider body are ever written to this diagnostic.
+    @Volatile internal var lastSpeechError: String = ""
+        private set
     private const val MAX_MESSAGE = 8000
     private const val OPENROUTER_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions"
     internal const val TEST_MODEL = "openai/gpt-5.2"
@@ -220,9 +223,15 @@ internal object JarvisAiGateway {
      */
     suspend fun speechBytes(context: Context, text: String, language: JarvisLanguage): ByteArray? =
         withContext(Dispatchers.IO) {
-            if (!cloudConsent(context) || !voiceConsent(context) ||
-                !hasSavedConnection(context) || text.isBlank() || text.length > 1600)
+            lastSpeechError = ""
+            if (!cloudConsent(context) || !voiceConsent(context) || !hasSavedConnection(context)) {
+                lastSpeechError = "Engedélyezd az AI-szöveget és a külön AI-hang hozzájárulást a Beállításokban."
                 return@withContext null
+            }
+            if (text.isBlank() || text.length > 1600) {
+                lastSpeechError = "A felolvasandó szöveg üres vagy túl hosszú."
+                return@withContext null
+            }
             val prefs = SecurePrefs(context)
             val direct = mode(context) == DIRECT_TEST
             val token = prefs.read(if (direct) KEY_DIRECT else KEY_TOKEN, "")
@@ -247,9 +256,23 @@ internal object JarvisAiGateway {
                 connection.outputStream.use {
                     it.write(payload.toString().toByteArray(Charsets.UTF_8))
                 }
-                if (connection.responseCode != 200 ||
-                    !connection.contentType.orEmpty().lowercase()
-                        .startsWith("audio/mpeg")) return@withContext null
+                val responseStatus = connection.responseCode
+                if (responseStatus != 200) {
+                    lastSpeechError = when (responseStatus) {
+                        400 -> "Az OpenRouter nem fogadta el a hangkérést (HTTP 400)."
+                        401 -> "Az OpenRouter nem fogadta el a hanghoz az API-kulcsot (HTTP 401)."
+                        402 -> "A hangkérés keret- vagy költési limitbe ütközött (HTTP 402)."
+                        403 -> "A hangmodellhez nincs hozzáférés vagy szolgáltatói engedély (HTTP 403)."
+                        404 -> "Az OpenRouter nem talált elérhető hangmodellt/végpontot (HTTP 404)."
+                        429 -> "A hangszolgáltató sebességkorlátot jelzett (HTTP 429)."
+                        else -> "A felhős hangszolgáltató hibát jelzett (HTTP $responseStatus)."
+                    }
+                    return@withContext null
+                }
+                if (!connection.contentType.orEmpty().lowercase().startsWith("audio/mpeg")) {
+                    lastSpeechError = "A hangszolgáltató nem MP3-hangot küldött."
+                    return@withContext null
+                }
                 val audio = ByteArrayOutputStream()
                 val limit = 3 * 1024 * 1024
                 connection.inputStream.use { body ->
@@ -263,8 +286,12 @@ internal object JarvisAiGateway {
                         audio.write(buffer, 0, read)
                     }
                 }
-                audio.toByteArray().takeIf { it.size > 100 }
+                audio.toByteArray().takeIf { it.size > 100 } ?: run {
+                    lastSpeechError = "A felhős hangszolgáltató túl rövid vagy üres hangfájlt küldött."
+                    null
+                }
             } catch (_: Exception) {
+                lastSpeechError = "Hálózati hiba történt a felhős hang letöltésekor."
                 null
             } finally {
                 connection?.disconnect()
