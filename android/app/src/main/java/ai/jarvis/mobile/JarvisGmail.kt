@@ -44,7 +44,7 @@ internal object JarvisGmailCommands {
             Regex("""(?iu)^(?:(?:hey|szia)\s+)?jarvis[\s,:!]*"""), "").trim()
         val n = normal(command)
         if (command.isBlank() || command.length > 6000) return null
-        val mentionsMail = Regex("""\b(email|e mail|gmail|mail|level|levelek|levelet|levelem|leveleim|levelre|leveled|level[eé]re)\b""")
+        val mentionsMail = Regex("""\b(emails?|e mail|gmail|mail|level|levelek|levelet|levelem|leveleim|levelre|leveled|level[eé]re)\b""")
             .containsMatchIn(n) || listOf("emailt", "emailem", "emailje", "emailre", "emailja", "emailjeim", "gmail").any { it in n }
         if (!mentionsMail) return null
         val operation: GmailOperation = when {
