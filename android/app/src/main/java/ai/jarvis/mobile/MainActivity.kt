@@ -203,6 +203,23 @@ fun JarvisApp(context: Context) {
         conversation.add(turn)
         saveChatTurn(turn)
     }
+    var lastAmazonSearch by remember { mutableStateOf<AmazonAction.Search?>(null) }
+    fun executeAmazon(action: AmazonAction): String = when (action) {
+        is AmazonAction.Search -> {
+            lastAmazonSearch = action
+            JarvisAmazon.open(context, action)
+        }
+        is AmazonAction.ChangeToBusiness -> {
+            val earlier = lastAmazonSearch
+            if (earlier == null) "Melyik terméket keressem az Amazon Businessben?"
+            else {
+                val next = earlier.copy(business = true)
+                lastAmazonSearch = next
+                JarvisAmazon.open(context, next)
+            }
+        }
+        else -> JarvisAmazon.open(context, action)
+    }
     var gmailStatus by remember { mutableStateOf("") }
     var gmailReadText by remember { mutableStateOf("") }
     val gmailAction = rememberJarvisGmail { request, outcome ->
@@ -637,6 +654,14 @@ fun JarvisApp(context: Context) {
             addHistory(command to openTool(route, asPage = true))
             return
         }
+        // Resolve internal Jarvis page requests BEFORE Amazon's external
+        // marketplace handoff. "Open the Amazon page" must stay in Jarvis;
+        // otherwise UI/voice navigation can send the Activity to background.
+        // An actual product search still opens Amazon's retailer results.
+        JarvisAmazon.parse(command)?.let { action ->
+            addHistory(command to executeAmazon(action))
+            return
+        }
         // Private, on-device data query: never send a glucose request to the LLM.
         if (JarvisGlucoseVoice.isQuery(command)) {
             drawerScope.launch {
@@ -1060,6 +1085,7 @@ fun JarvisApp(context: Context) {
                                 }
                                 "Számlák" -> JarvisBillingScreen(context, billingRepo, language)
                                 "Email" -> JarvisGmailScreen(language, gmailStatus, gmailReadText, gmailAction)
+                                "Amazon" -> JarvisAmazonScreen(language, ::executeAmazon)
                                 "Jegyzetek" -> LocalNotesScreen(notes) {
                                     securePrefs.write("notes", JSONArray(notes).toString())
                                 }
