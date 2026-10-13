@@ -141,9 +141,9 @@ internal fun JarvisGlucoseDashboard(
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(7.dp)) {
             listOf("overview", "log", "reports", "settings", "nfc").forEach { t ->
-                FilterChip(selected = tab == t, onClick = { tab = t },
+                ControlledFilterChip(selected = tab == t, onClick = { tab = t },
                     modifier = Modifier.testTag("jarvis-glucose-tab-$t"),
-                    label = { GText(t, color = JarvisPalette.mainText) })
+                    label = { GText(t, color = JarvisPalette.mainText) }, commandLabel = JarvisGlucoseStrings.text(t, LocalJarvisLanguage.current))
             }
         }
         when (tab) {
@@ -168,7 +168,7 @@ internal fun JarvisGlucoseDashboard(
                     }
                     GText("local", color = glucoseMuted, size = 12)
                     if (JarvisHealthGlucose.supported() && JarvisHealthGlucose.isAuthorized(context)) {
-                        OutlinedButton(onClick = { checkHealth() }, enabled = !loadingHealth) {
+                        ControlledOutlinedButton(onClick = { checkHealth() }, enabled = !loadingHealth, commandLabel = JarvisGlucoseStrings.text("refresh", LocalJarvisLanguage.current)) {
                             GText("refresh", color = JarvisPalette.mainText)
                         }
                     }
@@ -187,7 +187,7 @@ internal fun JarvisGlucoseDashboard(
                     GText("daily", color = JarvisPalette.mainText, weight = FontWeight.Bold)
                     GlucoseLineGraph(points.takeLast(50), low, high)
                 }
-                OutlinedButton(onClick = { csvPicker.launch(arrayOf("text/*", "text/csv", "application/octet-stream")) }) {
+                ControlledOutlinedButton(onClick = { csvPicker.launch(arrayOf("text/*", "text/csv", "application/octet-stream")) }, commandLabel = JarvisGlucoseStrings.text("import", LocalJarvisLanguage.current)) {
                     GText("import", color = JarvisPalette.mainText)
                 }
                 if (importStatus.isNotBlank()) Text(importStatus, color = JarvisPalette.mainText)
@@ -219,7 +219,7 @@ internal fun JarvisGlucoseDashboard(
                                     else -> "manual"
                                 }, color = glucoseMuted, size = 12)
                             }
-                            TextButton(onClick = { readings.remove(r); onPersist() }) {
+                            ControlledTextButton(onClick = { readings.remove(r); onPersist() }, commandLabel = JarvisGlucoseStrings.text("delete", LocalJarvisLanguage.current)) {
                                 GText("delete", color = JarvisPalette.accent)
                             }
                         }
@@ -230,15 +230,15 @@ internal fun JarvisGlucoseDashboard(
                 Row(Modifier.horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     listOf(7, 14, 30, 90).forEach { n ->
-                        FilterChip(selected = days == n, onClick = { days = n },
-                            label = { GText("days$n", color = JarvisPalette.mainText) })
+                        ControlledFilterChip(selected = days == n, onClick = { days = n },
+                            label = { GText("days$n", color = JarvisPalette.mainText) }, commandLabel = JarvisGlucoseStrings.text("days$n", LocalJarvisLanguage.current))
                     }
                 }
                 Row(Modifier.horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                     listOf("patterns", "tir", "low", "average", "daily", "gmi", "usage").forEach { key ->
-                        FilterChip(selected = report == key, onClick = { report = key },
-                            label = { GText(key, color = JarvisPalette.mainText) })
+                        ControlledFilterChip(selected = report == key, onClick = { report = key },
+                            label = { GText(key, color = JarvisPalette.mainText) }, commandLabel = JarvisGlucoseStrings.text(key, LocalJarvisLanguage.current))
                     }
                 }
                 GlucoseCard {
@@ -297,24 +297,24 @@ internal fun JarvisGlucoseDashboard(
                     GText("unit", color = JarvisPalette.mainText, weight = FontWeight.Bold)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         listOf(false, true).forEach { choice ->
-                            FilterChip(selected = mgDl == choice, onClick = {
+                            ControlledFilterChip(selected = mgDl == choice, onClick = {
                                 mgDl = choice
                                 prefs.edit().putBoolean("mgdl", choice).apply()
-                            }, label = { Text(if (choice) "mg/dL" else "mmol/L") })
+                            }, label = { Text(if (choice) "mg/dL" else "mmol/L") }, commandLabel = if (choice) "mg/dL" else "mmol/L")
                         }
                     }
                     GText("target", color = JarvisPalette.mainText, weight = FontWeight.Bold)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedTextField(value = targetLow, onValueChange = {
+                        ControlledOutlinedTextField(value = targetLow, onValueChange = {
                             targetLow = it.take(6)
                             prefs.edit().putString("target_low", targetLow).apply()
                         }, modifier = Modifier.weight(1f), label = { Text("Min mmol/L") },
-                            singleLine = true)
-                        OutlinedTextField(value = targetHigh, onValueChange = {
+                            singleLine = true, commandLabel = "Min mmol/L")
+                        ControlledOutlinedTextField(value = targetHigh, onValueChange = {
                             targetHigh = it.take(6)
                             prefs.edit().putString("target_high", targetHigh).apply()
                         }, modifier = Modifier.weight(1f), label = { Text("Max mmol/L") },
-                            singleLine = true)
+                            singleLine = true, commandLabel = "Max mmol/L")
                     }
                     GText("carbs", color = glucoseMuted)
                     GText("scanSounds", color = glucoseMuted)
@@ -323,7 +323,7 @@ internal fun JarvisGlucoseDashboard(
                 GlucoseCard {
                     GText("import", color = JarvisPalette.mainText, weight = FontWeight.Bold)
                     GText("importNote", color = glucoseMuted, size = 12)
-                    Button(onClick = { csvPicker.launch(arrayOf("text/*", "text/csv", "application/octet-stream")) }) {
+                    ControlledButton(onClick = { csvPicker.launch(arrayOf("text/*", "text/csv", "application/octet-stream")) }, commandLabel = JarvisGlucoseStrings.text("import", LocalJarvisLanguage.current)) {
                         GText("import", color = Color.White)
                     }
                     if (importStatus.isNotEmpty()) Text(importStatus, color = JarvisPalette.mainText)
@@ -332,11 +332,11 @@ internal fun JarvisGlucoseDashboard(
                     GText("health", color = JarvisPalette.mainText, weight = FontWeight.Bold)
                     GText("healthHint", color = glucoseMuted, size = 12)
                     if (JarvisHealthGlucose.supported() && !JarvisHealthGlucose.isAuthorized(context)) {
-                        OutlinedButton(onClick = {
+                        ControlledOutlinedButton(onClick = {
                             healthPermission.launch(JarvisHealthGlucose.READ_PERMISSION)
-                        }) { GText("healthPermission", color = JarvisPalette.mainText) }
+                        }, commandLabel = JarvisGlucoseStrings.text("healthPermission", LocalJarvisLanguage.current)) { GText("healthPermission", color = JarvisPalette.mainText) }
                     } else if (JarvisHealthGlucose.supported()) {
-                        OutlinedButton(onClick = { checkHealth() }) {
+                        ControlledOutlinedButton(onClick = { checkHealth() }, commandLabel = JarvisGlucoseStrings.text("refresh", LocalJarvisLanguage.current)) {
                             GText("refresh", color = JarvisPalette.mainText)
                         }
                     }
@@ -350,14 +350,14 @@ internal fun JarvisGlucoseDashboard(
                         else if (JarvisLibreNfc.isEnabled(context)) "nfcReady" else "nfcOff"
                     GText(statusKey, color = JarvisPalette.mainText)
                     if (JarvisLibreNfc.hasNfc(context)) {
-                        OutlinedButton(onClick = { JarvisLibreNfc.openNfcSettings(context) }) {
+                        ControlledOutlinedButton(onClick = { JarvisLibreNfc.openNfcSettings(context) }, commandLabel = JarvisGlucoseStrings.text("nfcSettings", LocalJarvisLanguage.current)) {
                             GText("nfcSettings", color = JarvisPalette.mainText)
                         }
                     }
-                    Button(
+                    ControlledButton(
                         onClick = { JarvisLibreNfc.openOfficialApp(context) },
                         modifier = Modifier.testTag("jarvis-glucose-open-librelink")
-                    ) {
+                    , commandLabel = JarvisGlucoseStrings.text("libreLink", LocalJarvisLanguage.current)) {
                         GText("libreLink", color = Color.White)
                     }
                     GText("nfcGuide", color = glucoseMuted, size = 13)
@@ -373,12 +373,12 @@ private fun ReadingEntry(input: String, onInput: (String) -> Unit, mgDl: Boolean
     error: String, onError: (String) -> Unit, onSave: () -> Unit) {
     GlucoseCard {
         GText("new", color = JarvisPalette.mainText, weight = FontWeight.Bold)
-        OutlinedTextField(input, onValueChange = { onInput(it.take(12)) },
+        ControlledOutlinedTextField(input, onValueChange = { onInput(it.take(12)) },
             label = { GText("value") }, modifier = Modifier.fillMaxWidth(),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
             trailingIcon = { Text(if (mgDl) "mg/dL" else "mmol/L", fontSize = 12.sp) },
-            singleLine = true)
-        Button(onClick = onSave) { GText("save", color = Color.White) }
+            singleLine = true, commandLabel = JarvisGlucoseStrings.text("value", LocalJarvisLanguage.current))
+        ControlledButton(onClick = onSave, commandLabel = JarvisGlucoseStrings.text("save", LocalJarvisLanguage.current)) { GText("save", color = Color.White) }
         if (error.isNotEmpty()) Text(error, color = Color(0xFFFFB8B8))
     }
 }

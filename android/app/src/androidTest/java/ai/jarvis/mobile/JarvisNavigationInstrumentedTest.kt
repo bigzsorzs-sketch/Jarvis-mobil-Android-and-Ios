@@ -1,11 +1,13 @@
 package ai.jarvis.mobile
 
+import androidx.compose.ui.test.onAllNodes
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performImeAction
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -37,7 +39,11 @@ class JarvisNavigationInstrumentedTest {
             composeRule.onNodeWithTag("jarvis-home-input").performTextClearance()
             composeRule.onNodeWithTag("jarvis-home-input")
                 .performTextInput("Nyisd meg a " + tool.name + " oldalt")
-            composeRule.onNodeWithTag("jarvis-home-send").performClick()
+            composeRule.onNodeWithTag("jarvis-home-input").performImeAction()
+            composeRule.waitUntil(5_000) {
+                composeRule.onAllNodes(androidx.compose.ui.test.hasTestTag("jarvis-subpage-header"))
+                    .fetchSemanticsNodes().isNotEmpty()
+            }
             composeRule.onNodeWithTag("jarvis-subpage-header").assert(hasText(displayedRoute(tool.route)))
             composeRule.onNodeWithTag("jarvis-subpage-input").assertDoesNotExist()
             composeRule.onNodeWithTag("jarvis-subpage-send").assertDoesNotExist()

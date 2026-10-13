@@ -97,25 +97,25 @@ internal fun JarvisUpdatePanel(context: Context, language: JarvisLanguage) {
             androidx.compose.material3.Text(
                 t("explanation"), color = JarvisPalette.subtleText,
                 style = MaterialTheme.typography.bodySmall)
-            Button(
+            ControlledButton(
                 enabled = !busy, onClick = { check() },
                 modifier = Modifier.fillMaxWidth().testTag("jarvis-update-check")
-            ) {
+            , commandLabel = t("check")) {
                 androidx.compose.material3.Text(t("check"))
             }
             if (candidate != null) {
                 androidx.compose.material3.Text(candidate!!.tag,
                     color = JarvisPalette.mainText)
-                Button(
+                ControlledButton(
                     enabled = !busy, onClick = { install(candidate!!) },
                     modifier = Modifier.fillMaxWidth().testTag("jarvis-update-install")
-                ) { androidx.compose.material3.Text(t("download")) }
+                , commandLabel = t("download")) { androidx.compose.material3.Text(t("download")) }
             }
             if (verifiedFile?.isFile == true && !JarvisAppUpdater.canInstall(context)) {
-                OutlinedButton(
+                ControlledOutlinedButton(
                     onClick = { JarvisAppUpdater.requestInstallerPermission(context) },
                     modifier = Modifier.fillMaxWidth().testTag("jarvis-update-permission")
-                ) { androidx.compose.material3.Text(t("permissionButton")) }
+                , commandLabel = t("permissionButton")) { androidx.compose.material3.Text(t("permissionButton")) }
             }
             if (busy) CircularProgressIndicator(Modifier.size(24.dp))
             if (status.isNotBlank()) androidx.compose.material3.Text(status,

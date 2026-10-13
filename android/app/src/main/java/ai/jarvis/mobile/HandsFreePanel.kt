@@ -71,26 +71,30 @@ internal fun HandsFreePanel(context: Context) {
                     Text("Alapértelmezés: kikapcsolva. Mások is hallhatják a felolvasást.",
                         color = JarvisPalette.subtleText, style = MaterialTheme.typography.bodySmall)
                 }
+                RegisterJarvisControl("Privát üzenetek felolvasása lezárt képernyőn", click = {
+                    allowWhileLocked = !allowWhileLocked
+                    SecurePrefs(context).write("voice_private_on_lock", allowWhileLocked.toString())
+                })
                 Switch(checked = allowWhileLocked, onCheckedChange = { enabled ->
                     SecurePrefs(context).write("voice_private_on_lock", enabled.toString())
                     allowWhileLocked = enabled
                 })
             }
             if (!running) {
-                Button(onClick = {
+                ControlledButton(onClick = {
                     val wanted = mutableListOf(Manifest.permission.RECORD_AUDIO)
                     if (Build.VERSION.SDK_INT >= 33) wanted.add(Manifest.permission.POST_NOTIFICATIONS)
                     val missing = wanted.filter {
                         ContextCompat.checkSelfPermission(context, it) != PackageManager.PERMISSION_GRANTED
                     }
                     if (missing.isNotEmpty()) request.launch(missing.toTypedArray()) else start()
-                }) { Text("Hangfigyelés indítása") }
+                }, commandLabel = "Hangfigyelés indítása") { Text("Hangfigyelés indítása") }
             } else {
-                Button(onClick = {
+                ControlledButton(onClick = {
                     context.startService(
                         Intent(context, HandsFreeService::class.java).setAction(HandsFreeService.STOP)
                     )
-                }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFB84444))) {
+                }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFB84444)), commandLabel = "Hangfigyelés leállítása") {
                     Text("Hangfigyelés leállítása")
                 }
             }

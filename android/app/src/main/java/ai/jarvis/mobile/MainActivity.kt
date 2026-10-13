@@ -116,6 +116,20 @@ fun JarvisApp(context: Context) {
     var page by remember { mutableStateOf(
         if (onboardingPrefs.getBoolean("permissions_reviewed", false)) "Főoldal" else "Engedélyek"
     ) }
+    val controls = remember(page) { JarvisControlRegistry() }
+    val subpageScroll = remember(page) { androidx.compose.foundation.ScrollState(0) }
+    var commandPanel by remember { mutableStateOf(false) }
+    var lastCommandReply by remember { mutableStateOf("") }
+    // One active response sink for both synchronous and asynchronous execution.
+    var voiceReply by remember { mutableStateOf<Pair<String, (String) -> Unit>?>(null) }
+    fun completeCommand(request: String, answer: String) {
+        lastCommandReply = answer
+        val reply = voiceReply
+        if (reply?.first == request) {
+            voiceReply = null
+            reply.second(answer)
+        }
+    }
     val chatStore = remember(context) { JarvisChatStore(context) }
     val conversation = remember(chatStore) { mutableStateListOf<Pair<String, String>>() }
     var chatStorageWarning by remember { mutableStateOf("") }
@@ -154,6 +168,7 @@ fun JarvisApp(context: Context) {
         }
     }
     fun addHistory(turn: Pair<String, String>) {
+        completeCommand(turn.first, turn.second)
         conversation.add(turn)
         saveChatTurn(turn)
     }
@@ -304,6 +319,27 @@ fun JarvisApp(context: Context) {
         commandRevision += 1
         val requestRevision = commandRevision
         val now = android.os.SystemClock.elapsedRealtime()
+        JarvisControlCommand.parse(command)?.let { control ->
+            addHistory(command to controls.execute(control))
+            return
+        }
+        when (JarvisScreenControl.parse(command)) {
+            JarvisScreenControl.Action.Back -> if (page != "Főoldal") {
+                page = "Főoldal"
+                addHistory(command to "Visszaléptem a Jarvis főoldalára.")
+                return
+            }
+            JarvisScreenControl.Action.ScrollDown, JarvisScreenControl.Action.ScrollUp -> if (page != "Főoldal") {
+                val down = JarvisScreenControl.parse(command) == JarvisScreenControl.Action.ScrollDown
+                drawerScope.launch {
+                    subpageScroll.animateScrollTo((subpageScroll.value + if (down) 600 else -600)
+                        .coerceIn(0, subpageScroll.maxValue))
+                    if (requestRevision == commandRevision) addHistory(command to "Görgettem a Jarvis-oldalt.")
+                }
+                return
+            }
+            else -> Unit
+        }
         // Every independent typed/voice command preempts stale call flows.
         // Do NOT execute apps here: normal routing below prioritizes internal
         // Jarvis pages, Android intents and installed apps in that order.
@@ -383,6 +419,26 @@ fun JarvisApp(context: Context) {
             }
             clearCallFlow()
             addHistory(command to resolveCallTarget(candidate))
+            return
+        }
+        if (pendingMessage != null && (VoiceIntentParser.isYes(command) || VoiceIntentParser.isNo(command))) {
+            val draft = pendingMessage
+            pendingMessage = null
+            val fresh = now <= pendingMessageUntilMs
+            pendingMessageUntilMs = 0L
+            addHistory(command to if (VoiceIntentParser.isNo(command)) "Megszakítottam az üzenetet."
+                else if (fresh && draft != null) ExternalTasks.dispatch(context, HandoffTask.Message(draft))
+                else "Lejárt az üzenet jóváhagyása.")
+            return
+        }
+        if (pendingSequence != null && (VoiceIntentParser.isSequenceYes(command) || VoiceIntentParser.isNo(command))) {
+            val plan = pendingSequence
+            pendingSequence = null
+            val fresh = now <= pendingSequenceUntilMs
+            pendingSequenceUntilMs = 0L
+            addHistory(command to if (VoiceIntentParser.isNo(command)) "Megszakítottam a műveletsort."
+                else if (fresh && plan != null) JarvisSequence.execute(context, plan)
+                else "Lejárt a műveletsor jóváhagyása.")
             return
         }
         pendingMessage = null
@@ -613,6 +669,7 @@ fun JarvisApp(context: Context) {
                 if (index >= 0) {
                     conversation[index] = command to answer
                     saveChatTurn(command to answer)
+                    completeCommand(command, answer)
                 }
             }
         } else {
@@ -623,6 +680,23 @@ fun JarvisApp(context: Context) {
             addHistory(command to answer)
             
         }
+    }
+    val latestExecutor = rememberUpdatedState<(String) -> Unit> { executeHome(it) }
+    DisposableEffect(context) {
+        val handler: (String, (String) -> Unit) -> Unit = { command, respond ->
+            voiceReply = command to respond
+            latestExecutor.value(command)
+        }
+        JarvisForegroundCommands.handler = handler
+        onDispose {
+            if (JarvisForegroundCommands.handler === handler) JarvisForegroundCommands.handler = null
+            voiceReply = null
+        }
+    }
+    fun executeTyped(command: String) {
+        voiceReply = null
+        JarvisForegroundCommands.interruptSpeech?.invoke()
+        executeHome(command)
     }
     BackHandler(enabled = drawerState.isOpen || page != "Főoldal") {
         if (drawerState.isOpen) drawerScope.launch { drawerState.close() }
@@ -749,6 +823,7 @@ fun JarvisApp(context: Context) {
 
     val onHome = page == "Főoldal"
     CompositionLocalProvider(
+        LocalJarvisControls provides controls,
         LocalJarvisDark provides isDark,
         LocalJarvisLanguage provides language
     ) {
@@ -759,6 +834,10 @@ fun JarvisApp(context: Context) {
             primary = Cyan, background = Night, surface = Panel,
             onSurface = White, onBackground = White, onPrimary = Night
         )) {
+            if (commandPanel) {
+                JarvisCommandPanel(context, lastCommandReply,
+                    onCommand = { executeTyped(it) }, onDismiss = { commandPanel = false })
+            }
             ModalNavigationDrawer(
                 drawerState = drawerState,
                 drawerContent = {
@@ -786,7 +865,7 @@ fun JarvisApp(context: Context) {
                             language = language,
                             onSelectLanguage = selectLanguage,
                             onMenu = { drawerScope.launch { drawerState.open() } },
-                            onCommand = { command -> executeHome(command) },
+                            onCommand = { command -> executeTyped(command) },
                             onAttachmentsSubmit = { question, selected ->
                                 submitAttachments(question, selected)
                             },
@@ -847,14 +926,17 @@ fun JarvisApp(context: Context) {
                             Text(page, color = White, fontSize = 19.sp,
                                 fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f).testTag("jarvis-subpage-header")
                                     .clickable { drawerScope.launch { drawerState.open() } })
+                            TextButton(onClick = { commandPanel = true }, modifier = Modifier.testTag("jarvis-command-panel")) {
+                                Text("Parancs")
+                            }
                             JarvisLanguagePicker(language = language, onSelect = selectLanguage)
                             IconButton(onClick = toggleTheme, modifier = Modifier.testTag("jarvis-subpage-theme-toggle")) {
                                 Text(if (isDark) "☀" else "☾", color = Cyan, fontSize = 23.sp)
                             }
-                            TextButton(
+                            ControlledTextButton(
                                 modifier = Modifier.testTag("jarvis-subpage-home-button"),
                                 onClick = { page = "Főoldal" }
-                            ) {
+                            , commandLabel = "Főoldal") {
                                 Text("Főoldal", color = Cyan)
                             }
                         }
@@ -865,7 +947,7 @@ fun JarvisApp(context: Context) {
                         }
                         Column(
                             Modifier.weight(1f).fillMaxWidth()
-                                .verticalScroll(rememberScrollState())
+                                .verticalScroll(subpageScroll)
                                 .padding(16.dp)
                         ) {
                             when (page) {
@@ -931,9 +1013,9 @@ private fun InvoiceScreen(context: Context, invoices: MutableList<Invoice>, pers
     Text("Helyi prototípus: éles adózási/VAT megfelelőség még nincs ellenőrizve.", color = Soft, fontSize = 12.sp)
     Spacer(Modifier.height(12.dp))
     SurfaceCard {
-        OutlinedTextField(value = client, onValueChange = { client = it }, label = { Text("Ügyfél neve") }, modifier = Modifier.fillMaxWidth())
-        OutlinedTextField(value = amount, onValueChange = { amount = it }, label = { Text("Összeg (£)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth())
-        Button(onClick = {
+        ControlledOutlinedTextField(value = client, onValueChange = { client = it }, label = { Text("Ügyfél neve") }, modifier = Modifier.fillMaxWidth(), commandLabel = "Ügyfél neve")
+        ControlledOutlinedTextField(value = amount, onValueChange = { amount = it }, label = { Text("Összeg (£)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth(), commandLabel = "Összeg (£)")
+        ControlledButton(onClick = {
             val value = amount.replace(',', '.').toDoubleOrNull()
             if (client.isBlank() || value == null || value <= 0 || value > 1_000_000) {
                 error = "Adj meg egy ügyfélnevet és érvényes összeget."
@@ -941,7 +1023,7 @@ private fun InvoiceScreen(context: Context, invoices: MutableList<Invoice>, pers
                 invoices.add(0, Invoice(client.trim(), "%.2f".format(Locale.UK, value), timeNow()))
                 persist(); client = ""; amount = ""; error = ""
             }
-        }) { Text("Számlavázlat mentése") }
+        }, commandLabel = "Számlavázlat mentése") { Text("Számlavázlat mentése") }
         if (error.isNotEmpty()) Text(error, color = Color(0xFFFFA5A5))
     }
     Spacer(Modifier.height(12.dp))
@@ -950,8 +1032,8 @@ private fun InvoiceScreen(context: Context, invoices: MutableList<Invoice>, pers
             Text(invoice.client, fontWeight = FontWeight.Bold)
             Text("£" + invoice.amount + "  ·  " + invoice.stamp, color = Soft)
             Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                TextButton(onClick = { shareInvoicePdf(context, invoice) }) { Text("PDF megosztás") }
-                TextButton(onClick = { invoices.removeAt(index); persist() }) { Text("Törlés") }
+                ControlledTextButton(onClick = { shareInvoicePdf(context, invoice) }, commandLabel = "PDF megosztás") { Text("PDF megosztás") }
+                ControlledTextButton(onClick = { invoices.removeAt(index); persist() }, commandLabel = "Törlés") { Text("Törlés") }
             }
         }
         Spacer(Modifier.height(8.dp))
@@ -963,15 +1045,15 @@ private fun LocalNotesScreen(notes: MutableList<String>, persist: () -> Unit) {
     var note by remember { mutableStateOf("") }
     SurfaceCard {
         Text("🧠 Titkosítva tárolt jegyzetek", color = White, fontWeight = FontWeight.Bold)
-        OutlinedTextField(value = note, onValueChange = { note = it },
-            label = { Text("Új jegyzet") }, modifier = Modifier.fillMaxWidth())
-        Button(onClick = {
+        ControlledOutlinedTextField(value = note, onValueChange = { note = it },
+            label = { Text("Új jegyzet") }, modifier = Modifier.fillMaxWidth(), commandLabel = "Új jegyzet")
+        ControlledButton(onClick = {
             if (note.isNotBlank()) { notes.add(0, note.trim()); persist(); note = "" }
-        }) { Text("Mentés") }
+        }, commandLabel = "Mentés") { Text("Mentés") }
         notes.forEachIndexed { index, text ->
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(text, Modifier.weight(1f), color = White)
-                TextButton(onClick = { notes.removeAt(index); persist() }) { Text("Törlés") }
+                ControlledTextButton(onClick = { notes.removeAt(index); persist() }, commandLabel = "Törlés") { Text("Törlés") }
             }
         }
     }
@@ -989,42 +1071,42 @@ private fun MoreScreen(context: Context, notes: MutableList<String>, persist: ()
         Text("Az UC Journal csak a hivatalos GOV.UK bejelentkezés után olvasható. " +
             "Jarvis nem ismeri a jelszavadat, és nem tudja ellenőrizni az új üzeneteket.",
             color = Soft, fontSize = 12.sp)
-        Button(onClick = {
+        ControlledButton(onClick = {
             result = ExternalTasks.dispatch(context, HandoffTask.UcJournal)
-        }) { Text("UC – hivatalos bejelentkezés") }
+        }, commandLabel = "UC – hivatalos bejelentkezés") { Text("UC – hivatalos bejelentkezés") }
     }
     Spacer(Modifier.height(12.dp))
     SurfaceCard {
         Text("📧 Email", color = White, fontWeight = FontWeight.Bold)
         Text("Valódi emailírás a telefon levelezőalkalmazásával. Gmail-fiók olvasásához külön OAuth-kapcsolat szükséges.", color = Soft, fontSize = 12.sp)
-        Button(onClick = { result = if (openEmail(context)) "Email alkalmazás megnyitva." else "Nincs email alkalmazás." }) { Text("Email írása") }
+        ControlledButton(onClick = { result = if (openEmail(context)) "Email alkalmazás megnyitva." else "Nincs email alkalmazás." }, commandLabel = "Email írása") { Text("Email írása") }
     }
     Spacer(Modifier.height(12.dp))
     SurfaceCard {
         Text("🧭 Navigáció", color = White, fontWeight = FontWeight.Bold)
-        OutlinedTextField(value = homeAddress, onValueChange = { homeAddress = it },
-            label = { Text("Otthoni cím (csak ezen a telefonon)") }, modifier = Modifier.fillMaxWidth())
-        Button(onClick = {
+        ControlledOutlinedTextField(value = homeAddress, onValueChange = { homeAddress = it },
+            label = { Text("Otthoni cím (csak ezen a telefonon)") }, modifier = Modifier.fillMaxWidth(), commandLabel = "Otthoni cím (csak ezen a telefonon)")
+        ControlledButton(onClick = {
             if (homeAddress.isBlank()) {
                 result = "Adj meg egy teljes címet a hazanavigációhoz."
             } else {
                 VoiceNavigation.saveHome(context, homeAddress)
                 result = "Az otthoni címed titkosított helyi tárhelyre került."
             }
-        }) { Text("Otthoni cím mentése") }
-        OutlinedButton(onClick = { result = if (openMap(context)) "Térkép megnyitva."
-            else "Nincs térképalkalmazás." }) { Text("Térkép megnyitása") }
+        }, commandLabel = "Otthoni cím mentése") { Text("Otthoni cím mentése") }
+        ControlledOutlinedButton(onClick = { result = if (openMap(context)) "Térkép megnyitva."
+            else "Nincs térképalkalmazás." }, commandLabel = "Térkép megnyitása") { Text("Térkép megnyitása") }
     }
     Spacer(Modifier.height(12.dp))
     SurfaceCard {
         Text("📅 Naptár és emlékeztetők", color = White, fontWeight = FontWeight.Bold)
-        OutlinedTextField(value = eventName, onValueChange = { eventName = it }, label = { Text("Esemény címe") }, modifier = Modifier.fillMaxWidth())
-        Button(onClick = {
+        ControlledOutlinedTextField(value = eventName, onValueChange = { eventName = it }, label = { Text("Esemény címe") }, modifier = Modifier.fillMaxWidth(), commandLabel = "Esemény címe")
+        ControlledButton(onClick = {
             result = if (eventName.isNotBlank() && addCalendarEvent(context, eventName.trim()))
                 "A naptárban ellenőrizd és mentsd az eseményt."
             else "Adj meg címet, és legyen telepített naptár."
-        }) { Text("Esemény létrehozása") }
-        OutlinedButton(onClick = { result = if (openAlarms(context)) "Ébresztők megnyitva." else "Nincs óra alkalmazás." }) { Text("Ébresztők") }
+        }, commandLabel = "Esemény létrehozása") { Text("Esemény létrehozása") }
+        ControlledOutlinedButton(onClick = { result = if (openAlarms(context)) "Ébresztők megnyitva." else "Nincs óra alkalmazás." }, commandLabel = "Ébresztők") { Text("Ébresztők") }
     }
     Spacer(Modifier.height(12.dp))
     SurfaceCard {
@@ -1038,15 +1120,15 @@ private fun MoreScreen(context: Context, notes: MutableList<String>, persist: ()
         )
         Text("Hangos értesítéssel jelez. Az ébresztés pontos időzítéséhez külön Android-engedély kell.",
             color = Soft, fontSize = 12.sp)
-        OutlinedButton(onClick = { onGo("Engedélyek") }) { Text("Ébresztési engedélyek") }
-        Button(onClick = { result = if (JarvisAlarms.cancel(context)) "A Jarvis-ébresztőt töröltem."
-            else "Nincs törölhető Jarvis-ébresztő." }) { Text("Saját ébresztő törlése") }
+        ControlledOutlinedButton(onClick = { onGo("Engedélyek") }, commandLabel = "Ébresztési engedélyek") { Text("Ébresztési engedélyek") }
+        ControlledButton(onClick = { result = if (JarvisAlarms.cancel(context)) "A Jarvis-ébresztőt töröltem."
+            else "Nincs törölhető Jarvis-ébresztő." }, commandLabel = "Saját ébresztő törlése") { Text("Saját ébresztő törlése") }
     }
     Spacer(Modifier.height(12.dp))
     SurfaceCard {
         Text("📞 Telefon", color = White, fontWeight = FontWeight.Bold)
         Text("A tárcsázót nyitja meg. Hívást nem indít önállóan.", color = Soft, fontSize = 12.sp)
-        OutlinedButton(onClick = { result = if (openDialer(context)) "Tárcsázó megnyitva." else "Nincs tárcsázó alkalmazás." }) { Text("Tárcsázó") }
+        ControlledOutlinedButton(onClick = { result = if (openDialer(context)) "Tárcsázó megnyitva." else "Nincs tárcsázó alkalmazás." }, commandLabel = "Tárcsázó") { Text("Tárcsázó") }
     }
     Spacer(Modifier.height(12.dp))
     LocalNotesScreen(notes, persist)
@@ -1059,15 +1141,15 @@ private fun MoreScreen(context: Context, notes: MutableList<String>, persist: ()
         Text("🔐 Engedélyek és üzenetek", color = White, fontWeight = FontWeight.Bold)
         Text("Fotók, dokumentumok, pontos GPS, névjegyek és értesítések: mindegyik külön engedélyezhető.",
             color = Soft, fontSize = 12.sp)
-        Button(onClick = { onGo("Engedélyek") }) { Text("Engedélyközpont megnyitása") }
-        OutlinedButton(onClick = { onGo("Üzenetek") }) { Text("WhatsApp / Messenger / üzenetek") }
-        OutlinedButton(onClick = { onGo("Névjegyek") }) { Text("Névjegyek megtekintése") }
+        ControlledButton(onClick = { onGo("Engedélyek") }, commandLabel = "Engedélyközpont megnyitása") { Text("Engedélyközpont megnyitása") }
+        ControlledOutlinedButton(onClick = { onGo("Üzenetek") }, commandLabel = "WhatsApp / Messenger / üzenetek") { Text("WhatsApp / Messenger / üzenetek") }
+        ControlledOutlinedButton(onClick = { onGo("Névjegyek") }, commandLabel = "Névjegyek megtekintése") { Text("Névjegyek megtekintése") }
     }
     Spacer(Modifier.height(12.dp))
     SurfaceCard {
         Text("🔒 Integrációk folyamatban", color = White, fontWeight = FontWeight.Bold)
         Text("Központi AI, Gmail-fiókszinkron, Libre 2 szinkron, OBD2, 42 nyelv és PC-s adatszinkron további fejlesztést igényel. A Self-Repair nem kerül mobilra.", color = Soft, fontSize = 12.sp)
-        TextButton(onClick = { onGo("Főoldal") }) { Text("Hangos helyi parancsok") }
+        ControlledTextButton(onClick = { onGo("Főoldal") }, commandLabel = "Hangos helyi parancsok") { Text("Hangos helyi parancsok") }
     }
 }
 

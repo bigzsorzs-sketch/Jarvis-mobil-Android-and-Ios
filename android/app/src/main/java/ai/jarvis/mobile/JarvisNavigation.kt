@@ -93,10 +93,10 @@ internal fun JarvisToolLanding(context: Context, page: String, onOpen: (String) 
             JarvisToolCatalog.all.filter {
                 it.route in setOf("Számlák", "Naptár", "Jegyzetek")
             }.forEach { item ->
-                OutlinedButton(
+                ControlledOutlinedButton(
                     onClick = { onOpen(item.route) },
                     modifier = Modifier.fillMaxWidth()
-                ) {
+                , commandLabel = item.name) {
                     Text(item.glyph, fontSize = 21.sp)
                     Spacer(Modifier.width(12.dp))
                     Text(item.name, modifier = Modifier.weight(1f))
@@ -106,34 +106,34 @@ internal fun JarvisToolLanding(context: Context, page: String, onOpen: (String) 
         "Navigáció" -> {
             Text("Hangos útvonaltervezés: a mentett címek alapján a telepített térképalkalmazás indul.",
                 color = JarvisPalette.subtleText)
-            Button(onClick = {
+            ControlledButton(onClick = {
                 message = if (VoiceNavigation.resolve(context, "HOME") == null)
                     "Előbb mentsd el az otthoni címet az Eszközök menüben."
                 else JarvisNavigationText.result(
                     JarvisLanguageSettings.load(context), VoiceNavigation.openDetailed(context, "HOME"))
-            }) { Text("Navigálás haza") }
-            OutlinedButton(onClick = { onOpen("Továbbiak") }) { Text("Otthoni cím beállítása") }
+            }, commandLabel = "Navigálás haza") { Text("Navigálás haza") }
+            ControlledOutlinedButton(onClick = { onOpen("Továbbiak") }, commandLabel = "Otthoni cím beállítása") { Text("Otthoni cím beállítása") }
         }
         "Email" -> {
             Text("Emailvázlatot készíthetsz. Gmail-fiók olvasása és keresése külön OAuth-kapcsolatot igényel.",
                 color = JarvisPalette.subtleText)
-            Button(onClick = { message = if (openEmail(context)) "Megnyitottam az emailírást."
-                else "Nincs kompatibilis levelezőalkalmazás." }) { Text("Email írása") }
+            ControlledButton(onClick = { message = if (openEmail(context)) "Megnyitottam az emailírást."
+                else "Nincs kompatibilis levelezőalkalmazás." }, commandLabel = "Email írása") { Text("Email írása") }
         }
         "Naptár" -> {
-            Button(onClick = { message = if (openCalendar(context)) "Naptár megnyitva."
-                else "Nem találok naptáralkalmazást." }) { Text("Naptár megnyitása") }
-            OutlinedButton(onClick = { onOpen("Továbbiak") }) { Text("Esemény hozzáadása") }
+            ControlledButton(onClick = { message = if (openCalendar(context)) "Naptár megnyitva."
+                else "Nem találok naptáralkalmazást." }, commandLabel = "Naptár megnyitása") { Text("Naptár megnyitása") }
+            ControlledOutlinedButton(onClick = { onOpen("Továbbiak") }, commandLabel = "Esemény hozzáadása") { Text("Esemény hozzáadása") }
         }
         "Ébresztő" -> {
             val next = JarvisAlarms.current(context)
             Text(if (next > 0) "Aktív saját Jarvis-ébresztő." else "Nincs aktív saját Jarvis-ébresztő.",
                 color = JarvisPalette.subtleText)
-            Button(onClick = {
+            ControlledButton(onClick = {
                 message = if (openAlarms(context)) "Megnyitottam az Óra alkalmazást."
                 else "Nem találok Óra alkalmazást."
-            }) { Text("Telefon ébresztői") }
-            OutlinedButton(onClick = { onOpen("Továbbiak") }) { Text("Jarvis-ébresztő kezelése") }
+            }, commandLabel = "Telefon ébresztői") { Text("Telefon ébresztői") }
+            ControlledOutlinedButton(onClick = { onOpen("Továbbiak") }, commandLabel = "Jarvis-ébresztő kezelése") { Text("Jarvis-ébresztő kezelése") }
         }
     }
     if (message.isNotEmpty()) {

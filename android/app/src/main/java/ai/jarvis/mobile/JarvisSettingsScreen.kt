@@ -39,6 +39,7 @@ internal fun SettingsDivider() {
 
 @Composable
 internal fun JarvisSettingsRow(icon: String, title: String, detail: String, onClick: () -> Unit) {
+    RegisterJarvisControl(title, click = onClick)
     Row(
         Modifier.fillMaxWidth().clickable(onClick = onClick)
             .heightIn(min = 60.dp).padding(horizontal = 14.dp, vertical = 12.dp),

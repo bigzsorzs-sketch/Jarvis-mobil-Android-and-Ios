@@ -34,8 +34,8 @@ internal fun JarvisBillingScreen(context: Context, repo: BillingRepository, lang
     ScrollableTabRow(selectedTabIndex = listOf("invoices", "quotes", "clients", "settings").indexOf(tab),
         edgePadding = 0.dp, modifier = Modifier.testTag("billing-tabs")) {
         listOf("invoices", "quotes", "clients", "settings").forEach { key ->
-            Tab(selected = tab == key, onClick = { tab = key; message = "" },
-                text = { Text(t(key)) }, modifier = Modifier.testTag("billing-tab-" + key))
+            ControlledTab(selected = tab == key, onClick = { tab = key; message = "" },
+                text = { Text(t(key)) }, modifier = Modifier.testTag("billing-tab-" + key), commandLabel = t(key))
         }
     }
     if (message.isNotBlank()) {
@@ -50,21 +50,21 @@ internal fun JarvisBillingScreen(context: Context, repo: BillingRepository, lang
             var address by remember { mutableStateOf("") }
             var phone by remember { mutableStateOf("") }
             Text(t("newClient"), fontSize = 19.sp)
-            OutlinedTextField(name, { name = it.take(120) }, label = { Text(t("customer")) },
-                modifier = Modifier.fillMaxWidth().testTag("billing-client-name"))
-            OutlinedTextField(email, { email = it.take(254) }, label = { Text(t("email")) },
-                modifier = Modifier.fillMaxWidth().testTag("billing-client-email"))
-            OutlinedTextField(address, { address = it.take(500) }, label = { Text(t("address")) },
-                modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(phone, { phone = it.take(100) }, label = { Text(t("phone")) },
-                modifier = Modifier.fillMaxWidth())
-            Button(onClick = {
+            ControlledOutlinedTextField(name, { name = it.take(120) }, label = { Text(t("customer")) },
+                modifier = Modifier.fillMaxWidth().testTag("billing-client-name"), commandLabel = t("customer"))
+            ControlledOutlinedTextField(email, { email = it.take(254) }, label = { Text(t("email")) },
+                modifier = Modifier.fillMaxWidth().testTag("billing-client-email"), commandLabel = t("email"))
+            ControlledOutlinedTextField(address, { address = it.take(500) }, label = { Text(t("address")) },
+                modifier = Modifier.fillMaxWidth(), commandLabel = t("address"))
+            ControlledOutlinedTextField(phone, { phone = it.take(100) }, label = { Text(t("phone")) },
+                modifier = Modifier.fillMaxWidth(), commandLabel = t("phone"))
+            ControlledButton(onClick = {
                 message = try {
                     repo.saveClient(name, email, address, phone)
                     name = ""; email = ""; address = ""; phone = ""
                     t("saved")
                 } catch (_: Exception) { t("invalid") }
-            }, modifier = Modifier.testTag("billing-save-client")) { Text(t("save")) }
+            }, modifier = Modifier.testTag("billing-save-client"), commandLabel = t("save")) { Text(t("save")) }
             HorizontalDivider()
             state.clients.sortedBy { it.name }.forEach { client ->
                 OutlinedCard(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
@@ -72,10 +72,10 @@ internal fun JarvisBillingScreen(context: Context, repo: BillingRepository, lang
                         Text(client.name, style = MaterialTheme.typography.titleMedium)
                         Text(client.email)
                         Text(client.address)
-                        TextButton(onClick = {
+                        ControlledTextButton(onClick = {
                             name = client.name; email = client.email
                             address = client.address; phone = client.phone
-                        }) { Text(t("newClient")) }
+                        }, commandLabel = t("newClient")) { Text(t("newClient")) }
                     }
                 }
             }
@@ -87,40 +87,40 @@ internal fun JarvisBillingScreen(context: Context, repo: BillingRepository, lang
             var bank by remember { mutableStateOf(state.profile.bank) }
             var vatNumber by remember { mutableStateOf(state.profile.vatNumber) }
             Text(t("supplier"), fontSize = 19.sp)
-            OutlinedTextField(business, { business = it.take(150) },
-                label = { Text(t("companyName")) }, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(address, { address = it.take(500) },
-                label = { Text(t("address")) }, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(contact, { contact = it.take(254) },
-                label = { Text(t("email")) }, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(bank, { bank = it.take(180) },
-                label = { Text(t("bank")) }, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(vatNumber, { vatNumber = it.take(40) },
-                label = { Text(t("vatNumber")) }, modifier = Modifier.fillMaxWidth())
-            Button(onClick = {
+            ControlledOutlinedTextField(business, { business = it.take(150) },
+                label = { Text(t("companyName")) }, modifier = Modifier.fillMaxWidth(), commandLabel = t("companyName"))
+            ControlledOutlinedTextField(address, { address = it.take(500) },
+                label = { Text(t("address")) }, modifier = Modifier.fillMaxWidth(), commandLabel = t("address"))
+            ControlledOutlinedTextField(contact, { contact = it.take(254) },
+                label = { Text(t("email")) }, modifier = Modifier.fillMaxWidth(), commandLabel = t("email"))
+            ControlledOutlinedTextField(bank, { bank = it.take(180) },
+                label = { Text(t("bank")) }, modifier = Modifier.fillMaxWidth(), commandLabel = t("bank"))
+            ControlledOutlinedTextField(vatNumber, { vatNumber = it.take(40) },
+                label = { Text(t("vatNumber")) }, modifier = Modifier.fillMaxWidth(), commandLabel = t("vatNumber"))
+            ControlledButton(onClick = {
                 message = try {
                     repo.saveProfile(BillingProfile(business, address, contact, bank, vatNumber))
                     t("saved")
                 } catch (_: Exception) { t("invalid") }
-            }) { Text(t("save")) }
+            }, commandLabel = t("save")) { Text(t("save")) }
             HorizontalDivider()
             Text(t("smtp"), fontSize = 19.sp)
             Text(t("mailHelp"), fontSize = 12.sp)
             var smtpAddress by remember { mutableStateOf(repo.mailAccount().first) }
             var appPassword by remember { mutableStateOf("") }
-            OutlinedTextField(smtpAddress, { smtpAddress = it.take(254) },
-                label = { Text(t("email")) }, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(appPassword, { appPassword = it.take(200) },
+            ControlledOutlinedTextField(smtpAddress, { smtpAddress = it.take(254) },
+                label = { Text(t("email")) }, modifier = Modifier.fillMaxWidth(), commandLabel = t("email"))
+            ControlledOutlinedTextField(appPassword, { appPassword = it.take(200) },
                 label = { Text(t("appPassword")) },
                 visualTransformation = PasswordVisualTransformation(), singleLine = true,
-                modifier = Modifier.fillMaxWidth().testTag("billing-app-password"))
-            Button(onClick = {
+                modifier = Modifier.fillMaxWidth().testTag("billing-app-password"), commandLabel = t("appPassword"))
+            ControlledButton(onClick = {
                 message = try {
                     repo.saveMailAccount(smtpAddress, appPassword)
                     appPassword = ""
                     t("saved")
                 } catch (_: Exception) { t("invalid") }
-            }) { Text(t("save")) }
+            }, commandLabel = t("save")) { Text(t("save")) }
         }
         "invoices", "quotes" -> {
             val kind = if (tab == "quotes") "quote" else "invoice"
@@ -134,57 +134,57 @@ internal fun JarvisBillingScreen(context: Context, repo: BillingRepository, lang
             Text(t("newInvoice"), fontSize = 19.sp)
             if (state.clients.isEmpty()) {
                 Text(t("firstManual"), fontSize = 13.sp)
-                Button(onClick = { tab = "clients" }) { Text(t("clients")) }
+                ControlledButton(onClick = { tab = "clients" }, commandLabel = t("clients")) { Text(t("clients")) }
             } else {
                 Box {
-                    OutlinedButton(onClick = { dropdown = true },
-                        modifier = Modifier.fillMaxWidth().testTag("billing-select-client")) {
+                    ControlledOutlinedButton(onClick = { dropdown = true },
+                        modifier = Modifier.fillMaxWidth().testTag("billing-select-client"), commandLabel = state.clients.find { it.id == selectedClient }?.name ?: t("selectClient")) {
                         Text(state.clients.find { it.id == selectedClient }?.name ?: t("selectClient"))
                     }
                     DropdownMenu(expanded = dropdown, onDismissRequest = { dropdown = false }) {
                         state.clients.sortedBy { it.name }.forEach { client ->
-                            DropdownMenuItem(text = { Text(client.name) }, onClick = {
+                            ControlledDropdownMenuItem(text = { Text(client.name) }, onClick = {
                                 selectedClient = client.id; dropdown = false
-                            })
+                            }, commandLabel = client.name)
                         }
                     }
                 }
-                OutlinedTextField(description, { description = it.take(200) },
+                ControlledOutlinedTextField(description, { description = it.take(200) },
                     label = { Text(t("description")) },
-                    modifier = Modifier.fillMaxWidth().testTag("billing-description"))
-                OutlinedTextField(amount, { amount = it.take(20) },
+                    modifier = Modifier.fillMaxWidth().testTag("billing-description"), commandLabel = t("description"))
+                ControlledOutlinedTextField(amount, { amount = it.take(20) },
                     label = { Text(t("amount")) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    modifier = Modifier.fillMaxWidth().testTag("billing-amount"))
+                    modifier = Modifier.fillMaxWidth().testTag("billing-amount"), commandLabel = t("amount"))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(t("vatRate"), modifier = Modifier.weight(1f))
                     Box {
-                        TextButton(onClick = { vatMenu = true }) { Text(vat.toString() + "%") }
+                        ControlledTextButton(onClick = { vatMenu = true }, commandLabel = vat.toString() + "%") { Text(vat.toString() + "%") }
                         DropdownMenu(expanded = vatMenu, onDismissRequest = { vatMenu = false }) {
                             listOf(0, 5, 20).forEach { rate ->
-                                DropdownMenuItem(text = { Text(rate.toString() + "%") },
-                                    onClick = { vat = rate; vatMenu = false })
+                                ControlledDropdownMenuItem(text = { Text(rate.toString() + "%") },
+                                    onClick = { vat = rate; vatMenu = false }, commandLabel = rate.toString() + "%")
                             }
                         }
                     }
                 }
-                OutlinedTextField(dueDate, { dueDate = it.take(10) },
-                    label = { Text(t("dueDate")) }, modifier = Modifier.fillMaxWidth())
-                Button(onClick = {
+                ControlledOutlinedTextField(dueDate, { dueDate = it.take(10) },
+                    label = { Text(t("dueDate")) }, modifier = Modifier.fillMaxWidth(), commandLabel = t("dueDate"))
+                ControlledButton(onClick = {
                     message = try {
                         val pence = requireNotNull(BillingValidation.pence(amount))
                         repo.add(selectedClient, description, pence, vat, dueDate, kind)
                         description = ""; amount = ""
                         t("saved")
                     } catch (_: Exception) { t("invalid") }
-                }, modifier = Modifier.testTag("billing-save-draft")) {
+                }, modifier = Modifier.testTag("billing-save-draft"), commandLabel = t(if (kind == "quote") "saveQuote" else "saveDraft")) {
                     Text(t(if (kind == "quote") "saveQuote" else "saveDraft"))
                 }
             }
             HorizontalDivider(Modifier.padding(vertical = 12.dp))
             var search by remember { mutableStateOf("") }
-            OutlinedTextField(search, { search = it },
-                label = { Text(t("customer")) }, modifier = Modifier.fillMaxWidth())
+            ControlledOutlinedTextField(search, { search = it },
+                label = { Text(t("customer")) }, modifier = Modifier.fillMaxWidth(), commandLabel = t("customer"))
             state.invoices.filter { it.kind == kind }.filter { invoice ->
                 val name = state.clients.find { it.id == invoice.clientId }?.name.orEmpty()
                 invoice.number.contains(search, true) || name.contains(search, true)
@@ -201,7 +201,7 @@ internal fun JarvisBillingScreen(context: Context, repo: BillingRepository, lang
                         Text(t(invoice.status))
                         Row(horizontalArrangement = Arrangement.spacedBy(6.dp),
                             modifier = Modifier.fillMaxWidth()) {
-                            TextButton(onClick = {
+                            ControlledTextButton(onClick = {
                                 scope.launch {
                                     message = try {
                                         val file = withContext(Dispatchers.IO) {
@@ -210,18 +210,18 @@ internal fun JarvisBillingScreen(context: Context, repo: BillingRepository, lang
                                         if (BillingPdf.share(context, file)) t("pdf") else t("invalid")
                                     } catch (_: Exception) { t("invalid") }
                                 }
-                            }) { Text("PDF") }
+                            }, commandLabel = "PDF") { Text("PDF") }
                             if (kind == "quote") {
-                                TextButton(onClick = {
+                                ControlledTextButton(onClick = {
                                     message = try {
                                         val created = repo.convert(invoice.id)
                                         if (created == null) t("invalid")
                                         else t("created") + " " + created.number
                                     } catch (_: Exception) { t("invalid") }
-                                }) { Text(t("convert")) }
+                                }, commandLabel = t("convert")) { Text(t("convert")) }
                             } else {
                                 if (invoice.status == "draft") {
-                                    TextButton(enabled = busyId.isEmpty(), onClick = {
+                                    ControlledTextButton(enabled = busyId.isEmpty(), onClick = {
                                         busyId = invoice.id
                                         scope.launch {
                                             message = withContext(Dispatchers.IO) {
@@ -230,15 +230,15 @@ internal fun JarvisBillingScreen(context: Context, repo: BillingRepository, lang
                                             }
                                             repo.refresh(); busyId = ""
                                         }
-                                    }, modifier = Modifier.testTag("billing-send-" + invoice.number)) {
+                                    }, modifier = Modifier.testTag("billing-send-" + invoice.number), commandLabel = t("sendNow")) {
                                         Text(t("sendNow"))
                                     }
                                 }
                                 if (invoice.status == "unpaid") {
-                                    TextButton(onClick = {
+                                    ControlledTextButton(onClick = {
                                         message = if (repo.status(invoice.id, setOf("unpaid"), "paid"))
                                             t("paidDone") + " " + invoice.number else t("invalid")
-                                    }) { Text(t("markPaid")) }
+                                    }, commandLabel = t("markPaid")) { Text(t("markPaid")) }
                                 }
                             }
                         }

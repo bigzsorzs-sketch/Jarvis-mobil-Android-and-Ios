@@ -32,7 +32,7 @@ internal fun JarvisAiSettings(context: Context) {
         style = MaterialTheme.typography.titleLarge)
     Spacer(Modifier.height(12.dp))
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        FilterChip(
+        ControlledFilterChip(
             selected = selectedMode == JarvisAiGateway.DIRECT_TEST,
             onClick = {
                 selectedMode = JarvisAiGateway.DIRECT_TEST
@@ -40,8 +40,8 @@ internal fun JarvisAiSettings(context: Context) {
                 status = ""
             },
             label = { Text("Közvetlen OpenRouter") }
-        )
-        FilterChip(
+        , commandLabel = "Közvetlen OpenRouter")
+        ControlledFilterChip(
             selected = selectedMode == JarvisAiGateway.SERVER,
             onClick = {
                 selectedMode = JarvisAiGateway.SERVER
@@ -49,7 +49,7 @@ internal fun JarvisAiSettings(context: Context) {
                 status = ""
             },
             label = { Text("Saját szerver") }
-        )
+        , commandLabel = "Saját szerver")
     }
     Spacer(Modifier.height(8.dp))
     Text(
@@ -68,7 +68,7 @@ internal fun JarvisAiSettings(context: Context) {
     if (selectedMode == JarvisAiGateway.DIRECT_TEST) {
         Text("Saját OpenRouter-kapcsolat: nincs szükség Jarvis-szervercímre. Az API-kulcsodat a telefon titkosított tárhelyére mentjük.")
         Spacer(Modifier.height(8.dp))
-        OutlinedTextField(
+        ControlledOutlinedTextField(
             value = credential,
             onValueChange = { credential = it },
             singleLine = true,
@@ -76,7 +76,8 @@ internal fun JarvisAiSettings(context: Context) {
                 "Új OpenRouter-kulcs (csak cseréhez)" else "OpenRouter API-kulcs") },
             visualTransformation = PasswordVisualTransformation(),
             modifier = Modifier.fillMaxWidth()
-        )
+        , commandLabel = if (paired && selectedMode == savedMode)
+                "Új OpenRouter-kulcs (csak cseréhez)" else "OpenRouter API-kulcs")
         Spacer(Modifier.height(8.dp))
         Text(
             "A kulcs nem kerül az APK-ba vagy a GitHubra. Teszteléshez korlátozott keretű, visszavonható kulcsot használj. " +
@@ -91,21 +92,21 @@ internal fun JarvisAiSettings(context: Context) {
         Text("Privát Jarvis AI-szerver: a tesztelőnek nem kell OpenRouter API-kulcs. " +
             "A szervert először üzembe kell helyezni; csak ezután működik a meghívós aktiválás.")
         Spacer(Modifier.height(8.dp))
-        OutlinedTextField(
+        ControlledOutlinedTextField(
             value = endpoint, onValueChange = { endpoint = it },
             singleLine = true, label = { Text("AI-szerver HTTPS-címe") },
             modifier = Modifier.fillMaxWidth()
-        )
+        , commandLabel = "AI-szerver HTTPS-címe")
         Spacer(Modifier.height(8.dp))
         if (!paired || selectedMode != savedMode) {
-            OutlinedTextField(
+            ControlledOutlinedTextField(
                 value = invitation, onValueChange = { invitation = it.take(48) },
                 singleLine = true, label = { Text("Egyszer használatos Jarvis meghívó") },
                 visualTransformation = PasswordVisualTransformation(),
                 modifier = Modifier.fillMaxWidth()
-            )
+            , commandLabel = "Egyszer használatos Jarvis meghívó")
             Spacer(Modifier.height(8.dp))
-            Button(enabled = !busy, onClick = {
+            ControlledButton(enabled = !busy, onClick = {
                 if (!cloudConsent) {
                     status = "A külső AI-feldolgozáshoz először jelöld be a hozzájárulást."
                 } else {
@@ -126,7 +127,7 @@ internal fun JarvisAiSettings(context: Context) {
                         } finally { busy = false }
                     }
                 }
-            }) { Text("Jarvis aktiválása") }
+            }, commandLabel = "Jarvis aktiválása") { Text("Jarvis aktiválása") }
         } else {
             Text("Ezen a telefonon már aktív a privát Jarvis-hozzáférés. " +
                 "A szerver a hozzáférést visszavonhatja.",
@@ -154,6 +155,10 @@ internal fun JarvisAiSettings(context: Context) {
     }
     Spacer(Modifier.height(8.dp))
     Row(verticalAlignment = Alignment.CenterVertically) {
+        RegisterJarvisControl("AI-hang használata", click = {
+            voiceConsent = !voiceConsent
+            JarvisAiGateway.setVoiceConsent(context, voiceConsent)
+        })
         Checkbox(checked = voiceConsent, onCheckedChange = { enabled ->
             voiceConsent = enabled
             JarvisAiGateway.setVoiceConsent(context, enabled)
@@ -190,7 +195,7 @@ internal fun JarvisAiSettings(context: Context) {
     )
     Spacer(Modifier.height(10.dp))
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Button(onClick = {
+        ControlledButton(onClick = {
             if (!cloudConsent) {
                 status = "Az AI-szöveg továbbításához külön, önkéntes hozzájárulás szükséges."
             } else {
@@ -207,8 +212,8 @@ internal fun JarvisAiSettings(context: Context) {
                 }
                 status = error ?: "Hozzáférés és hozzájárulás mentve. Teszteld az AI-kapcsolatot!"
             }
-        }) { Text("Mentés") }
-        OutlinedButton(onClick = {
+        }, commandLabel = "Mentés") { Text("Mentés") }
+        ControlledOutlinedButton(onClick = {
             JarvisAiGateway.clear(context)
             credential = ""
             invitation = ""
@@ -218,11 +223,11 @@ internal fun JarvisAiSettings(context: Context) {
             cloudConsent = false
             paired = false
             status = "A helyben tárolt hozzáférést töröltem."
-        }) { Text("Leválasztás") }
+        }, commandLabel = "Leválasztás") { Text("Leválasztás") }
     }
 
     Spacer(Modifier.height(10.dp))
-    Button(
+    ControlledButton(
         onClick = {
             scope.launch {
                 busy = true
@@ -238,7 +243,7 @@ internal fun JarvisAiSettings(context: Context) {
         },
         enabled = paired && selectedMode == savedMode &&
             JarvisAiGateway.cloudConsent(context) && !busy
-    ) { Text(if (busy) "Kapcsolódás..." else "AI-próbakérdés") }
+    , commandLabel = if (busy) "Kapcsolódás..." else "AI-próbakérdés") { Text(if (busy) "Kapcsolódás..." else "AI-próbakérdés") }
 
     if (status.isNotEmpty()) {
         Spacer(Modifier.height(10.dp))
@@ -254,6 +259,7 @@ internal fun JarvisAiSettings(context: Context) {
 @Composable
 private fun CheckboxRowCloudConsent(checked: Boolean, onChange: (Boolean) -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically) {
+        RegisterJarvisControl("AI-kérdések felhőbe küldése", click = { onChange(!checked) })
         Checkbox(checked = checked, onCheckedChange = onChange)
         Text("Hozzájárulok ahhoz, hogy a saját AI-kérdéseim szövegét " +
             "a kiválasztott külső AI-szolgáltató feldolgozza.",

@@ -175,8 +175,8 @@ internal fun MessageInboxScreen(context: Context, onPermissions: () -> Unit) {
         color = JarvisPalette.subtleText
     )
     Spacer(Modifier.height(12.dp))
-    OutlinedButton(onClick = onPermissions) { Text("Értesítési engedélyek") }
-    OutlinedButton(onClick = { MessageBuffer.clear(); info = "Az ideiglenes üzenetlista kiürítve." }) {
+    ControlledOutlinedButton(onClick = onPermissions, commandLabel = "Értesítési engedélyek") { Text("Értesítési engedélyek") }
+    ControlledOutlinedButton(onClick = { MessageBuffer.clear(); info = "Az ideiglenes üzenetlista kiürítve." }, commandLabel = "Üzenetlista ürítése") {
         Text("Üzenetlista ürítése")
     }
     if (info.isNotEmpty()) Text(info, color = JarvisPalette.accent)
@@ -193,14 +193,14 @@ internal fun MessageInboxScreen(context: Context, onPermissions: () -> Unit) {
                     Text(notice.appName + " · " + notice.sender,
                         color = JarvisPalette.accent, fontWeight = FontWeight.Bold)
                     Text(notice.body, color = JarvisPalette.mainText)
-                    OutlinedButton(onClick = {
+                    ControlledOutlinedButton(onClick = {
                         speaker.speak(notice.sender + ": " + notice.body, TextToSpeech.QUEUE_FLUSH, null, notice.key)
-                    }) { Text("🔊 Felolvasás") }
+                    }, commandLabel = "🔊 Felolvasás") { Text("🔊 Felolvasás") }
                     if (notice.canReply) {
-                        OutlinedTextField(drafts[notice.key].orEmpty(),
+                        ControlledOutlinedTextField(drafts[notice.key].orEmpty(),
                             onValueChange = { drafts[notice.key] = it },
-                            label = { Text("Válasz") }, modifier = Modifier.fillMaxWidth())
-                        OutlinedButton(onClick = {
+                            label = { Text("Válasz") }, modifier = Modifier.fillMaxWidth(), commandLabel = "Válasz")
+                        ControlledOutlinedButton(onClick = {
                             dictatedKey = notice.key
                             try {
                                 dictateReply.launch(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
@@ -209,24 +209,24 @@ internal fun MessageInboxScreen(context: Context, onPermissions: () -> Unit) {
                                     putExtra(RecognizerIntent.EXTRA_PROMPT, "Diktáld a választ – küldés előtt ellenőrizheted")
                                 })
                             } catch (_: Exception) { info = "Nincs telepített beszédfelismerő." }
-                        }) { Text("🎤 Válasz diktálása") }
-                        Button(onClick = {
+                        }, commandLabel = "🎤 Válasz diktálása") { Text("🎤 Válasz diktálása") }
+                        ControlledButton(onClick = {
                             info = if (MessageBuffer.reply(context, notice.key, drafts[notice.key].orEmpty())) {
                                 drafts[notice.key] = ""
                                 "A gyorsválaszt átadtam az üzenetalkalmazásnak. A kézbesítést ott ellenőrizd."
                             } else "A gyorsválasz nem sikerült. Nyisd meg az eredeti alkalmazást."
-                        }, enabled = drafts[notice.key]?.isNotBlank() == true) {
+                        }, enabled = drafts[notice.key]?.isNotBlank() == true, commandLabel = "Válasz elküldése") {
                             Text("Válasz elküldése")
                         }
                     } else {
                         Text("Ehhez az értesítéshez az alkalmazás nem adott gyorsválasz-lehetőséget.",
                             color = JarvisPalette.subtleText)
                     }
-                    OutlinedButton(onClick = {
+                    ControlledOutlinedButton(onClick = {
                         info = if (MessageBuffer.openOriginal(context, notice.key))
                             "Megnyitottam az eredeti üzenetalkalmazást."
                         else "Ez az értesítés már nem nyitható meg."
-                    }) { Text("Megnyitás az eredeti alkalmazásban") }
+                    }, commandLabel = "Megnyitás az eredeti alkalmazásban") { Text("Megnyitás az eredeti alkalmazásban") }
                 }
             }
         }
