@@ -25,6 +25,7 @@ internal sealed interface GmailOperation {
     data object Connect : GmailOperation
     data object Disconnect : GmailOperation
     data object Check : GmailOperation
+    data object ListUnread : GmailOperation
     data class Read(val sender: String? = null, val unreadOnly: Boolean = true) : GmailOperation
     data class Send(val recipient: String, val subject: String, val body: String,
                     val actuallySend: Boolean) : GmailOperation
@@ -71,7 +72,17 @@ internal object JarvisGmailCommands {
                     .find(command)?.groupValues?.get(1)?.trim()
                 GmailOperation.Read(sender, !listOf("utolso", "legutobbi", "last email", "latest email").any { it in n })
             }
-            listOf("van uj", "jott uj", "mennyi uj", "hany uj", "check ", "any new", "how many unread").any { n.startsWith(it) } ->
+            // Describe unread emails using Gmail metadata rather than forwarding
+            // the question to a generic AI model that cannot access the inbox.
+            (
+                (listOf("milyen uj", "mik az uj", "mik jottek", "sorold fel az uj",
+                    "mutasd az uj", "list unread", "which new", "what new",
+                    "show unread", "show new").any { n.startsWith(it) } &&
+                    listOf("email", "gmail", "level", "leve").any { it in n }) ||
+                n == "uj emailek" || n == "uj levelek"
+            ) -> GmailOperation.ListUnread
+            listOf("van uj", "jott uj", "mennyi uj", "hany uj", "check ",
+                "any new", "how many unread", "hany olvasatlan").any { n.startsWith(it) } ->
                 GmailOperation.Check
             listOf("kuldd", "kuldj", "irj", "keszits", "send", "write", "compose").any { n.startsWith(it) } -> {
                 val actuallySend = listOf("kuldd", "kuldj", "send").any { n.startsWith(it) }
@@ -276,6 +287,34 @@ internal object JarvisGmailApi {
                 val data = request(accessToken, "/messages?q=" + encode("in:inbox is:unread") + "&maxResults=20")
                 val estimate = data.optInt("resultSizeEstimate", 0)
                 GmailResult("A Gmail becslése szerint " + estimate + " olvasatlan beérkező leveled van.")
+            }
+            GmailOperation.ListUnread -> {
+                // Fetch only permitted sender/subject metadata. The actual
+                // message body is neither downloaded nor sent to the LLM.
+                val found = ids(accessToken, "in:inbox is:unread", 5)
+                if (found.isEmpty()) GmailResult("Nincs új, olvasatlan beérkező emailed.")
+                else {
+                    val descriptions = found.map { id ->
+                        require(id.matches(Regex("""[A-Za-z0-9_\-]{1,120}""")))
+                        val payload = request(accessToken, "/messages/" + id +
+                            "?format=metadata&metadataHeaders=From&metadataHeaders=Subject")
+                            .optJSONObject("payload") ?: error("Nem tudom megjeleníteni az email adatait.")
+                        val headers = payload.optJSONArray("headers") ?: JSONArray()
+                        fun header(name: String): String {
+                            for (index in 0 until headers.length()) {
+                                val item = headers.getJSONObject(index)
+                                if (item.optString("name").equals(name, ignoreCase = true))
+                                    return item.optString("value").replace(
+                                        Regex("""[\r\n\p{Cntrl}]"""), " ").take(140)
+                            }
+                            return "ismeretlen"
+                        }
+                        "Feladó: " + header("From") + ". Tárgy: " + header("Subject")
+                    }
+                    GmailResult("Lekértem " + found.size + " olvasatlan email feladóját és tárgyát. " +
+                        "Megnyitottam az Email oldalt.",
+                        descriptions.joinToString("\n\n"))
+                }
             }
             is GmailOperation.Read -> {
                 val q = (if (operation.unreadOnly) "in:inbox is:unread" else "in:inbox") +
