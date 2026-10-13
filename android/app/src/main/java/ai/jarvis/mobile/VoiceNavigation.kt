@@ -36,11 +36,20 @@ internal object VoiceNavigation {
 
     private val spokenPrefix = Regex("""(?iu)^(?:(?:hey|hej|szia|ok|okay)\s+)?jarvis\s*[,!:]?\s*""")
     private val pleasePrefix = Regex("""(?iu)^k[eé]rlek[,\s]+""")
+    // A compound instruction means one navigation request, not "open Maps" plus
+    // another app action. The user does not need to tap Start in Jarvis.
+    private val mapsPreamble = Regex(
+        """(?iu)^nyisd\s+meg\s+(?:a\s+)?(?:(?:google\s+)?t[eé]rk[eé]pet|google\s*maps(?:-?et)?|maps(?:-?et)?)\s*(?:(?:[eé]s|majd)\s+)(.+)$"""
+    )
+    private val navigationPrefix = Regex(
+        """(?iu)^(?:ind[ií]tsd\s+el\s+)?(?:az?\s+)?navig[aá]ci[oó]t\s+(?:ide|erre|ehhez)\s*[:,-]?\s*(.+)$"""
+    )
     private val separatedHungarianCase = Regex("""(?iu)^(.+?)\s*-\s*(?:hoz|hez|höz|ba|be|ra|re)\s*$""")
     private val joinedHungarianCase = Regex("""(?iu)^(.+?)(?:hoz|hez|höz|ba|be)$""")
 
     fun destinationFrom(command: String): String? {
-        val clean = command.trim().replace(spokenPrefix, "").replace(pleasePrefix, "").trim()
+        val initial = command.trim().replace(spokenPrefix, "").replace(pleasePrefix, "").trim()
+        val clean = (mapsPreamble.matchEntire(initial)?.groupValues?.get(1) ?: initial).trim()
         if (clean.isBlank() || clean.length > 240 || clean.any { it == '\n' || it == '\r' }) return null
         personDestination.matchEntire(clean)?.let { return "PERSON:" + it.groupValues[1].trim() }
         val index = destinationCommands.indexOfFirst { it.matches(clean) }
