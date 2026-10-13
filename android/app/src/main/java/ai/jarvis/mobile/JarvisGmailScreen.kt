@@ -12,6 +12,7 @@ import androidx.compose.ui.unit.dp
 internal fun JarvisGmailScreen(
     language: JarvisLanguage,
     status: String,
+    readText: String,
     dispatch: (GmailRequest) -> Unit
 ) {
     fun tr(hu: String, en: String, de: String, fr: String, es: String, it: String, pl: String) =
@@ -70,6 +71,13 @@ internal fun JarvisGmailScreen(
     if (status.isNotEmpty()) {
         Text(status, color = MaterialTheme.colorScheme.primary,
             modifier = Modifier.testTag("gmail-status"))
+    }
+    if (readText.isNotEmpty()) {
+        Text(tr("Beérkezett levelek (csak a képernyőn, nem kerülnek a beszélgetésnaplóba)",
+            "Received emails (on screen only, not saved to chat history)",
+            "Empfangene E-Mails", "E-mails reçus", "Correos recibidos",
+            "Email ricevute", "Otrzymane wiadomości"), style = MaterialTheme.typography.titleMedium)
+        Text(readText, modifier = Modifier.fillMaxWidth().testTag("gmail-read-text"))
     }
     HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
     Text(tr("Új email", "New email", "Neue E-Mail", "Nouvel e-mail",
