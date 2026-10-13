@@ -456,6 +456,10 @@ class HandsFreeService : Service(), RecognitionListener {
         activeVoiceCommand = command
         // Same deterministic on-device executor as typed chat.
         // User must have enabled Jarvis Accessibility manually in Android.
+        JarvisLocalPreferences.parse(command)?.let { requested ->
+            speak(JarvisLocalPreferences.apply(this, requested))
+            return
+        }
         JarvisScreenControl.parse(command)?.let { action ->
             speak(if (privateVoiceAllowed())
                 JarvisScreenControl.execute(this, action)
