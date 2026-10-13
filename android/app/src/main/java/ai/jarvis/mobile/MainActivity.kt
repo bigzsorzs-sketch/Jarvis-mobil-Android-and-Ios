@@ -340,6 +340,13 @@ fun JarvisApp(context: Context) {
         pendingSequenceUntilMs = android.os.SystemClock.elapsedRealtime() + 40_000L
     }
     fun openTool(destination: String, asPage: Boolean = false): String {
+        // Backward-compatible route guard for pending voice/AI requests from
+        // before the Navigation page was removed. Real destination navigation
+        // still executes earlier through VoiceNavigation, unchanged.
+        if (asPage && destination == "Navigáció") {
+            page = "Továbbiak"
+            return "A mentett helyek importálása és az otthoni cím most a Továbbiak oldalon van."
+        }
         // Legacy AI/tool requests must not reopen the removed Contacts screen.
         // Phonebook lookup and confirmed calls still run through VoiceCalling.
         if (destination == "Névjegyek" || destination == "Hívás") {
