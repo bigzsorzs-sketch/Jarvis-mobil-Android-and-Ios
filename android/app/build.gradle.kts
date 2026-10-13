@@ -20,8 +20,8 @@ android {
         applicationId = "ai.jarvis.mobile"
         minSdk = 26
         targetSdk = 36
-        versionCode = 36
-        versionName = "0.2.25"
+        versionCode = 37
+        versionName = "0.2.26"
         buildConfigField("String", "JARVIS_GATEWAY_ORIGIN", "\"$jarvisGatewayOrigin\"")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
