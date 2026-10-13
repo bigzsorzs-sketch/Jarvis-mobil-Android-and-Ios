@@ -61,6 +61,7 @@ internal object JarvisGmailCommands {
                     .find(command)?.range?.first?.let { command.substring(0, it) } ?: command
                 val sender = head.replace(Regex("""(?iu)^(?:v[aá]laszolj|v[aá]laszolj[aá]l|reply|answer)\s*"""), "")
                     .replace(Regex("""(?iu)\b(?:az?|the|utols[oó]|legut[oó]bbi|last|latest|emailj[eé]re|emailre|emailj[aá]ra|emailre|level[eé]re|level[eé]nek|mail|email|gmail|from|to)\b"""), " ")
+                    .replace(Regex("""[,.:;!?]"""), " ")
                     .replace(Regex("""\s+"""), " ").trim().ifBlank { null }
                 if (body.isBlank()) GmailOperation.Incomplete("Mondd meg a válasz szövegét: válaszolj az utolsó emailre, hogy ...")
                 else GmailOperation.Reply(sender, body)
