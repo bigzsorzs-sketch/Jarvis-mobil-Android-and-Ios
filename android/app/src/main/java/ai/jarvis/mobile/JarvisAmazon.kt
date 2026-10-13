@@ -148,12 +148,26 @@ internal object JarvisAmazon {
             else -> return "Amazon művelet nem elérhető."
         }
         return try {
-            context.startActivity(
-                Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            val ordinary = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            val wantsBusiness = (action is AmazonAction.Search && action.business) ||
+                (action is AmazonAction.OpenStore && action.business)
+            // Official UK/EU Amazon Business shopping app. A link is handed to
+            // that package only if Android accepts its declared deep link.
+            // Never pretend a retail browser tab was the Business application.
+            val openedInBusiness = wantsBusiness && runCatching {
+                context.startActivity(Intent(ordinary).setPackage(
+                    "com.amazon.mShop.android.business.shopping"))
+                true
+            }.getOrDefault(false)
+            if (!openedInBusiness) context.startActivity(ordinary)
             when (action) {
                 is AmazonAction.Search -> "Megnyitottam az " + action.marketplace.title +
                     " találatait: " + action.query + ". " +
-                    (if (action.business) "Az üzleti árakhoz jelentkezz be Amazon Business-fiókoddal. " else "") +
+                    (if (action.business) {
+                        if (openedInBusiness) "A keresést az Amazon Business alkalmazásnak adtam át. "
+                        else "Az Amazon Business app nem fogadta a linket; böngészőben folytatom. Jelentkezz be az üzleti fiókodba. "
+                    } else "") +
                     "A hiteles árakat, készletet és szállítást az Amazon mutatja; Jarvis még nem kapott ezekhez hivatalos termék-API hozzáférést."
                 is AmazonAction.ViewProduct -> "Megnyitottam az Amazon termékoldalát (" +
                     action.asin + "). A tényleges árat az Amazon mutatja."
