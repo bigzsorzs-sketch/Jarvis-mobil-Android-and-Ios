@@ -25,8 +25,10 @@ internal class JarvisReadAloud(context: Context) {
         val started = engine.speak(text, selected) { success ->
             if (!closed) {
                 isSpeaking = false
-                status = JarvisReadAloudCommand.response(language,
-                    if (success) "finished" else "failed")
+                status = if (success) JarvisReadAloudCommand.response(language, "finished")
+                    else engine.lastFailure.ifBlank {
+                        JarvisReadAloudCommand.response(language, "failed")
+                    }
             }
         }
         isSpeaking = started
