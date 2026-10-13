@@ -59,10 +59,22 @@ class JarvisCapabilitiesTest {
         assertNull(JarvisCapabilities.replyIfAsked("Milyen számlázási szabályok vannak Angliában?"))
     }
 
+    @Test fun redundantCallContactsUiIsGoneButNativeCallCommandsRemain() {
+        assertFalse(JarvisToolCatalog.all.any { it.name == "Hívás" || it.route == "Névjegyek" })
+        assertFalse(JarvisToolCatalog.subpages.any { it.route == "Névjegyek" })
+        assertNull(JarvisCapabilities.localPageToOpen("Nyisd meg a Hívás oldalt"))
+        assertNull(JarvisCapabilities.localPageToOpen("Nyisd meg a Névjegyek oldalt"))
+        assertEquals("Esztert", VoiceCalling.extractRequest("Hívd fel Esztert"))
+        assertEquals("Vivit", VoiceCalling.extractRequest("Jarvis, hívd fel Vivit"))
+        assertTrue(VoiceCalling.callConfirmationYes("igen, hívd fel"))
+        // Approval and recipient resolution are native, not a page's click action.
+        assertFalse(VoiceCalling.callConfirmationYes("nem"))
+    }
+
     @Test fun handlesOnlyExplicitAllowlistedPageNavigation() {
         assertEquals("Munka", JarvisCapabilities.localPageToOpen("Nyisd meg a Munka eszköztárat"))
         assertNull(JarvisCapabilities.localPageToOpen("Mutasd az ismerősöket"))
-        assertEquals("Névjegyek", JarvisCapabilities.localPageToOpen("Nyisd meg a névjegyeket"))
+        assertNull(JarvisCapabilities.localPageToOpen("Nyisd meg a névjegyeket"))
         assertNull(JarvisCapabilities.localPageToOpen("Mit tudsz az ismerősökről?"))
         assertNull(JarvisCapabilities.localPageToOpen("Nyisd meg a bankszámlámat"))
         assertNull(JarvisCapabilities.localPageToOpen("Listázd az összes eszközöd"))
