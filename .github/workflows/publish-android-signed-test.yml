@@ -132,7 +132,7 @@ jobs:
           mkdir -p dist
           cp "$apk" dist/Jarvis-Android-0.2.19-signed-test.apk
           cp "$RUNNER_TEMP/new-signature.txt" dist/SIGNING-CERTIFICATE.txt
-          (cd dist && sha256sum Jarvis-Android-0.2.18-signed-test.apk > SHA256SUMS.txt)
+          (cd dist && sha256sum Jarvis-Android-0.2.19-signed-test.apk > SHA256SUMS.txt)
       - name: Verify permanent signature exactly matches installed 0.2.18 baseline
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
