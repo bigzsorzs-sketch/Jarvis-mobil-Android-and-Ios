@@ -298,6 +298,15 @@ internal object JarvisAiGateway {
             }
         }
 
+    /** Server and direct-provider modes must use the same selected response language.
+     * Only one of the seven supported language tags is passed, never model-produced text.
+     */
+    internal fun serverChatPayload(question: String, selectedLanguage: String): JSONObject {
+        val supported = setOf("hu-HU", "en-GB", "de-DE", "fr-FR", "es-ES", "it-IT", "pl-PL")
+        val tag = selectedLanguage.takeIf { it in supported } ?: "hu-HU"
+        return JSONObject().put("message", question).put("language", tag)
+    }
+
     suspend fun ask(context: Context, message: String): String =
         askStructured(context, message).message
 
@@ -352,7 +361,9 @@ internal object JarvisAiGateway {
             val payload = if (direct) JarvisAiToolPolicy.providerPayload(
                 question, responseLanguageTag?.let { JarvisLanguage.fromSpeechTag(it)?.tag }
                     ?: JarvisLanguageSettings.load(context.applicationContext).tag)
-                else JSONObject().put("message", question)
+                else serverChatPayload(question,
+                    responseLanguageTag?.let { JarvisLanguage.fromSpeechTag(it)?.tag }
+                        ?: JarvisLanguageSettings.load(context.applicationContext).tag)
             if (attachments.isNotEmpty()) {
                 val parts = try {
                     JarvisAiAttachments.buildParts(context.applicationContext, question, attachments)

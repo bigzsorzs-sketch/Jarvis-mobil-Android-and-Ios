@@ -57,7 +57,7 @@ internal fun JarvisAttachmentPicker(
             busy = false
             onStatus(
                 (if (accepted > 0) "Helyben előkészítve: " + accepted + " csatolmány. " +
-                    "AI-elemzéshez küldd el az üzenetet. Kép, PDF és szöveg támogatott, maximum 20 MB összesen." else "") +
+                    "A kiválasztott fájlok helyben megnyithatók. AI-elemzéshez csak támogatott kép, PDF és szöveg: maximum 5 MB/fájl, összesen 20 MB." else "") +
                     (if (errors.isNotBlank()) " " + errors else "")
             )
         }
@@ -189,6 +189,11 @@ internal fun JarvisAttachmentPicker(
                     JarvisAttachments.imageCount(items).toString() + "/20 kép · " +
                         String.format(Locale.UK, "%.1f", mb) + " / 1024 MB",
                     color = JarvisPalette.accent
+                )
+                Text(
+                    "Az 1 GB helyi fájl-előkészítési keret, nem AI-feltöltési limit. AI: max. 20 MB összesen, 5 MB/fájl; videó csak helyi előnézet.",
+                    color = JarvisPalette.subtleText,
+                    style = MaterialTheme.typography.bodySmall
                 )
                 items.forEach { attachment ->
                     Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {

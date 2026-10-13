@@ -334,7 +334,7 @@ fun JarvisApp(context: Context) {
                     attachments.forEach { JarvisAttachments.delete(it) }
                 }
             }
-            val index = conversation.indexOf(waiting)
+            val index = JarvisPendingTurn.findIndex(conversation, waiting)
             if (index >= 0) {
                 val response = if (revision == commandRevision) result.message
                     else "Újabb kérés érkezett; az előző AI-elemzést nem hajtottam végre eszközműveletként."
@@ -670,7 +670,7 @@ fun JarvisApp(context: Context) {
             drawerScope.launch {
                 val outcome = JarvisAiGateway.askStructured(context, command)
                 if (requestRevision != commandRevision) {
-                    val oldIndex = conversation.indexOf(pending)
+                    val oldIndex = JarvisPendingTurn.findIndex(conversation, pending)
                     if (oldIndex >= 0) conversation[oldIndex] =
                         command to "Egy újabb kérés miatt a korábbi AI-parancsot megszakítottam."
                     return@launch
@@ -700,7 +700,7 @@ fun JarvisApp(context: Context) {
                     }
                     else -> outcome.message
                 }
-                val index = conversation.indexOf(pending)
+                val index = JarvisPendingTurn.findIndex(conversation, pending)
                 if (index >= 0) {
                     conversation[index] = command to answer
                     saveChatTurn(command to answer)

@@ -4,6 +4,7 @@ import { createRemoteJWKSet, jwtVerify } from "jose";
 import { createClient } from "redis";
 import { JARVIS_TOOLS, verifiedToolCall } from "./toolCalls.js";
 import { shouldOfferToolCalls } from "./toolRouting.js";
+import { selectedLanguageInstruction } from "./responseLanguage.js";
 import { readLimitedProviderJson } from "./responseLimits.js";
 import { betaSessionSubject, redeemInvite } from "./betaInvite.js";
 
@@ -238,6 +239,7 @@ const server = http.createServer(async (req, res) => {
     try { data = await readInput(req); }
     catch { return reply(res, 400, { error: "INVALID_BODY" }); }
     const message = (data as { message?: unknown } | null)?.message;
+    const selectedLanguage = (data as { language?: unknown } | null)?.language;
     if (typeof message !== "string" || !message.trim() || message.length > MAX_INPUT) {
       return reply(res, 400, { error: "INVALID_MESSAGE" });
     }
@@ -270,7 +272,7 @@ const server = http.createServer(async (req, res) => {
         body: JSON.stringify({
           model,
           messages: [
-            { role: "system", content: JARVIS_SYSTEM_PROMPT },
+            { role: "system", content: JARVIS_SYSTEM_PROMPT + "\n" + selectedLanguageInstruction(selectedLanguage) },
             { role: "user", content: message }
           ],
           ...(toolsRequested

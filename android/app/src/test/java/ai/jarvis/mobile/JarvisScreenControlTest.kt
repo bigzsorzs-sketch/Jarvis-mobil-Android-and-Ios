@@ -36,6 +36,29 @@ class JarvisScreenControlTest {
         }
     }
 
+    @Test fun thirdPartySensitiveActionsAreBlockedAcrossSevenLanguages() {
+        val unsafe = listOf(
+            "Pay", "Click authorize", "FIZETEK", "Koppints a Törlés gombra",
+            "Pagar", "Comprar", "Guardar", "Autorizar",
+            "Bezahlen", "Zahlung", "Speichern",
+            "Payer", "Acheter", "Enregistrer",
+            "Pagare", "Acquista", "Salva",
+            "Zapłać", "Kup", "Zapisz", "Potwierdź"
+        )
+        unsafe.forEach { label ->
+            assertTrue("Unsafe label must be rejected: $label",
+                JarvisScreenControl.unsafeTapLabel(label))
+        }
+        listOf("Keresés", "Buscar", "Search", "Suchen", "Rechercher", "Cerca", "Szukaj", "Pagina")
+            .forEach { label ->
+                assertFalse("Simple search must remain available: $label",
+                    JarvisScreenControl.unsafeTapLabel(label))
+            }
+        listOf("Koppints a Pagar gombra", "Nyomd meg a FIZETEK gombot",
+            "Click authorize button", "Tap Comprar", "Koppints a Zapłać gombra")
+            .forEach { command -> assertNull(command, JarvisScreenControl.parse(command)) }
+    }
+
     @Test fun externalAppsRemainIndependentOfGenericScreenTapActions() {
         assertNull(JarvisScreenControl.parse("Nyisd meg a Messengert"))
         assertNull(JarvisScreenControl.parse("Nyisd meg a WhatsAppot"))

@@ -105,6 +105,21 @@ internal fun JarvisHomeScreen(
             if (selectedFiles.isNotEmpty()) "Elemezd a csatolt fájlokat." else ""
         }
         if (command.isBlank()) return
+        if (selectedFiles.isNotEmpty()) {
+            // Reject locally BEFORE clearing the draft or the user's files.
+            JarvisAiAttachments.rejectionReason(selectedFiles)?.let { failure ->
+                issue = failure
+                return
+            }
+            if (!JarvisAiGateway.configured(context)) {
+                issue = "AI-feltöltéshez a Beállítások → AI-agy alatt előbb engedélyezd és állítsd be az AI-kapcsolatot. A fájlok és az üzenet megmaradtak."
+                return
+            }
+            if (JarvisAiGateway.mode(context) != JarvisAiGateway.DIRECT_TEST) {
+                issue = "Fájlok AI-elemzése jelenleg csak közvetlen OpenRouter-kapcsolattal működik. A kiválasztott fájlok megmaradtak."
+                return
+            }
+        }
         // User may manually send a partial dictation; stop listening first so
         // a delayed final-recognition callback cannot execute it twice.
         dictation.stop()

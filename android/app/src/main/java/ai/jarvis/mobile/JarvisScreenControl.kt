@@ -31,12 +31,65 @@ internal object JarvisScreenControl {
     private fun normalized(s: String): String =
         Normalizer.normalize(s.lowercase(Locale.ROOT), Normalizer.Form.NFD)
             .replace(Regex("""\p{M}+"""), "")
+            .replace("ł", "l").replace("ß", "ss")
             .replace(Regex("""[^a-z0-9 ]+"""), " ")
             .trim().replace(Regex("""\s+"""), " ")
 
-    private val sensitive = Regex(
-        """(?i)\b(pay|payment|purchase|buy|subscribe|transfer|send|delete|remove|erase|confirm|approve|grant|allow|uninstall|install|submit|password|pin|otp|checkout|send money|fizetes|fizess|vasarlas|at utalas|atutalas|kuldes|kuldd|torles|torold|jovahagyas|jovahagy|engedelyezes|telepites|eltavolitas|hivas|hivd|bejelentkezes)\b"""
+    /** A click on a third-party screen is not proof of what it will do.
+     * Never automate labels that could submit, authorize, pay, erase, install,
+     * change permissions or approve a transaction. All seven UI languages
+     * are normalized before checking, including Hungarian and Polish accents.
+     * This is an explicit deny gate, not a permission to bypass Android prompts.
+     */
+    private val blockedWords = setOf(
+        // Generic confirmation or next-step labels: the adjacent screen may be sensitive.
+        "ok", "yes", "igen", "rendben", "continue", "next", "accept", "agree",
+        "done", "finish", "save", "mentes", "folytatas", "tovabb", "elfogadom",
+        "kesz", "jo", "mentesek", "speichern", "enregistrer", "guardar",
+        "salva", "zapisz", "confirmar", "accepter", "weiter", "suivant", "continuer",
+        "aceptar", "continuar", "siguiente", "accetta", "continua",
+        "prosegui", "akceptuj", "dalej", "potwierdz", "zatwierdz",
+        // Payments, messages, deletion, authentication, permissions, apps.
+        "pay", "payment", "purchase", "buy", "subscribe", "transfer",
+        "send", "submit", "delete", "remove", "erase", "confirm", "approve",
+        "grant", "allow", "uninstall", "install", "password", "pin", "otp",
+        "checkout", "authorize", "authorization", "login",
+        "fizetes", "fizess", "fizetek", "vasarlas", "vasarol", "utalas",
+        "atutalas", "kuldes", "kuldd", "torles", "torold", "jovahagyas",
+        "jovahagy", "engedelyezes", "engedelyez", "telepites",
+        "eltavolitas", "hivas", "hivd", "bejelentkezes",
+        "bezahlen", "zahlen", "zahlung", "kaufen", "uberweisen",
+        "senden", "loschen", "entfernen", "bestatigen", "erlauben",
+        "genehmigen", "installieren", "deinstallieren", "anmelden",
+        "payer", "paiement", "acheter", "achat", "envoyer",
+        "supprimer", "effacer", "confirmer", "autoriser", "installer",
+        "desinstaller", "connexion",
+        "pagar", "pago", "comprar", "compra", "enviar", "borrar",
+        "eliminar", "aprobar", "autorizar", "permitir", "instalar",
+        "desinstalar", "iniciar",
+        "pagare", "pagamento", "acquistare", "acquista", "comprare",
+        "inviare", "invia", "eliminare", "cancellare", "confermare",
+        "approvare", "autorizzare", "consentire", "installare",
+        "disinstallare", "accedi",
+        "zaplac", "platnosc", "kup", "kupic", "wyslij", "usun",
+        "usuwanie", "skasuj", "potwierdzic", "autoryzuj",
+        "zezwol", "zezwolic", "instaluj", "odinstaluj", "zaloguj"
     )
+    private val blockedPrefixes = listOf(
+        "payment", "purchas", "transferr", "authoriz", "delet",
+        "fizet", "vasar", "atutal", "jovahagy", "engedelyez", "telepit",
+        "bezah", "zahl", "kauf", "uberweis", "losch", "bestatig",
+        "paiem", "achet", "supprim", "autoris", "compr", "paga", "pago",
+        "elimin", "approv", "acquist", "cancell", "conferm",
+        "zaplac", "platn", "potwierdz", "odinstal"
+    )
+
+    internal fun unsafeTapLabel(label: String): Boolean {
+        val tokens = normalized(label).split(' ').filter { it.isNotBlank() }
+        return tokens.isEmpty() || tokens.any { word ->
+            word in blockedWords || blockedPrefixes.any { word.startsWith(it) }
+        }
+    }
 
     fun parse(command: String): Action? {
         val raw = normalized(command).removePrefix("hey jarvis ")
@@ -63,11 +116,7 @@ internal object JarvisScreenControl {
                 val label = m.groupValues[1].trim()
                 // Generic "OK"/"Continue" buttons may approve a payment or
                 // permission without revealing the operation. Never click them.
-                if (label.length !in 2..50 || sensitive.containsMatchIn(label) ||
-                    label in setOf("ok", "igen", "yes", "rendben", "continue",
-                        "next", "accept", "agree", "done", "finish", "save",
-                        "mentes", "mentesek", "folytatas", "tovabb", "elfogadom",
-                        "jo", "kesz", "confirmar", "accepter", "weiter")) return null
+                if (label.length !in 2..50 || unsafeTapLabel(label)) return null
                 Action.TapLabel(label)
             }
         }

@@ -1,0 +1,176 @@
+name: Publish signed Jarvis Android 0.2.23 update
+on:
+  # The reviewed, owner-approved release promotion runs once when this exact workflow is changed on main.
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/publish-android-023-signed-test.yml"
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: 'Type SIGNED_TEST_APPROVED to publish the 0.2.23 in-place signed update after CI verification'
+        required: true
+        type: string
+permissions:
+  contents: write
+  actions: read
+concurrency:
+  group: jarvis-android-023-signed-test
+  cancel-in-progress: false
+jobs:
+  signed-test-apk:
+    if: >-
+      ((github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+       (github.event_name == 'workflow_dispatch' &&
+        github.ref == 'refs/heads/main' &&
+        inputs.confirmation == 'SIGNED_TEST_APPROVED'))
+    environment: production
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify main commit and matching tested Android source before signing
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SOURCE_SHA: ${{ github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          current="$(gh api "repos/${{ github.repository }}/git/ref/heads/main" --jq '.object.sha')"
+          test "$current" = "$SOURCE_SHA"
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          if gh release view "v0.2.23-signed-test.1" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            echo "Signed test release already exists; nothing to replace"
+            exit 1
+          fi
+          # Do not sign or release untested changes: require exact main commit.\n          TESTED_SHA="$SOURCE_SHA"\n          # Require completed, successful main-branch build AND emulator tests
+          # for the exact Android source being signed. No blind green claim.
+          for workflow in android-debug.yml android-ui-emulator.yml; do
+            verified=""
+            for attempt in $(seq 1 90); do
+              state="$(gh api "repos/${{ github.repository }}/actions/workflows/$workflow/runs?head_sha=$TESTED_SHA&event=push&per_page=10" | jq -r --arg sha "$TESTED_SHA" --arg repo "${{ github.repository }}" '
+                [.workflow_runs[] | select(.head_sha == $sha and .head_branch == "main" and
+                  .head_repository.full_name == $repo and .event == "push")][0] |
+                    if . == null then "" else
+                      if .status == "completed" then .conclusion // "" else "pending" end
+                    end
+              ')"
+              case "$state" in
+                success) verified=yes; break ;;
+                failure|cancelled|timed_out|action_required|stale)
+                  echo "::error::Required $workflow failed: $state"; exit 1 ;;
+              esac
+              sleep 10
+            done
+            test "$verified" = yes || { echo "::error::Required verified $workflow is not green"; exit 1; }
+          done
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Install Android SDK 36
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDKMANAGER=$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -1)
+          test -n "$SDKMANAGER"
+          "$SDKMANAGER" "platforms;android-36" "build-tools;36.0.0"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - name: Restore permanent protected signing keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_UPLOAD_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$KEYSTORE_BASE64" || { echo 'Missing permanent Jarvis signing keystore secret'; exit 1; }
+          test -n "$STORE_PASSWORD" && test -n "$KEY_ALIAS" && test -n "$KEY_PASSWORD" || { echo 'Missing Android signing credentials'; exit 1; }
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/jarvis-upload.jks"
+          test -s "$RUNNER_TEMP/jarvis-upload.jks"
+          chmod 600 "$RUNNER_TEMP/jarvis-upload.jks"
+      - name: Run Android unit tests, release lint and assemble signed APK
+        env:
+          ANDROID_SIGNING_STORE_FILE: ${{ runner.temp }}/jarvis-upload.jks
+          ANDROID_SIGNING_STORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_STORE_PASSWORD }}
+          ANDROID_SIGNING_KEY_ALIAS: ${{ secrets.ANDROID_UPLOAD_KEY_ALIAS }}
+          ANDROID_SIGNING_KEY_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
+          JARVIS_GATEWAY_ORIGIN: ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle -p android :app:testDebugUnitTest :app:testReleaseUnitTest :app:lintRelease :app:assembleRelease
+      - name: Cryptographically verify APK, version and integrity
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk=android/app/build/outputs/apk/release/app-release.apk
+          test -s "$apk"
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$apk" > "$RUNNER_TEMP/new-signature.txt"
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$apk" | grep -F "package: name='ai.jarvis.mobile' versionCode='34' versionName='0.2.23'"
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$apk" | grep "targetSdkVersion:'36'"
+          unzip -t "$apk" > /dev/null
+          mkdir -p dist
+          cp "$apk" dist/Jarvis-Android-0.2.23-signed-test.apk
+          cp "$RUNNER_TEMP/new-signature.txt" dist/SIGNING-CERTIFICATE.txt
+          (cd dist && sha256sum Jarvis-Android-0.2.23-signed-test.apk > SHA256SUMS.txt)
+      - name: Verify permanent signature exactly matches installed 0.2.18 baseline
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          # This must install IN PLACE over the user's permanently signed 0.2.18.
+          # Keep the original Jarvis production signing identity forever.
+          current="$(grep -iE 'Signer #1 certificate SHA-256 digest: [0-9a-f]{64}' \
+            dist/SIGNING-CERTIFICATE.txt | awk '{print $NF}' | tr 'A-F' 'a-f')"
+          test "${#current}" -eq 64 || { echo "::error::No valid signing certificate fingerprint"; exit 1; }
+          expected="955338795da61366091ed256b0f6b2a948b9aaf9d7771b022a65b88a94b2d86a"
+          test "$current" = "$expected" || { echo "::error::Wrong permanent Jarvis 0.2.18 signing certificate"; exit 1; }
+          echo "Permanent Jarvis signing identity verified against the saved baseline."
+          mkdir -p "$RUNNER_TEMP/previous"
+          gh release download v0.2.22-signed-test.1 \
+            --repo "${{ github.repository }}" --pattern SIGNING-CERTIFICATE.txt \
+            --dir "$RUNNER_TEMP/previous"
+          previous="$(grep -iE 'Signer #1 certificate SHA-256 digest: [0-9a-f]{64}' \
+            "$RUNNER_TEMP/previous/SIGNING-CERTIFICATE.txt" | awk '{print $NF}' | tr 'A-F' 'a-f')"
+          test "$previous" = "$expected" || {
+            echo "::error::New APK signer differs from 0.2.18; refusing unsafe update"; exit 1;
+          }
+          echo "Same signing identity as already published 0.2.18 confirmed."
+      - name: Publish signed APK as clearly labeled prerelease (NOT public AI launch)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          current="$(gh api "repos/${{ github.repository }}/git/ref/heads/main" --jq '.object.sha')"
+          test "$current" = "$GITHUB_SHA"
+          tag=v0.2.23-signed-test.1
+          if gh release view "$tag" --repo "${{ github.repository }}" > /dev/null 2>&1; then
+            echo 'Signed-test release already exists; refusing to replace it'
+            exit 1
+          fi
+          cat > "$RUNNER_TEMP/jarvis-signed-test-notes.md" <<'EOF'
+          # Jarvis Android 0.2.23 — ALÁÍRT TESZTFRISSÍTÉS
+          VersionName: 0.2.23, versionCode: 34, Android package: ai.jarvis.mobile.
+          Cumulative update based on Jarvis 0.2.22. Includes improvements to cross-page voice/text controls, the assistant selection entry point, accurate pending AI chat response matching, preflight AI-attachment checks and seven-language response routing.
+          This is a controlled signed Android test update, not a final public service launch.
+          The signed APK uses the same permanent signing certificate as prior official Jarvis 0.2.22 and 0.2.18 updates. Never uninstall the existing app to force installation.
+          Verify package, SHA-256, higher versionCode and the original signing identity before the system installer prompts to update. Android still requires approval to install.
+          The 1 GiB file picker limit is LOCAL staging, not an AI upload limit: supported AI inputs currently have a 5 MB/file and 20 MB/request ceiling. Video or EXE analysis is not delivered by this build.
+          External app actions are restricted by Android's permission model. Sensitive third-party actions and system permission prompts cannot be bypassed.
+          On-device microphone, navigation, contacts, external apps, live AI provider connection and all languages still require real-phone validation.
+          EOF
+          gh release create "$tag" \
+            dist/Jarvis-Android-0.2.23-signed-test.apk dist/SHA256SUMS.txt dist/SIGNING-CERTIFICATE.txt \
+            --repo "${{ github.repository }}" --target "$GITHUB_SHA" \
+            --title 'Jarvis Android 0.2.23 — signed UPDATE' \
+            --notes-file "$RUNNER_TEMP/jarvis-signed-test-notes.md" --prerelease --latest=false
+      - name: Securely remove signing material
+        if: always()
+        shell: bash
+        run: rm -f "$RUNNER_TEMP/jarvis-upload.jks"

@@ -20,4 +20,21 @@ class JarvisAiAttachmentsTest {
         assertTrue(JarvisAiAttachments.MAX_SEND_BYTES < JarvisAttachments.MAX_TOTAL_BYTES)
         assertTrue(JarvisAiAttachments.MAX_FILE_BYTES < JarvisAiAttachments.MAX_SEND_BYTES)
     }
+
+    @Test fun aiUploadPreflightRejectsUnsupportedFilesWithoutDeletingStagedItems() {
+        fun item(name: String, mime: String, bytes: Long) =
+            JarvisAttachment(name, name, java.io.File("/tmp/does-not-need-to-exist"), mime, bytes, mime.startsWith("image/"))
+        assertNull(JarvisAiAttachments.rejectionReason(listOf(item("ok.pdf", "application/pdf", 500_000))))
+        assertTrue(JarvisAiAttachments.rejectionReason(listOf(
+            item("clip.mp4", "video/mp4", 100_000)))!!.contains("nem küldhető"))
+        assertTrue(JarvisAiAttachments.rejectionReason(listOf(
+            item("program.exe", "application/vnd.microsoft.portable-executable", 500_000)))!!.contains("nem küldhető"))
+        assertTrue(JarvisAiAttachments.rejectionReason(listOf(
+            item("large.pdf", "application/pdf", 6L * 1024 * 1024)))!!.contains("5 MB"))
+        assertTrue(JarvisAiAttachments.rejectionReason(listOf(
+            item("long.txt", "text/plain", 300_000)))!!.contains("256 KB"))
+        assertTrue(JarvisAiAttachments.rejectionReason(
+            (0..4).map { item("picture$it.jpg", "image/jpeg", 5L * 1024 * 1024) }
+        )!!.contains("20 MB"))
+    }
 }

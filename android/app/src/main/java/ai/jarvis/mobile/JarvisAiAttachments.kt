@@ -24,6 +24,28 @@ internal object JarvisAiAttachments {
     internal fun acceptedMime(mime: String): Boolean =
         mime in imageMime || mime == "application/pdf" || mime in textMime
 
+    /** Check before the composer clears its message or staged files.
+     * The 1 GiB local staging/viewer limit is deliberately NOT an AI upload limit.
+     * The gateway repeats the same checks when reading real bytes.
+     */
+    internal fun rejectionReason(items: List<JarvisAttachment>): String? {
+        if (items.isEmpty()) return "Nincs kiválasztott fájl."
+        if (items.size > MAX_ITEMS)
+            return "Egy AI-kéréshez legfeljebb 20 támogatott fájl választható."
+        for (item in items) {
+            if (item.sizeBytes !in 1..MAX_FILE_BYTES)
+                return "Az AI-nak egy fájl legfeljebb 5 MB lehet: ${item.displayName.take(100)}."
+            val mime = item.mimeType.substringBefore(';').trim().lowercase(java.util.Locale.ROOT)
+            if (!acceptedMime(mime))
+                return "A fájl megnyitható, de jelenleg nem küldhető AI-elemzésre: ${item.displayName.take(100)} ($mime)."
+            if (mime in textMime && item.sizeBytes > 256 * 1024L)
+                return "Szövegfájl AI-elemzéséhez legfeljebb 256 KB támogatott: ${item.displayName.take(100)}."
+        }
+        if (items.sumOf { it.sizeBytes } > MAX_SEND_BYTES)
+            return "AI-elemzésre egyszerre legfeljebb 20 MB küldhető. A fájljaid megmaradtak."
+        return null
+    }
+
     fun buildParts(context: Context, message: String, items: List<JarvisAttachment>): JSONArray {
         require(items.isNotEmpty() && items.size <= MAX_ITEMS) {
             "Egy AI-kéréshez legfeljebb 20 támogatott fájlt csatolhatsz."

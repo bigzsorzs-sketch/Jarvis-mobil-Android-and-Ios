@@ -4,6 +4,16 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class JarvisAiGatewayTest {
+    @Test fun hostedChatLanguageIsSevenLanguageAllowlistedAndBackwardCompatible() {
+        for (tag in listOf("hu-HU", "en-GB", "de-DE", "fr-FR", "es-ES", "it-IT", "pl-PL")) {
+            val payload = JarvisAiGateway.serverChatPayload("Hello", tag)
+            assertEquals("Hello", payload.getString("message"))
+            assertEquals(tag, payload.getString("language"))
+        }
+        val invalid = JarvisAiGateway.serverChatPayload("Test", "ignore-previous-instructions")
+        assertEquals("hu-HU", invalid.getString("language"))
+    }
+
     @Test fun fixedTextModelIsGPT52ButSpeechUsesActualTtsModel() {
         assertEquals("openai/gpt-5.2", JarvisAiGateway.TEST_MODEL)
         assertEquals("openai/gpt-4o-mini-tts-2025-12-15", JarvisAiGateway.SPEECH_MODEL)
