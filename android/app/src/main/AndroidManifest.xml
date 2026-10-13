@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Sideloaded GitHub release updates require explicit Android user approval. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <uses-permission android:name="android.permission.NFC" />
     <!-- Optional user-authorized on-device health records; not an Abbott API. -->
     <uses-permission android:name="android.permission.health.READ_BLOOD_GLUCOSE" />
