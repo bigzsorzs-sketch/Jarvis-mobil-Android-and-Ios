@@ -25,6 +25,8 @@ internal sealed interface GmailOperation {
     data object Connect : GmailOperation
     data object Disconnect : GmailOperation
     data object Check : GmailOperation
+    data object ListUnread : GmailOperation
+    data class ResolveRecipient(val name: String, val actuallySend: Boolean) : GmailOperation
     data class Read(val sender: String? = null, val unreadOnly: Boolean = true) : GmailOperation
     data class Send(val recipient: String, val subject: String, val body: String,
                     val actuallySend: Boolean) : GmailOperation
@@ -33,7 +35,11 @@ internal sealed interface GmailOperation {
 }
 
 internal data class GmailRequest(val instruction: String, val operation: GmailOperation)
-internal data class GmailResult(val status: String, val speak: String? = null)
+internal data class GmailResult(
+    val status: String,
+    val speak: String? = null,
+    val recipientCandidates: List<String> = emptyList()
+)
 
 internal object JarvisGmailCommands {
     private fun normal(s: String): String = Normalizer.normalize(
@@ -46,8 +52,10 @@ internal object JarvisGmailCommands {
             Regex("""(?iu)^(?:(?:hey|szia)\s+)?jarvis[\s,:!]*"""), "").trim()
         val n = normal(command)
         if (command.isBlank() || command.length > 6000) return null
-        val mentionsMail = Regex("""\b(emails?|e mail|gmail|mail|level|levelek|levelet|levelem|leveleim|levelre|leveled|level[eé]re)\b""")
-            .containsMatchIn(n) || listOf("emailt", "emailem", "emailje", "emailre", "emailja", "emailjeim", "gmail").any { it in n }
+        // Hungarian declensions such as "emailek", "emaileket",
+        // "emailjeimet" and "leveleim" must not fall through to generic AI.
+        val mentionsMail = Regex("""\b(?:e[- ]?mail[a-z]*|gmail[a-z]*|level[a-z]*|levelek[a-z]*)\b""")
+            .containsMatchIn(n)
         if (!mentionsMail) return null
         val operation: GmailOperation = when {
             listOf("levalaszt", "disconnect gmail", "gmail kijelentkez", "gmail fiok eltavolit").any { it in n } ->
@@ -71,22 +79,38 @@ internal object JarvisGmailCommands {
                     .find(command)?.groupValues?.get(1)?.trim()
                 GmailOperation.Read(sender, !listOf("utolso", "legutobbi", "last email", "latest email").any { it in n })
             }
-            listOf("van uj", "jott uj", "mennyi uj", "hany uj", "check ", "any new", "how many unread").any { n.startsWith(it) } ->
+            // Describe unread emails using Gmail metadata rather than forwarding
+            // the question to a generic AI model that cannot access the inbox.
+            (
+                (listOf("milyen uj", "mik az uj", "mik jottek", "sorold fel az uj",
+                    "mutasd az uj", "list unread", "which new", "what new",
+                    "show unread", "show new").any { n.startsWith(it) } &&
+                    listOf("email", "gmail", "level", "leve").any { it in n }) ||
+                n == "uj emailek" || n == "uj levelek"
+            ) -> GmailOperation.ListUnread
+            listOf("van uj", "jott uj", "mennyi uj", "hany uj", "check ",
+                "any new", "how many unread", "hany olvasatlan").any { n.startsWith(it) } ->
                 GmailOperation.Check
-            listOf("kuldd", "kuldj", "irj", "keszits", "send", "write", "compose").any { n.startsWith(it) } -> {
-                val actuallySend = listOf("kuldd", "kuldj", "send").any { n.startsWith(it) }
+            listOf("kuld ", "kuldd ", "kuldj ", "irj ", "keszits ", "send ", "write ", "compose ").any { n.startsWith(it) } -> {
+                val actuallySend = listOf("kuld ", "kuldd ", "kuldj ", "send ").any { n.startsWith(it) }
                 val subject = Regex("""(?iu)\b(?:t[aá]rgy|subject)\s*[: ]\s*(.+?)(?=\s+(?:[uü]zenet|sz[oö]veg|message|body)\b|$)""")
                     .find(command)?.groupValues?.get(1)?.trim().orEmpty()
                 val body = Regex("""(?iu)\b(?:[uü]zenet|sz[oö]veg|message|body)\s*[: ]\s*(.+)$""")
                     .find(command)?.groupValues?.get(1)?.trim().orEmpty()
                 val head = Regex("""(?iu)\b(?:t[aá]rgy|subject|[uü]zenet|sz[oö]veg|message|body)\b""")
                     .find(command)?.range?.first?.let { command.substring(0, it) } ?: command
-                val recipient = head.replace(Regex("""(?iu)^(?:k[uü]ldj|k[uü]ldd|[ií]rj|k[eé]sz[ií]ts|send|write|compose)\s+(?:el\s+)?"""), "")
+                val recipient = head.replace(Regex("""(?iu)^(?:k[uü]ldj|k[uü]ldd|k[uü]ld|[ií]rj|k[eé]sz[ií]ts|send|write|compose)\s+(?:el\s+)?"""), "")
                     .replace(Regex("""(?iu)^(?:egy\s+)?(?:e-?mailt?|levelet|mail|an?\s+email)\s*(?:a\s+|az\s+|to\s+)?"""), "")
                     .trim().removeSuffix("nek").removeSuffix("nak").trim()
-                if (recipient.isEmpty() || body.isEmpty() || subject.isEmpty()) {
-                    GmailOperation.Incomplete("Add meg a címzettet, a tárgyat és a szöveget. Példa: küldj emailt anna@example.com tárgy Találkozó üzenet Holnap tízkor.")
-                } else GmailOperation.Send(recipient, subject, body, actuallySend)
+                when {
+                    recipient.isBlank() -> GmailOperation.Incomplete(
+                        "Mondd meg a címzett nevét vagy emailcímét.")
+                    subject.isBlank() && body.isBlank() -> GmailOperation.ResolveRecipient(
+                        recipient, actuallySend)
+                    subject.isBlank() || body.isBlank() -> GmailOperation.Incomplete(
+                        "Add meg a tárgyat és a levél szövegét, vagy csak a címzettet, és sorban megkérdezem.")
+                    else -> GmailOperation.Send(recipient, subject, body, actuallySend)
+                }
             }
             else -> return null
         }
@@ -102,32 +126,16 @@ internal data class GmailMessage(
 
 /** Restricted recipients: addresses from the user command or unique Android contact. */
 internal object GmailRecipients {
-    fun resolve(context: Context, named: String): String {
-        val email = Regex("""[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}""").find(named)?.value
-        if (email != null && email.equals(named.trim(), true)) return email
-        if (email != null) error("Többértelmű címzett. Add meg önállóan az emailcímet.")
-        if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CONTACTS) !=
-            PackageManager.PERMISSION_GRANTED) error("Engedélyezd a telefon Névjegyek hozzáférését, vagy diktálj pontos emailcímet.")
-        val key = named.trim().lowercase(Locale.ROOT)
-        if (key.isBlank() || key.length > 100) error("A címzett neve hiányzik.")
-        val addresses = mutableSetOf<String>()
-        context.contentResolver.query(
-            ContactsContract.CommonDataKinds.Email.CONTENT_URI,
-            arrayOf(ContactsContract.CommonDataKinds.Email.ADDRESS,
-                ContactsContract.CommonDataKinds.Email.DISPLAY_NAME),
-            null, null, null
-        )?.use { cursor ->
-            while (cursor.moveToNext()) {
-                val address = cursor.getString(0).orEmpty()
-                val label = cursor.getString(1).orEmpty().lowercase(Locale.ROOT)
-                if (label == key && address.matches(Regex("""[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}""")))
-                    addresses.add(address)
-            }
-        }
-        return when (addresses.size) {
-            1 -> addresses.single()
-            0 -> error("Nem találtam egyértelmű emailcímet ehhez a névjegyhez. Add meg a teljes emailcímet.")
-            else -> error("A névjegyhez több emailcím tartozik. Mondd meg a pontos címet.")
+    private val email = Regex("""[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}""")
+
+    /** A named address is resolved from past Gmail headers, NEVER Android Contacts. */
+    fun resolve(accessToken: String, named: String): String {
+        if (email.matches(named.trim())) return named.trim()
+        val candidates = JarvisGmailApi.addressesForName(accessToken, named)
+        return when (candidates.size) {
+            1 -> candidates.single()
+            0 -> error("Nem találtam egyértelmű emailcímet a korábbi Gmail-leveleidben. Add meg a címet.")
+            else -> error("Több Gmail-cím egyezik a névvel. Add meg a pontos emailcímet, nehogy rossz címzettnek küldjek.")
         }
     }
 }
@@ -135,6 +143,35 @@ internal object GmailRecipients {
 internal object JarvisGmailApi {
     private const val BASE = "https://gmail.googleapis.com/gmail/v1/users/me"
     private val emailPattern = Regex("""[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}""")
+
+    /** Search real Gmail message headers from both received AND sent messages. */
+    fun addressesForName(token: String, name: String): List<String> {
+        val clean = name.trim().removeSuffix("nek").removeSuffix("nak").trim()
+        require(clean.length in 2..70 &&
+            clean.matches(Regex("""[\p{L}\p{M} .'-]+"""))) {
+            "Ellenőrizd a címzett nevét, vagy add meg a pontos emailcímet."
+        }
+        val safe = clean.replace(Regex("""[\r\n"]"""), "").trim()
+        val query = "{from:\"" + safe + "\" to:\"" + safe + "\"}"
+        val messageIds = ids(token, query, 80)
+        val candidates = linkedSetOf<String>()
+        for (id in messageIds) {
+            require(id.matches(Regex("""[A-Za-z0-9_\-]{1,120}""")))
+            val payload = request(token, "/messages/" + id +
+                "?format=metadata&metadataHeaders=From&metadataHeaders=To")
+                .optJSONObject("payload") ?: continue
+            val headers = payload.optJSONArray("headers") ?: continue
+            for (index in 0 until headers.length()) {
+                val header = headers.getJSONObject(index)
+                if (header.optString("name").equals("From", true) ||
+                    header.optString("name").equals("To", true)) {
+                    candidates.addAll(GmailMailboxHeader.matchAddress(
+                        safe, header.optString("value")))
+                }
+            }
+        }
+        return candidates.toList().sorted()
+    }
 
     private fun request(token: String, path: String, body: JSONObject? = null): JSONObject {
         require(token.isNotBlank())
@@ -277,6 +314,50 @@ internal object JarvisGmailApi {
                 val estimate = data.optInt("resultSizeEstimate", 0)
                 GmailResult("A Gmail becslése szerint " + estimate + " olvasatlan beérkező leveled van.")
             }
+            GmailOperation.ListUnread -> {
+                // Fetch only permitted sender/subject metadata. The actual
+                // message body is neither downloaded nor sent to the LLM.
+                val found = ids(accessToken, "in:inbox is:unread", 5)
+                if (found.isEmpty()) GmailResult("Nincs új, olvasatlan beérkező emailed.")
+                else {
+                    val descriptions = found.map { id ->
+                        require(id.matches(Regex("""[A-Za-z0-9_\-]{1,120}""")))
+                        val payload = request(accessToken, "/messages/" + id +
+                            "?format=metadata&metadataHeaders=From&metadataHeaders=Subject")
+                            .optJSONObject("payload") ?: error("Nem tudom megjeleníteni az email adatait.")
+                        val headers = payload.optJSONArray("headers") ?: JSONArray()
+                        fun header(name: String): String {
+                            for (index in 0 until headers.length()) {
+                                val item = headers.getJSONObject(index)
+                                if (item.optString("name").equals(name, ignoreCase = true))
+                                    return item.optString("value").replace(
+                                        Regex("""[\r\n\p{Cntrl}]"""), " ").take(140)
+                            }
+                            return "ismeretlen"
+                        }
+                        "Feladó: " + header("From") + ". Tárgy: " + header("Subject")
+                    }
+                    GmailResult("Lekértem " + found.size + " olvasatlan email feladóját és tárgyát. " +
+                        "Megnyitottam az Email oldalt.",
+                        descriptions.joinToString("\n\n"))
+                }
+            }
+            is GmailOperation.ResolveRecipient -> {
+                val direct = operation.name.trim()
+                val candidates = if (emailPattern.matches(direct)) listOf(direct)
+                    else addressesForName(accessToken, direct)
+                GmailResult(
+                    when (candidates.size) {
+                        0 -> "Nem találtam ezt a címzettet a korábbi Gmail-leveleidben. Add meg az emailcímet."
+                        1 -> "Megtaláltam a címzettet a Gmail-levelezésedben. Mi legyen a tárgy?"
+                        else -> "Több emailcím is megfelel. Melyik legyen? " +
+                            candidates.take(5).mapIndexed { index, address ->
+                                (index + 1).toString() + ": " + address
+                            }.joinToString("; ")
+                    },
+                    recipientCandidates = candidates.take(5)
+                )
+            }
             is GmailOperation.Read -> {
                 val q = (if (operation.unreadOnly) "in:inbox is:unread" else "in:inbox") +
                     if (operation.sender.isNullOrBlank()) "" else " from:" + operation.sender
@@ -291,7 +372,7 @@ internal object JarvisGmailApi {
                 }
             }
             is GmailOperation.Send -> {
-                val recipient = GmailRecipients.resolve(context, operation.recipient)
+                val recipient = GmailRecipients.resolve(accessToken, operation.recipient)
                 if (!operation.actuallySend) {
                     GmailResult("Előkészítve: " + recipient + ", tárgy: " + operation.subject +
                         ". Küldés nem történt. Mondd: küldj emailt ... a teljes szöveggel.")
