@@ -71,9 +71,13 @@ internal object VoiceCalling {
     fun extractRequest(text: String): String? {
         val clean = cleanCommand(text)
         val match = callPrefix.matchEntire(clean) ?: callSuffix.matchEntire(clean) ?: return null
-        val target = match.groupValues[1].trim()
-            .replace(Regex("""(?iu)\s+(?:telefonsz[aá]m(?:[aá]t|ot)|sz[aá]m(?:[aá]t|ot))$"""), "")
-            .trim()
+        val rawTarget = match.groupValues[1].trim()
+        // Check vague placeholders BEFORE stripping a trailing "számot":
+        // "az adott telefonszámot hívd fel" is missing a real target.
+        if (isUnspecifiedTarget(rawTarget)) return null
+        val target = rawTarget.replace(
+            Regex("""(?iu)\s+(?:telefonsz[aá]m(?:[aá]t|ot)|sz[aá]m(?:[aá]t|ot))$"""), ""
+        ).trim()
         if (isUnspecifiedTarget(target) || target.length > 70 ||
             forbiddenParts.containsMatchIn(target)) return null
         return target
