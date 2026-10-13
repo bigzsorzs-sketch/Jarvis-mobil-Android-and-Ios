@@ -102,7 +102,6 @@ internal object JarvisCapabilities {
             "Vércukor" to listOf("vercukornaplo", "glucose"),
             "Számlák" to listOf("szamlazas", "invoice"),
             "Üzenetek" to listOf("messages"),
-            "Névjegyek" to listOf("nevjegy", "hivas", "contacts"),
             "Beállítások" to listOf("settings"),
             "Jegyzetek" to listOf("helyi jegyzetek"),
             "Hangbeállítások" to listOf("hangvezerles", "hangfigyeles", "voice settings"),
