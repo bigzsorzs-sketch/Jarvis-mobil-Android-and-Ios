@@ -165,6 +165,7 @@ internal object JarvisAiTools {
      * One explicitly named destination per command; no guessed app.
      */
     private fun routeMatchesUser(route: String, input: String): Boolean {
+        JarvisCapabilities.localPageToOpen(input)?.let { return it == route }
         val normalized = normal(input)
         val targets = mapOf(
             "Főoldal" to listOf("fooldal", "kezdolap", "home"),

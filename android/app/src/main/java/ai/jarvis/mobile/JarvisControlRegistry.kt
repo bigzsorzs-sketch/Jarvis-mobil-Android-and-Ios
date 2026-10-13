@@ -86,12 +86,12 @@ internal sealed class JarvisControlCommand {
             if (n in setOf("sorold fel az oldal vezerloit", "mit tudok ezen az oldalon",
                     "list page controls", "show page controls")) return ListControls
             // Preserve dictated values exactly, including accents, case and punctuation.
-            val fill = Regex("""^(?:írd|ird|írd be|ird be|állítsd|allitsd|fill|set|type into)\s+(?:(?:az|a|the)\s+)?(.+?)\s+(?:mezőbe|mezobe|mezőt|mezot|field)\s*(?:[:=]\s*)?([\s\S]+)$""", RegexOption.IGNORE_CASE).matchEntire(text)
+            val fill = Regex("""^(?:írd be|ird be|írd|ird|állítsd|allitsd|fill|set|type into|schreibe|remplis|rellena|scrivi|wpisz)\s+(?:(?:az|a|the)\s+)?(.+?)\s+(?:mezőbe|mezobe|mezőt|mezot|field|feld|champ|campo|pole)\s*(?:[:=]\s*)?([\s\S]+)$""", RegexOption.IGNORE_CASE).matchEntire(text)
             if (fill != null) {
                 val (label, ordinal) = target(fill.groupValues[1])
                 return Fill(label, fill.groupValues[2].trim(), ordinal)
             }
-            val click = Regex("""^(?:nyomd meg|koppints|érintsd meg|erintsd meg|válaszd|valaszd|click|tap|press|select|klicke|clique|pulsa|premi|kliknij)\s+(?:(?:az|a|the)\s+)?(.+?)(?:\s+(?:gombot|gombra|fület|fulet|button|tab))?[.!]?$""", RegexOption.IGNORE_CASE).matchEntire(text) ?: return null
+            val click = Regex("""^(?:nyomd meg|koppints|érintsd meg|erintsd meg|válaszd|valaszd|click|tap|press|select|klicke|clique|pulsa|premi|kliknij)\s+(?:(?:az|a|the)\s+)?(.+?)(?:\s+(?:gombot|gombra|fület|fulet|button|tab|taste|bouton|botón|pulsante|przycisk))?[.!]?$""", RegexOption.IGNORE_CASE).matchEntire(text) ?: return null
             val (label, ordinal) = target(click.groupValues[1])
             return label.takeIf { it.isNotBlank() }?.let { Click(it, ordinal) }
         }

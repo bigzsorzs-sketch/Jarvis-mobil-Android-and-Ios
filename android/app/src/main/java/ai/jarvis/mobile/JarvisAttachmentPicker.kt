@@ -155,7 +155,7 @@ internal fun JarvisAttachmentPicker(
                     color = JarvisPalette.mainText)
                 Spacer(Modifier.height(12.dp))
                 ControlledTextButton(onClick = {
-                    if (busy) return@TextButton
+                    if (busy) return@ControlledTextButton
                     try {
                         val folder = File(context.cacheDir, "jarvis_attachments").apply { mkdirs() }
                         val temp = File.createTempFile("camera_", ".jpg", folder)
