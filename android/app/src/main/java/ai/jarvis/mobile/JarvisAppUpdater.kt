@@ -296,8 +296,9 @@ internal object JarvisUpdateVoice {
             "pruf", "verifi", "mise a jour", "actualiz", "comprobar", "aggiorn",
             "controll", "aktualizac", "sprawdz").any { it in s }
         val target = listOf("jarvis", "frissites", "verzio", "update", "version",
-            "aktualisierung", "mise a jour", "actualizacion", "aggiornamento",
-            "aktualizacja", "applik", "app").any { it in s }
+            "aktualisierung", "mise a jour", "mises a jour", "actualizaci",
+            "aggiornament", "aktualizac", "magad", "yourself", "alkalmazas",
+            "aplikac", "applik", "app").any { it in s }
         return action && target
     }
 }
