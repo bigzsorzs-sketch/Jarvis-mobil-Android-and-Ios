@@ -545,8 +545,8 @@ fun JarvisApp(context: Context) {
             val answer = if (count > 0)
                 "Megnyitom a $count importált mentett helyet. Ez helyi másolat, nem élő Google-fiók kapcsolat."
             else "A Google Maps mentett helyeihez nincs élő hozzáférésem. " +
-                "Megnyitom a Navigációt, ahol Google Takeout CSV vagy GeoJSON fájlt importálhatsz."
-            openTool("Navigáció", asPage = true)
+                "Megnyitom a Beállítások → Továbbiak oldalt, ahol Google Takeout CSV vagy GeoJSON fájlt importálhatsz."
+            openTool("Továbbiak", asPage = true)
             addHistory(command to answer)
             return
         }
@@ -1206,6 +1206,9 @@ private fun MoreScreen(context: Context, notes: MutableList<String>, persist: ()
         }, commandLabel = "Otthoni cím mentése") { Text("Otthoni cím mentése") }
         ControlledOutlinedButton(onClick = { result = if (openMap(context)) "Térkép megnyitva."
             else "Nincs térképalkalmazás." }, commandLabel = "Térkép megnyitása") { Text("Térkép megnyitása") }
+        // Keep the local saved-places file picker accessible after removing
+        // the standalone Navigation UI. It never requires Google credentials.
+        JarvisSavedPlacesPanel(context)
     }
     Spacer(Modifier.height(12.dp))
     SurfaceCard {
