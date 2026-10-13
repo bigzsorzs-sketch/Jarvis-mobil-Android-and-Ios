@@ -91,6 +91,9 @@ internal object VoiceNavigation {
             return PeopleDirectory.find(context, destination.removePrefix("PERSON:"))
                 ?.address?.takeIf { it.isNotBlank() }
         }
+        JarvisSavedPlaces.importedName(destination)?.let { savedName ->
+            return JarvisSavedPlaces.resolveImported(context, savedName)
+        }
         val person = PeopleDirectory.find(context, destination)
         return if (person != null) person.address.takeIf { it.isNotBlank() } else destination
     }
