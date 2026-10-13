@@ -305,7 +305,8 @@ internal object JarvisAiGateway {
     suspend fun askStructured(
         context: Context,
         message: String,
-        responseLanguageTag: String? = null
+        responseLanguageTag: String? = null,
+        attachments: List<JarvisAttachment> = emptyList()
     ): JarvisAiOutcome =
         withContext(Dispatchers.IO) {
         val question = message.trim()
@@ -318,6 +319,10 @@ internal object JarvisAiGateway {
         }
         val prefs = SecurePrefs(context.applicationContext)
         val direct = mode(context) == DIRECT_TEST
+        if (attachments.isNotEmpty() && !direct) {
+            return@withContext JarvisAiOutcome(
+                "A képek és PDF-ek AI-elemzése jelenleg a közvetlen OpenRouter-kapcsolattal használható. Nem küldtem fájlt.")
+        }
         val credential = if (direct) prefs.read(KEY_DIRECT, "") else prefs.read(KEY_TOKEN, "")
         val base = if (direct) null else normalizedBaseUrl(baseUrl(context))
         if ((direct && !isValidOpenRouterKey(credential)) ||
@@ -348,6 +353,18 @@ internal object JarvisAiGateway {
                 question, responseLanguageTag?.let { JarvisLanguage.fromSpeechTag(it)?.tag }
                     ?: JarvisLanguageSettings.load(context.applicationContext).tag)
                 else JSONObject().put("message", question)
+            if (attachments.isNotEmpty()) {
+                val parts = try {
+                    JarvisAiAttachments.buildParts(context.applicationContext, question, attachments)
+                } catch (e: Exception) {
+                    return@withContext JarvisAiOutcome(
+                        e.message?.take(250) ?: "A csatolmányokat nem sikerült biztonságosan előkészíteni.")
+                }
+                payload.getJSONArray("messages").getJSONObject(1).put("content", parts)
+                // Attachments are untrusted content, NEVER a device-control request.
+                payload.remove("tools")
+                payload.remove("tool_choice")
+            }
 
             connection.outputStream.use { it.write(payload.toString().toByteArray(Charsets.UTF_8)) }
             when (val status = connection.responseCode) {
