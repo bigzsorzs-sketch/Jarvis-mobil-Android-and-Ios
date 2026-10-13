@@ -215,7 +215,9 @@ class HandsFreeService : Service(), RecognitionListener {
         ) { successful ->
             if (running) {
                 if (!successful) HandsFreeStatus.status =
-                    JarvisReadAloudCommand.response(wantedLanguage, "failed")
+                    cloudVoice?.lastFailure.orEmpty().ifBlank {
+                        JarvisReadAloudCommand.response(wantedLanguage, "failed")
+                    }
                 finishSpokenReply()
             }
         } == true
