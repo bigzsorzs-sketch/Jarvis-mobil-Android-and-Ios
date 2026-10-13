@@ -264,6 +264,35 @@ fun JarvisApp(context: Context) {
         page = destination
         return "Megnyitottam a Jarvis $destination oldalát."
     }
+    fun submitAttachments(question: String, attachments: List<JarvisAttachment>) {
+        if (attachments.isEmpty()) return
+        // Upload only as a consequence of explicit Send. No contacts or phone
+        // state in payload; never execute any tools returned by attachment AI.
+        clearCallFlow()
+        commandRevision += 1
+        val revision = commandRevision
+        val selectedLanguage = language.tag
+        val waiting = question to "A kiválasztott fájlokat ellenőrzöm és elemzésre küldöm…"
+        conversation.add(waiting)
+        drawerScope.launch {
+            val result = try {
+                JarvisAiGateway.askStructured(context, question, selectedLanguage, attachments)
+            } finally {
+                // Selected files are temporary private cache files, not durable
+                // chat history. Delete after the attempt, including HTTP errors.
+                withContext(Dispatchers.IO) {
+                    attachments.forEach { JarvisAttachments.delete(it) }
+                }
+            }
+            val index = conversation.indexOf(waiting)
+            if (index >= 0) {
+                val response = if (revision == commandRevision) result.message
+                    else "Újabb kérés érkezett; az előző AI-elemzést nem hajtottam végre eszközműveletként."
+                conversation[index] = question to response
+                saveChatTurn(question to response)
+            }
+        }
+    }
     fun executeHome(command: String) {
         if (command.isBlank()) return
         // Every newly submitted command invalidates older pending approvals and
@@ -750,6 +779,9 @@ fun JarvisApp(context: Context) {
                             onSelectLanguage = selectLanguage,
                             onMenu = { drawerScope.launch { drawerState.open() } },
                             onCommand = { command -> executeHome(command) },
+                            onAttachmentsSubmit = { question, selected ->
+                                submitAttachments(question, selected)
+                            },
                             history = conversation,
                             hasOlderHistory = hasOlderChat,
                             loadingOlderHistory = loadingOlderChat,
