@@ -469,9 +469,17 @@ fun JarvisApp(context: Context) {
     val requestedMap = HandsFreeNavigation.mapTarget
     LaunchedEffect(requestedMap, appIsForeground) {
         if (requestedMap != null && appIsForeground) {
-            if (VoiceNavigation.open(context, requestedMap)) {
-                HandsFreeNavigation.mapTarget = null
-            }
+            // Consume exactly once, including failures, so returning to Jarvis
+            // cannot accidentally relaunch old navigation.
+            HandsFreeNavigation.mapTarget = null
+            val age = android.os.SystemClock.elapsedRealtime() - requestedMap.createdAtMs
+            val chosen = JarvisLanguageSettings.load(context)
+            val outcome = if (age in 0..30_000L)
+                VoiceNavigation.openDetailed(context, requestedMap.destination)
+            else VoiceNavigation.LaunchResult.UNAVAILABLE
+            HandsFreeStatus.status = if (age in 0..30_000L)
+                JarvisNavigationText.result(chosen, outcome)
+            else "A korábbi navigációs kérés lejárt. Mondd el újra az úti célt."
         }
     }
     val pendingVoiceSequence = HandsFreeNavigation.sequence
