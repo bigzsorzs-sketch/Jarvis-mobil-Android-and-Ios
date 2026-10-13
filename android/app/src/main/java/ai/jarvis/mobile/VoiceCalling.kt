@@ -44,19 +44,62 @@ internal object VoiceCalling {
             query == first + "t" || query == first + "nak" || query == first + "nek")
     }
 
-    fun extractRequest(text: String): String? {
-        val clean = text.trim()
+    // Some spontaneous Hungarian call requests put the target before the verb,
+    // e.g. "Esztert hívd fel". Empty/placeholder targets MUST NOT be dialed.
+    private val callPrefix = Regex(
+        """(?iu)^(?:h[ií]vd\s+fel|t[aá]rcs[aá]zd|telefon[aá]lj|fel\s+tudn[aá]d\s+h[ií]vni|felh[ií]vn[aá]d|szeretn[eé]m\s+ha\s+felh[ií]vn[aá]d|call|phone|ruf\s+an|rufe|anrufen|appelle|appeler|llama\s+a|llamar|chiama|chiamare|zadzwo[nń]\s+do|zadzwo[nń])(?:\s+(?:(?:a|az|the|le|la|el|il|den|die|do)\s+)?(.+?))?\s*[.!?]?$"""
+    )
+    private val callSuffix = Regex(
+        """(?iu)^(?:(?:a|az)\s+)?(.+?)\s+(?:h[ií]vd\s+fel|t[aá]rcs[aá]zd)\s*[.!?]?$"""
+    )
+    private val forbiddenParts = Regex("""(?iu)\b(?:és|and|majd|aztán|then|und|et|y|e|i)\b""")
+    private val placeholder = Regex(
+        """(?iu)^(?:(?:a|az)\s+)?(?:adott|megadott|eml[ií]tett|el[oő]z[oő])?\s*(?:telefon)?sz[aá]m(?:ot|ot\s+most|ot\s+l[eé]gyszi)?$|^(?:a|az)\s+(?:telefonsz[aá]mot|sz[aá]mot|n[eé]vjegyet|kontaktot)$"""
+    )
+
+    private fun cleanCommand(text: String): String =
+        text.trim()
             .replace(Regex("""(?iu)^(?:(?:hey|hej|szia|ok|okay)\s+)?jarvis\s*[,!:]?\s*"""), "")
             .replace(Regex("""(?iu)^(?:k[eé]rlek|please|bitte|s'il vous plaît|por favor|per favore|proszę)\s+"""), "")
-        val pattern = Regex(
-            """(?iu)^(?:h[ií]vd\s+fel|t[aá]rcs[aá]zd|telefon[aá]lj|fel\s+tudn[aá]d\s+h[ií]vni|felh[ií]vn[aá]d|szeretn[eé]m\s+ha\s+felh[ií]vn[aá]d|call|phone|ruf\s+an|rufe|anrufen|appelle|appeler|llama\s+a|llamar|chiama|chiamare|zadzwo[nń]\s+do|zadzwo[nń])\s+(?:(?:a|az|the|le|la|el|il|den|die|do)\s+)?(.+?)\s*[.!?]?$"""
-        )
-        val match = pattern.matchEntire(clean) ?: return null
+            .trim()
+
+    internal fun isUnspecifiedTarget(raw: String): Boolean {
+        val v = raw.trim().trimEnd('.', '!', '?').trim()
+        return v.isEmpty() || placeholder.matches(v)
+    }
+
+    fun extractRequest(text: String): String? {
+        val clean = cleanCommand(text)
+        val match = callPrefix.matchEntire(clean) ?: callSuffix.matchEntire(clean) ?: return null
         val target = match.groupValues[1].trim()
-        if (target.isBlank() || target.length > 70 ||
-            Regex("""(?iu)\b(?:és|and|majd|aztán|then|und|et|y|e|i)\b""")
-                .containsMatchIn(target)) return null
+            .replace(Regex("""(?iu)\s+(?:telefonsz[aá]m(?:[aá]t|ot)|sz[aá]m(?:[aá]t|ot))$"""), "")
+            .trim()
+        if (isUnspecifiedTarget(target) || target.length > 70 ||
+            forbiddenParts.containsMatchIn(target)) return null
         return target
+    }
+
+    /** Spoken bare call intents or placeholder targets request a follow-up,
+     * never open an empty dialer or silently dial an old/cached number.
+     */
+    fun needsTarget(text: String): Boolean {
+        val clean = cleanCommand(text)
+        val match = callPrefix.matchEntire(clean) ?: callSuffix.matchEntire(clean) ?: return false
+        return isUnspecifiedTarget(match.groupValues[1])
+    }
+
+    /** A second utterance is a phonebook name or a fully specified number.
+     * Do not treat arbitrary Android commands or sentences as a contact.
+     */
+    fun followUpTarget(input: String): String? {
+        val text = cleanCommand(input).trim().trimEnd('.', '!', '?').trim()
+        if (text.isEmpty() || text.length > 70 || isUnspecifiedTarget(text) ||
+            forbiddenParts.containsMatchIn(text)) return null
+        val direct = extractRequest(text)
+        if (direct != null) return direct
+        if (needsTarget(text)) return null
+        if (text.contains(Regex("""(?iu)\b(?:nyisd|keress|navig[aá]lj|t[oö]r[oö]ld|ind[ií]tsd|h[ií]vd|k[uü]ldj|[ií]rj)\b"""))) return null
+        return text
     }
 
     /**
