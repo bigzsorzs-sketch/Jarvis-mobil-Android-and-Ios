@@ -48,7 +48,7 @@ jobs:
           TESTED_SHA="$SOURCE_SHA"
           # Manual dispatch can use the prior green Android commit only when
           # every intervening change affects THIS release workflow alone.
-          baseline="d7799b48dcd5f43841e7e275fcc4a1edacda8764"
+          baseline="9e53c616a5aa6918859cf1b7808b0054a819e770"
           if [ "$SOURCE_SHA" != "$baseline" ]; then
             comparison="$(gh api "repos/${{ github.repository }}/compare/$baseline...$SOURCE_SHA")"
             status="$(printf '%s' "$comparison" | jq -r '.status')"
