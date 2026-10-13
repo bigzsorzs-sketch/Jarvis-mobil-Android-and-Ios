@@ -4,6 +4,15 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class JarvisAiGatewayTest {
+    @Test fun fixedTextModelIsGPT52ButSpeechUsesActualTtsModel() {
+        assertEquals("openai/gpt-5.2", JarvisAiGateway.TEST_MODEL)
+        assertEquals("openai/gpt-4o-mini-tts-2025-12-15", JarvisAiGateway.SPEECH_MODEL)
+        assertNotEquals(JarvisAiGateway.TEST_MODEL, JarvisAiGateway.SPEECH_MODEL)
+        val payload = JarvisAiToolPolicy.providerPayload("Hogy vagy?")
+        assertEquals("openai/gpt-5.2", payload.getString("model"))
+        assertFalse(payload.has("tools"))
+    }
+
     @Test fun rejectsInsecureEndpoints() {
         assertNull(JarvisAiGateway.normalizedBaseUrl("http://example.com"))
         assertNull(JarvisAiGateway.normalizedBaseUrl("https://user:pass@example.com"))
