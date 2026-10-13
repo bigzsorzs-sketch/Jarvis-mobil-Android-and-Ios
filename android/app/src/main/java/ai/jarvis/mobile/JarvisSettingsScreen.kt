@@ -87,7 +87,7 @@ internal fun JarvisSettingsScreen(
     Spacer(Modifier.height(18.dp))
     JarvisSettingsGroup {
         JarvisSettingsRow("🎙", JarvisCommandTexts.text(language, "assistant"), JarvisCommandTexts.text(language, "assistantHelp")) {
-            openSystemIntent(context, android.content.Intent(android.provider.Settings.ACTION_VOICE_INPUT_SETTINGS))
+            openSystemIntent(context, JarvisAssistantSelection.intent(context))
         }
     }
     Spacer(Modifier.height(16.dp))
