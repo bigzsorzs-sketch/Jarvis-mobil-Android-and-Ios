@@ -454,6 +454,14 @@ class HandsFreeService : Service(), RecognitionListener {
         aiJob?.cancel()
         aiJob = null
         activeVoiceCommand = command
+        // Same deterministic on-device executor as typed chat.
+        // User must have enabled Jarvis Accessibility manually in Android.
+        JarvisScreenControl.parse(command)?.let { action ->
+            speak(if (privateVoiceAllowed())
+                JarvisScreenControl.execute(this, action)
+            else "Oldd fel a telefont a képernyő vezérléséhez.")
+            return
+        }
         if (JarvisUpdateVoice.isRequest(command)) {
             val selected = recognizedUtteranceLanguage
                 ?: JarvisLanguageSettings.load(applicationContext)
