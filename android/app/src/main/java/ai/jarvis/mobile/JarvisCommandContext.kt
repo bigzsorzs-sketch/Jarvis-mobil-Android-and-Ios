@@ -21,7 +21,8 @@ internal object JarvisCommandContext {
         val s = normalize(raw)
         if (s.isBlank()) return false
         if (VoiceCalling.extractRequest(raw) != null || VoiceCalling.needsTarget(raw) ||
-            JarvisScreenControl.parse(raw) != null) return true
+            JarvisScreenControl.parse(raw) != null ||
+            JarvisLocalPreferences.parse(raw) != null) return true
         if (JarvisInstalledApps.requestedLabel(raw) != null ||
             JarvisCapabilities.localPageToOpen(raw) != null ||
             JarvisCapabilities.isDiscoveryRequest(raw) ||
