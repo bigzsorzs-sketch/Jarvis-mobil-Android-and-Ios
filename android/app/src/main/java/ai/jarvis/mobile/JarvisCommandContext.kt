@@ -40,11 +40,12 @@ internal object JarvisCommandContext {
         // Everything else that is an ordinary sentence belongs to the newest
         // user command, not the previous short-lived call state.
         if ('?' in raw || s.split(' ').size > 3) return true
-        if (s.startsWith("de ") || s.startsWith("akkor ") ||
-            s.startsWith("mit ") || s.startsWith("milyen ") ||
-            s.startsWith("hogyan ") || s.startsWith("keress ") ||
-            s.startsWith("nezd ") || s.startsWith("nyisd ") ||
-            s.startsWith("mondj ") || s.startsWith("sorold ")) return true
+        if (listOf("de ", "akkor ", "mit ", "mi ", "milyen ", "hogyan ",
+                "hogy ", "ki ", "hol ", "mikor ", "mennyi ", "mire ",
+                "tudsz ", "keress ", "nezd ", "nyisd ", "nyiss ",
+                "mondj ", "mutasd ", "sorold ", "magyarazd ",
+                "open ", "show ", "what ", "how ", "where ", "when ")
+                .any { s.startsWith(it) }) return true
         return false
     }
 
