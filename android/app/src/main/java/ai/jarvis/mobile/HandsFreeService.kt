@@ -905,7 +905,7 @@ class HandsFreeService : Service(), RecognitionListener {
             return
         }
         if (SpokenAlarmTime.isSetIntent(command)) {
-            speak("Nem értettem pontosan az egyszeri ébresztés idejét. Nem állítottam be ébresztőt.")
+            speak(JarvisAlarmText.invalid(this))
             return
         }
         val systemPanel = JarvisSystemPanels.identify(command)
