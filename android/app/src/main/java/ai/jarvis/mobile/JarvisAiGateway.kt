@@ -346,6 +346,7 @@ internal object JarvisAiGateway {
         context: Context,
         message: String,
         responseLanguageTag: String? = null,
+        cancellation: JarvisStreamCancellation = JarvisStreamCancellation(),
         onDelta: (String) -> Unit,
         onPhrase: (String) -> Unit
     ): JarvisAiOutcome {
@@ -371,6 +372,10 @@ internal object JarvisAiGateway {
             val phrases = JarvisIncrementalPhrases()
             try {
                 connection = URL(OPENROUTER_ENDPOINT).openConnection() as HttpURLConnection
+                cancellation.bind(connection)
+                if (cancellation.isCancelled()) {
+                    throw kotlinx.coroutines.CancellationException("Voice turn cancelled")
+                }
                 connection.requestMethod = "POST"
                 connection.instanceFollowRedirects = false
                 connection.connectTimeout = 10000
@@ -440,6 +445,7 @@ internal object JarvisAiGateway {
                     "\n(Az AI-kapcsolat megszakadt.)")
                     ?: "Nem sikerült kapcsolódni az AI-hoz. Ellenőrizd az internetet és a kulcsot.")
             } finally {
+                cancellation.release(connection)
                 connection?.disconnect()
             }
         }
