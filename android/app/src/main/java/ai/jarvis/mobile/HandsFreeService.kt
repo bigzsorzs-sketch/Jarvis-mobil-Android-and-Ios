@@ -446,6 +446,18 @@ class HandsFreeService : Service(), RecognitionListener {
         HandsFreeStatus.heard = heard
         errors = 0
         val now = SystemClock.elapsedRealtime()
+        if (VoiceIntentParser.isPlaybackStop(heard)) {
+            // The user requested silence. Stop streamed/cloud service speech AND
+            // the separate Activity read-aloud player; do not speak an acknowledgement.
+            JarvisForegroundCommands.interruptSpeech?.invoke()
+            JarvisVoiceStreamBridge.stopLocalNarration?.invoke()
+            foregroundReplyPending = false
+            handler.removeCallbacks(foregroundReplyTimeout)
+            awaitingCommand = true
+            HandsFreeStatus.status = "Felolvasás leállítva. Figyelek."
+            again(VoiceSessionPolicy.AFTER_REPLY_DELAY_MS)
+            return
+        }
         if (VoiceIntentParser.isStop(heard) || VoiceIntentParser.isStop(
                 VoiceIntentParser.afterWakeWord(heard).orEmpty())) {
             shutdown("A hangfigyelés leállt.")
