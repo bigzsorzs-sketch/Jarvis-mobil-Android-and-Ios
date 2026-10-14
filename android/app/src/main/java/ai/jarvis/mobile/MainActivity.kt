@@ -816,6 +816,7 @@ fun JarvisApp(context: Context, launcherRequest: String? = null) {
             drawerScope.launch {
                 val spokenStream = JarvisAiGateway.canStreamText(context, command) &&
                     voiceReply?.first == command
+                val streamCancellation = JarvisStreamCancellation()
                 val aiJob = kotlinx.coroutines.currentCoroutineContext()[kotlinx.coroutines.Job]
                 val abortTurn: (() -> Unit)? = if (spokenStream) {
                     {
@@ -830,6 +831,7 @@ fun JarvisApp(context: Context, launcherRequest: String? = null) {
                                 conversation[pendingIndex] = cancelled
                                 saveChatTurn(cancelled)
                             }
+                            streamCancellation.cancel()
                             aiJob?.cancel()
                         }
                     }
@@ -839,6 +841,7 @@ fun JarvisApp(context: Context, launcherRequest: String? = null) {
                 try {
                 val outcome = if (JarvisAiGateway.canStreamText(context, command)) {
                     JarvisAiGateway.askIncremental(context, command, language.tag,
+                        cancellation = streamCancellation,
                         onDelta = { delta ->
                             if (requestRevision == commandRevision &&
                                 currentChat.id == pendingChatId &&
