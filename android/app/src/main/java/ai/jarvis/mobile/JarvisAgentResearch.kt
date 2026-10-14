@@ -118,9 +118,9 @@ internal object JarvisAgentResearch {
             feltételezéseket, adj javítási javaslatot forráslinkekkel.
             Ha egy állítás nem ellenőrzött, írd meg. Ne állítsd, hogy kódot
             futtattál vagy Jarvist kijavítottad.
-            Eredeti kérdés: ${question.take(1400)}
+            Eredeti kérdés: ${question.take(1100)}
             Kutatási adatok:
-            ${findings.joinToString("\n\n").take(7000)}
+            ${findings.joinToString("\n\n").take(4500)}
         """.trimIndent()
         val reviewed = JarvisAiGateway.askStructured(context, reviewPrompt, language)
         return if (isText(reviewed)) reviewed else JarvisAiOutcome(
