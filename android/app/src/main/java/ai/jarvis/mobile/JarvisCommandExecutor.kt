@@ -35,7 +35,8 @@ internal object JarvisCommandExecutor {
             VoiceNavigation.destinationFrom(text) != null -> {
                 val destination = VoiceNavigation.destinationFrom(text)!!
                 when {
-                    VoiceNavigation.resolve(context, destination) == null ->
+                    VoiceNavigation.resolve(context, destination) == null &&
+                        !VoiceNavigation.maySearchNamedPlace(destination) ->
                         "Ehhez a személyhez nem mentettél el címet."
                     else -> JarvisNavigationText.result(
                         JarvisLanguageSettings.load(context),
