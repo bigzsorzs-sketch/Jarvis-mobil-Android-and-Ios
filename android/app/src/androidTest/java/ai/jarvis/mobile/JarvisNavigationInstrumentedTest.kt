@@ -153,7 +153,8 @@ class JarvisNavigationInstrumentedTest {
             androidx.compose.ui.test.hasTestTag("jarvis-all-history"))
         composeRule.onNodeWithTag("jarvis-all-history").performClick()
         composeRule.onNodeWithText(displayedRoute("Helyi beszélgetések")).assertExists()
-        composeRule.onNodeWithText(displayedRoute("Keresés az előzményekben")).assertExists()
+        composeRule.onNode(hasText(displayedRoute("Keresés az előzményekben")) and
+            androidx.compose.ui.test.hasSetTextAction()).assertExists()
     }
 }
 
