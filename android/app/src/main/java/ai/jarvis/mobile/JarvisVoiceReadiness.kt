@@ -8,14 +8,26 @@ import android.media.AudioManager
  * without sending a microphone sample, private chat or API token anywhere.
  */
 internal object JarvisVoiceReadiness {
-    fun reason(context: Context): String? = when {
-        !JarvisAiGateway.cloudConsent(context) ->
+    fun reason(context: Context): String? = reasonForState(
+        cloudTextApproved = JarvisAiGateway.cloudConsent(context),
+        cloudVoiceApproved = JarvisAiGateway.voiceConsent(context),
+        connectionSaved = JarvisAiGateway.hasSavedConnection(context),
+        connectionConfigured = JarvisAiGateway.configured(context)
+    )
+
+    fun reasonForState(
+        cloudTextApproved: Boolean,
+        cloudVoiceApproved: Boolean,
+        connectionSaved: Boolean,
+        connectionConfigured: Boolean
+    ): String? = when {
+        !cloudTextApproved ->
             "Az AI-szöveg feldolgozása nincs engedélyezve. Beállítások → AI-agy."
-        !JarvisAiGateway.voiceConsent(context) ->
+        !cloudVoiceApproved ->
             "Az AI-hang külön hozzájárulása ki van kapcsolva. Beállítások → AI-agy → AI-hang használata."
-        !JarvisAiGateway.hasSavedConnection(context) ->
+        !connectionSaved ->
             "Nincs elmentett AI-kapcsolat. Beállítások → AI-agy alatt ellenőrizd az OpenRouter-kulcsot vagy a Jarvis-szervert."
-        !JarvisAiGateway.configured(context) ->
+        !connectionConfigured ->
             "Az AI-hang kapcsolata nincs megfelelően beállítva."
         else -> null
     }
