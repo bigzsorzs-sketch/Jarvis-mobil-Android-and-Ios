@@ -44,4 +44,27 @@ class JarvisSseDecoderTest {
         assertEquals("", d.text)
         assertFalse(d.done)
     }
+
+    @Test fun streamErrorOrUnexpectedToolCallCannotLookLikeSuccessfulAnswer() {
+        val error = JarvisSseDecoder()
+        assertNull(error.accept("""data: {"error":{"message":"provider failed"}}"""))
+        assertTrue(error.done)
+        assertNotNull(error.failure)
+        assertEquals("", error.text)
+
+        val tool = JarvisSseDecoder()
+        assertNull(tool.accept("""data: {"choices":[{"delta":{"tool_calls":[{"id":"123"}]},"finish_reason":"tool_calls"}]}"""))
+        assertTrue(tool.done)
+        assertNotNull(tool.failure)
+
+        val limited = JarvisSseDecoder()
+        assertEquals("Első rész", limited.accept(
+            """data: {"choices":[{"delta":{"content":"Első rész"}}]}"""))
+        assertNull(limited.accept(
+            """data: {"choices":[{"delta":{},"finish_reason":"length"}]}"""))
+        assertTrue(limited.done)
+        assertNotNull(limited.failure)
+        assertEquals("Első rész", limited.text)
+    }
+
 }
