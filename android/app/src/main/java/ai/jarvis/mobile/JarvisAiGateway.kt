@@ -362,7 +362,8 @@ internal object JarvisAiGateway {
             val languageTag = responseLanguageTag
                 ?.let { JarvisLanguage.fromSpeechTag(it)?.tag }
                 ?: JarvisLanguageSettings.load(context.applicationContext).tag
-            val payload = JarvisAiToolPolicy.providerPayload(message.trim(), languageTag)
+            val payload = JarvisAiToolPolicy.providerPayload(message.trim(), languageTag,
+                JarvisBackgroundBrain.relevantNote(context.applicationContext, message))
             if (payload.has("tools")) {
                 return@withContext askStructured(context, message, languageTag)
             }
@@ -504,7 +505,8 @@ internal object JarvisAiGateway {
             // providers support this model for text but return 404 with tools.
             val payload = if (direct) JarvisAiToolPolicy.providerPayload(
                 question, responseLanguageTag?.let { JarvisLanguage.fromSpeechTag(it)?.tag }
-                    ?: JarvisLanguageSettings.load(context.applicationContext).tag)
+                    ?: JarvisLanguageSettings.load(context.applicationContext).tag,
+                JarvisBackgroundBrain.relevantNote(context.applicationContext, question))
                 else serverChatPayload(question,
                     responseLanguageTag?.let { JarvisLanguage.fromSpeechTag(it)?.tag }
                         ?: JarvisLanguageSettings.load(context.applicationContext).tag)
