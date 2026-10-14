@@ -419,6 +419,19 @@ fun JarvisApp(context: Context, launcherRequest: String? = null) {
     }
     fun executeHome(command: String) {
         if (command.isBlank()) return
+        // Do this BEFORE any loading guard, Gmail follow-up or AI call.
+        // Typed or dictated "állj" must immediately cancel BOTH narrators.
+        if (VoiceIntentParser.isPlaybackStop(command)) {
+            commandRevision += 1
+            JarvisForegroundCommands.interruptSpeech?.invoke()
+            JarvisVoiceStreamBridge.interruptActive()
+            narrator.stop()
+            val notice = JarvisReadAloudCommand.response(language, "stopped")
+            // No TTS acknowledgement: the user asked for silence.
+            completeCommand(command, notice)
+            conversation.add(command to notice)
+            return
+        }
         if (currentChat.loading) {
             completeCommand(command, JarvisTranslations.text("Betöltés…", language))
             return
