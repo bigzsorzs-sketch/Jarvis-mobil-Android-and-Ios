@@ -74,15 +74,18 @@ internal object JarvisNativeActions {
             NAVIGATE -> {
                 val target = VoiceNavigation.destinationFrom(command)
                     ?: return "Nem azonosítható a navigáció célpontja."
-                when {
-                    VoiceNavigation.resolve(context, target) == null &&
-                        !VoiceNavigation.maySearchNamedPlace(target) ->
-                        "Ehhez a célponthoz nincs mentett cím."
-                    VoiceNavigation.openDetailed(context, target) == VoiceNavigation.LaunchResult.SAVED_NAME_SEARCH_OPENED ->
+                if (VoiceNavigation.resolve(context, target) == null &&
+                    !VoiceNavigation.maySearchNamedPlace(target)) {
+                    "Ehhez a célponthoz nincs mentett cím."
+                } else when (VoiceNavigation.openDetailed(context, target)) {
+                    VoiceNavigation.LaunchResult.SAVED_NAME_SEARCH_OPENED ->
                         "Google Maps névkeresés megnyitva. Válaszd ki a mentett helyet; navigáció nem indult."
-                    VoiceNavigation.open(context, target) ->
-                        "Az útvonalat átadtam a térképalkalmazásnak. Az indulást ott ellenőrizd."
-                    else -> "Nem sikerült megnyitni a térképalkalmazást."
+                    VoiceNavigation.LaunchResult.GUIDANCE_REQUESTED ->
+                        "A navigációindítási kérést átadtam a Google Mapsnek; az indulás nem igazolt."
+                    VoiceNavigation.LaunchResult.DIRECTIONS_OPENED ->
+                        "Az útvonalnézet megnyílt; a navigáció indítása még szükséges lehet."
+                    VoiceNavigation.LaunchResult.UNAVAILABLE ->
+                        "Nem sikerült megnyitni a térképalkalmazást."
                 }
             }
             SET_ALARM -> when (val result = JarvisAlarms.schedule(context,
