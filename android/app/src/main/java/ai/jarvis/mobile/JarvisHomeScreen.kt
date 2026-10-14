@@ -147,7 +147,10 @@ internal fun JarvisHomeScreen(
                 context,
                 Intent(context, HandsFreeService::class.java).setAction(HandsFreeService.START_TAP)
             )
-            issue = ""
+            // Starting speech recognition does not guarantee that voice
+            // generation is configured. Keep capture available for commands,
+            // but prominently explain why an audible reply may be missing.
+            issue = JarvisVoiceReadiness.reason(context).orEmpty()
         } catch (_: Exception) {
             issue = "A telefon nem engedte elindítani a mikrofont."
         }
@@ -255,6 +258,12 @@ internal fun JarvisHomeScreen(
             Spacer(Modifier.height(12.dp))
             Text(issue, color = Color(0xFFAA2732), fontSize = 12.sp,
                 modifier = Modifier.padding(horizontal = 16.dp))
+        }
+        if (HandsFreeStatus.audioError.isNotBlank()) {
+            Spacer(Modifier.height(4.dp))
+            Text("AI-hang hiba: " + HandsFreeStatus.audioError,
+                color = if (isDark) Color(0xFFFFB6B6) else Color(0xFFAA2732),
+                fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp))
         }
         if (HandsFreeStatus.status != "Kikapcsolva") {
             Text(HandsFreeStatus.status, color = JarvisMuted, fontSize = 12.sp,
