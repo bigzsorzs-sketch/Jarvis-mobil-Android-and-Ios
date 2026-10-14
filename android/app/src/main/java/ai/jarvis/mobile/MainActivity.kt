@@ -122,7 +122,15 @@ fun JarvisApp(context: Context, launcherRequest: String? = null) {
     val securePrefs = remember { SecurePrefs(context) }
     val billingRepo = remember(context) { BillingRepository(context) }
     val narrator = remember(context) { JarvisReadAloud(context) }
-    DisposableEffect(narrator) { onDispose { narrator.release() } }
+    DisposableEffect(narrator) {
+        val stopNarrator: () -> Unit = { narrator.stop() }
+        JarvisVoiceStreamBridge.stopLocalNarration = stopNarrator
+        onDispose {
+            if (JarvisVoiceStreamBridge.stopLocalNarration === stopNarrator)
+                JarvisVoiceStreamBridge.stopLocalNarration = null
+            narrator.release()
+        }
+    }
     var language by remember { mutableStateOf(JarvisLanguageSettings.load(context)) }
     val selectLanguage: (JarvisLanguage) -> Unit = { selected ->
         if (language != selected) {
