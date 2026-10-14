@@ -144,55 +144,78 @@ internal class JarvisCloudVoicePlayer(context: Context) {
         val phrases = Channel<String>(Channel.UNLIMITED)
         incomingPhrases = phrases
         work = scope.launch {
+            // Bounded two-stage pipeline: while the current MP3 plays, fetch
+            // ONLY the next MP3. No unlimited parallel paid TTS requests.
+            // The channel is rendezvous so no stale audio can accumulate.
+            val chunks = Channel<String>(Channel.RENDEZVOUS)
+            val producer = launch {
+                try {
+                    for (phrase in phrases) {
+                        for (chunk in JarvisSpeechChunks.splitForConversation(phrase)) {
+                            chunks.send(chunk)
+                        }
+                    }
+                } finally {
+                    chunks.close()
+                }
+            }
+            suspend fun nextAudio(): Pair<Boolean, ByteArray?> {
+                val chunk = chunks.receiveCatching().getOrNull()
+                    ?: return false to null
+                return true to JarvisAiGateway.speechBytes(appContext, chunk, language)
+            }
+            var upcoming = async(Dispatchers.IO) { nextAudio() }
             try {
-                for (phrase in phrases) {
-                    for (chunk in JarvisSpeechChunks.splitForConversation(phrase)) {
-                        val bytes = withContext(Dispatchers.IO) {
-                            JarvisAiGateway.speechBytes(appContext, chunk, language)
+                while (true) {
+                    val (hasChunk, bytes) = upcoming.await()
+                    if (request != serial) return@launch
+                    if (!hasChunk) break
+                    if (bytes == null) {
+                        lastFailure = JarvisAiGateway.lastSpeechError
+                            .ifBlank { "A felhős hang nem adott hanganyagot." }
+                        completed(false)
+                        return@launch
+                    }
+                    val file = try {
+                        withContext(Dispatchers.IO) {
+                            File.createTempFile("jarvis-voice-", ".mp3", appContext.cacheDir)
+                                .also { it.writeBytes(bytes) }
                         }
-                        if (request != serial) return@launch
-                        if (bytes == null) {
-                            lastFailure = JarvisAiGateway.lastSpeechError
-                                .ifBlank { "A felhős hang nem adott hanganyagot." }
-                            completed(false)
-                            return@launch
+                    } catch (_: Exception) {
+                        if (request == serial) completed(false)
+                        return@launch
+                    }
+                    if (request != serial) {
+                        file.delete()
+                        return@launch
+                    }
+                    // Prefetch starts BEFORE playback of this file.
+                    upcoming = async(Dispatchers.IO) { nextAudio() }
+                    activeFile = file
+                    val played = try {
+                        playFile(file, request, onStart)
+                    } catch (_: Exception) {
+                        false
+                    } finally {
+                        if (request == serial) {
+                            player?.release()
+                            player = null
                         }
-                        val file = try {
-                            withContext(Dispatchers.IO) {
-                                File.createTempFile("jarvis-voice-", ".mp3", appContext.cacheDir)
-                                    .also { it.writeBytes(bytes) }
-                            }
-                        } catch (_: Exception) {
-                            if (request == serial) completed(false)
-                            return@launch
-                        }
-                        if (request != serial) {
-                            file.delete()
-                            return@launch
-                        }
-                        activeFile = file
-                        val played = try {
-                            playFile(file, request, onStart)
-                        } catch (_: Exception) {
-                            false
-                        } finally {
-                            if (request == serial) {
-                                player?.release()
-                                player = null
-                            }
-                            file.delete()
-                            if (activeFile === file) activeFile = null
-                        }
-                        if (request != serial) return@launch
-                        if (!played) {
-                            lastFailure = "Nem sikerült lejátszani a folyamatos AI-hangot."
-                            completed(false)
-                            return@launch
-                        }
+                        file.delete()
+                        if (activeFile === file) activeFile = null
+                    }
+                    if (request != serial) return@launch
+                    if (!played) {
+                        lastFailure = "Nem sikerült lejátszani a folyamatos AI-hangot."
+                        completed(false)
+                        return@launch
                     }
                 }
                 if (request == serial) completed(true)
             } finally {
+                upcoming.cancel()
+                producer.cancel()
+                chunks.cancel()
                 phrases.cancel()
                 if (incomingPhrases === phrases) incomingPhrases = null
             }
