@@ -105,6 +105,8 @@ class MainActivity : ComponentActivity() {
         // and pushes the orb behind the system status bar on some OEM phones).
         window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
         assistantRequested = JarvisAssistantLaunch.consume(intent)
+        // Quiet research is uniquely scheduled once; Android runs it when constraints allow.
+        runCatching { JarvisBackgroundBrain.schedule(applicationContext) }
         setContent { JarvisApp(this, launcherRequest) }
     }
 }
