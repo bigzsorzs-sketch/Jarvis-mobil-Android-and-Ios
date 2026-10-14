@@ -809,11 +809,66 @@ fun JarvisApp(context: Context, launcherRequest: String? = null) {
         if (JarvisAiRouting.shouldAskAi(command)) {
             val pending = command to "AI-válaszra várok…"
             conversation.add(pending)
-            
+            val pendingIndex = conversation.lastIndex
+            val pendingChatId = currentChat.id
+            val progressive = StringBuilder()
+            var lastVisibleUpdateMs = 0L
             drawerScope.launch {
-                val outcome = JarvisAiGateway.askStructured(context, command)
+                val spokenStream = JarvisAiGateway.canStreamText(context, command) &&
+                    voiceReply?.first == command
+                val streamCancellation = JarvisStreamCancellation()
+                val aiJob = kotlinx.coroutines.currentCoroutineContext()[kotlinx.coroutines.Job]
+                val abortTurn: (() -> Unit)? = if (spokenStream) {
+                    {
+                        if (requestRevision == commandRevision &&
+                            voiceReply?.first == command) {
+                            // Clear the old answer on real user interruption.
+                            commandRevision += 1
+                            voiceReply = null
+                            if (pendingIndex in conversation.indices &&
+                                conversation[pendingIndex].first == command) {
+                                val cancelled = command to "A hangos választ megszakítottad."
+                                conversation[pendingIndex] = cancelled
+                                saveChatTurn(cancelled)
+                            }
+                            streamCancellation.cancel()
+                            aiJob?.cancel()
+                        }
+                    }
+                } else null
+                if (abortTurn != null)
+                    JarvisVoiceStreamBridge.interruptCurrent = abortTurn
+                try {
+                val outcome = if (JarvisAiGateway.canStreamText(context, command)) {
+                    JarvisAiGateway.askIncremental(context, command, language.tag,
+                        cancellation = streamCancellation,
+                        onDelta = { delta ->
+                            if (requestRevision == commandRevision &&
+                                currentChat.id == pendingChatId &&
+                                pendingIndex in conversation.indices &&
+                                conversation[pendingIndex].first == command) {
+                                progressive.append(delta)
+                                // Do not recompose the entire chat for every tiny SSE token.
+                                val nowMs = android.os.SystemClock.elapsedRealtime()
+                                if (nowMs - lastVisibleUpdateMs >= 85L ||
+                                    delta.contains('\n') || progressive.length < 30) {
+                                    conversation[pendingIndex] = command to progressive.toString()
+                                    lastVisibleUpdateMs = nowMs
+                                }
+                            }
+                        },
+                        onPhrase = { phrase ->
+                            // Only an already-active hands-free turn receives sound.
+                            // Typed chat never starts an unsolicited microphone/TTS.
+                            if (requestRevision == commandRevision &&
+                                voiceReply?.first == command)
+                                JarvisVoiceStreamBridge.deliver(command, phrase)
+                        })
+                } else JarvisAiGateway.askStructured(context, command)
                 if (requestRevision != commandRevision) {
-                    val oldIndex = JarvisPendingTurn.findIndex(conversation, pending)
+                    val oldIndex = if (pendingIndex in conversation.indices &&
+                        conversation[pendingIndex].first == command) pendingIndex
+                        else JarvisPendingTurn.findIndex(conversation, pending)
                     if (oldIndex >= 0) {
                         val cancelled = command to "Egy újabb kérés miatt a korábbi AI-parancsot megszakítottam."
                         conversation[oldIndex] = cancelled
@@ -846,11 +901,18 @@ fun JarvisApp(context: Context, launcherRequest: String? = null) {
                     }
                     else -> outcome.message
                 }
-                val index = JarvisPendingTurn.findIndex(conversation, pending)
+                val index = if (pendingIndex in conversation.indices &&
+                    conversation[pendingIndex].first == command) pendingIndex
+                    else JarvisPendingTurn.findIndex(conversation, pending)
                 if (index >= 0) {
                     conversation[index] = command to answer
                     saveChatTurn(command to answer)
                     completeCommand(command, answer)
+                }
+                } finally {
+                    // Do not clear a newer turn's cancellation callback.
+                    if (JarvisVoiceStreamBridge.interruptCurrent === abortTurn)
+                        JarvisVoiceStreamBridge.interruptCurrent = null
                 }
             }
         } else {

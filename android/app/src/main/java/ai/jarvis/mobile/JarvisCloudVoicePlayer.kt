@@ -8,9 +8,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.channels.Channel
 import java.io.File
 import kotlin.coroutines.resume
 
@@ -27,6 +29,7 @@ internal class JarvisCloudVoicePlayer(context: Context) {
     private var work: Job? = null
     private var player: MediaPlayer? = null
     private var activeFile: File? = null
+    private var incomingPhrases: Channel<String>? = null
     private var closed = false
     var lastFailure: String = ""
         private set
@@ -43,14 +46,19 @@ internal class JarvisCloudVoicePlayer(context: Context) {
             return false
         }
         if (lastFailure.isNotBlank()) return false
-        val chunks = JarvisSpeechChunks.split(text, maxChars = 1200)
+        val chunks = JarvisSpeechChunks.splitForConversation(text)
         if (chunks.isEmpty()) return false
         stop()
         lastFailure = ""
         val request = serial
         work = scope.launch {
-            for (chunk in chunks) {
-                val audio = JarvisAiGateway.speechBytes(appContext, chunk, language)
+            // Prefetch at most one following MP3 while the current chunk is
+            // playing. This reduces dead air without increasing memory use.
+            var upcoming = async(Dispatchers.IO) {
+                JarvisAiGateway.speechBytes(appContext, chunks.first(), language)
+            }
+            for (index in chunks.indices) {
+                val audio = upcoming.await()
                 if (request != serial) return@launch
                 if (audio == null) {
                     lastFailure = JarvisAiGateway.lastSpeechError
@@ -71,16 +79,23 @@ internal class JarvisCloudVoicePlayer(context: Context) {
                     file.delete()
                     return@launch
                 }
+                upcoming = if (index + 1 < chunks.size) async(Dispatchers.IO) {
+                    JarvisAiGateway.speechBytes(appContext, chunks[index + 1], language)
+                } else upcoming
                 activeFile = file
                 val played = try {
                     playFile(file, request, onStart)
                 } catch (_: Exception) {
                     false
                 } finally {
-                    player?.release()
-                    player = null
+                    // An obsolete coroutine must never release a newer turn's
+                    // player/file after a barge-in or fast user interruption.
+                    if (request == serial) {
+                        player?.release()
+                        player = null
+                    }
                     file.delete()
-                    activeFile = null
+                    if (activeFile === file) activeFile = null
                 }
                 if (request != serial) return@launch
                 if (!played) {
@@ -92,6 +107,120 @@ internal class JarvisCloudVoicePlayer(context: Context) {
             if (request == serial) completed(true)
         }
         return true
+    }
+
+
+    /** One ordered voice queue per AI turn. Existing speak() remains unchanged. */
+    inner class StreamHandle internal constructor(
+        private val request: Int,
+        private val phrases: Channel<String>
+    ) {
+        private var acceptedLength = 0
+        fun offer(phrase: String): Boolean {
+            if (closed || request != serial || phrase.isBlank() ||
+                acceptedLength + phrase.length > 30_000) return false
+            acceptedLength += phrase.length
+            return phrases.trySend(phrase).isSuccess
+        }
+        fun finish() {
+            phrases.close()
+        }
+        fun cancel() {
+            if (request == serial) stop()
+        }
+    }
+
+    /** Begin playing completed sentences without waiting for all AI tokens. */
+    fun startStream(
+        language: JarvisLanguage,
+        onStart: () -> Unit = {},
+        completed: (Boolean) -> Unit
+    ): StreamHandle? {
+        lastFailure = JarvisVoiceReadiness.reason(appContext).orEmpty()
+        if (closed || lastFailure.isNotBlank()) return null
+        stop()
+        lastFailure = ""
+        val request = serial
+        val phrases = Channel<String>(Channel.UNLIMITED)
+        incomingPhrases = phrases
+        work = scope.launch {
+            // Bounded two-stage pipeline: while the current MP3 plays, fetch
+            // ONLY the next MP3. No unlimited parallel paid TTS requests.
+            // The channel is rendezvous so no stale audio can accumulate.
+            val chunks = Channel<String>(Channel.RENDEZVOUS)
+            val producer = launch {
+                try {
+                    for (phrase in phrases) {
+                        for (chunk in JarvisSpeechChunks.splitForConversation(phrase)) {
+                            chunks.send(chunk)
+                        }
+                    }
+                } finally {
+                    chunks.close()
+                }
+            }
+            suspend fun nextAudio(): Pair<Boolean, ByteArray?> {
+                val chunk = chunks.receiveCatching().getOrNull()
+                    ?: return false to null
+                return true to JarvisAiGateway.speechBytes(appContext, chunk, language)
+            }
+            var upcoming = async(Dispatchers.IO) { nextAudio() }
+            try {
+                while (true) {
+                    val (hasChunk, bytes) = upcoming.await()
+                    if (request != serial) return@launch
+                    if (!hasChunk) break
+                    if (bytes == null) {
+                        lastFailure = JarvisAiGateway.lastSpeechError
+                            .ifBlank { "A felhős hang nem adott hanganyagot." }
+                        completed(false)
+                        return@launch
+                    }
+                    val file = try {
+                        withContext(Dispatchers.IO) {
+                            File.createTempFile("jarvis-voice-", ".mp3", appContext.cacheDir)
+                                .also { it.writeBytes(bytes) }
+                        }
+                    } catch (_: Exception) {
+                        if (request == serial) completed(false)
+                        return@launch
+                    }
+                    if (request != serial) {
+                        file.delete()
+                        return@launch
+                    }
+                    // Prefetch starts BEFORE playback of this file.
+                    upcoming = async(Dispatchers.IO) { nextAudio() }
+                    activeFile = file
+                    val played = try {
+                        playFile(file, request, onStart)
+                    } catch (_: Exception) {
+                        false
+                    } finally {
+                        if (request == serial) {
+                            player?.release()
+                            player = null
+                        }
+                        file.delete()
+                        if (activeFile === file) activeFile = null
+                    }
+                    if (request != serial) return@launch
+                    if (!played) {
+                        lastFailure = "Nem sikerült lejátszani a folyamatos AI-hangot."
+                        completed(false)
+                        return@launch
+                    }
+                }
+                if (request == serial) completed(true)
+            } finally {
+                upcoming.cancel()
+                producer.cancel()
+                chunks.cancel()
+                phrases.cancel()
+                if (incomingPhrases === phrases) incomingPhrases = null
+            }
+        }
+        return StreamHandle(request, phrases)
     }
 
     private suspend fun playFile(file: File, request: Int, onStart: () -> Unit): Boolean =
@@ -134,6 +263,8 @@ internal class JarvisCloudVoicePlayer(context: Context) {
 
     fun stop() {
         serial++
+        incomingPhrases?.cancel()
+        incomingPhrases = null
         work?.cancel()
         work = null
         player?.run {

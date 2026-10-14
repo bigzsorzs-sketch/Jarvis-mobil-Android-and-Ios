@@ -3,6 +3,7 @@ package ai.jarvis.mobile
 import android.content.Context
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.isActive
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URI
@@ -326,6 +327,128 @@ internal object JarvisAiGateway {
         val supported = setOf("hu-HU", "en-GB", "de-DE", "fr-FR", "es-ES", "it-IT", "pl-PL")
         val tag = selectedLanguage.takeIf { it in supported } ?: "hu-HU"
         return JSONObject().put("message", question).put("language", tag)
+    }
+
+
+    /**
+     * Stream only ordinary text in direct OpenRouter mode. Commands and web
+     * requests continue to require the fully validated non-streaming handler.
+     */
+    fun canStreamText(context: Context, question: String): Boolean =
+        mode(context) == DIRECT_TEST &&
+            question.isNotBlank() && question.length <= MAX_MESSAGE &&
+            JarvisAiToolPolicy.selectedTools(question).length() == 0 &&
+            !JarvisAiToolPolicy.needsLiveWeb(question) &&
+            !JarvisGlucoseVoice.isQuery(question)
+
+    /** The only output from streamed SSE is text; NEVER execute a streamed tool. */
+    suspend fun askIncremental(
+        context: Context,
+        message: String,
+        responseLanguageTag: String? = null,
+        cancellation: JarvisStreamCancellation = JarvisStreamCancellation(),
+        onDelta: (String) -> Unit,
+        onPhrase: (String) -> Unit
+    ): JarvisAiOutcome {
+        if (!canStreamText(context, message) ||
+            !cloudConsent(context) || !hasSavedConnection(context)) {
+            return askStructured(context, message, responseLanguageTag)
+        }
+        return withContext(Dispatchers.IO) {
+            val credential = SecurePrefs(context.applicationContext).read(KEY_DIRECT, "")
+            if (!isValidOpenRouterKey(credential)) {
+                return@withContext JarvisAiOutcome("Az OpenRouter-kulcs nincs beállítva.")
+            }
+            val languageTag = responseLanguageTag
+                ?.let { JarvisLanguage.fromSpeechTag(it)?.tag }
+                ?: JarvisLanguageSettings.load(context.applicationContext).tag
+            val payload = JarvisAiToolPolicy.providerPayload(message.trim(), languageTag)
+            if (payload.has("tools")) {
+                return@withContext askStructured(context, message, languageTag)
+            }
+            payload.put("stream", true)
+            var connection: HttpURLConnection? = null
+            val decoder = JarvisSseDecoder()
+            val phrases = JarvisIncrementalPhrases()
+            try {
+                connection = URL(OPENROUTER_ENDPOINT).openConnection() as HttpURLConnection
+                cancellation.bind(connection)
+                if (cancellation.isCancelled()) {
+                    throw kotlinx.coroutines.CancellationException("Voice turn cancelled")
+                }
+                connection.requestMethod = "POST"
+                connection.instanceFollowRedirects = false
+                connection.connectTimeout = 10000
+                connection.readTimeout = 30000
+                connection.doOutput = true
+                connection.setRequestProperty("Content-Type", "application/json; charset=utf-8")
+                connection.setRequestProperty("Accept", "text/event-stream")
+                connection.setRequestProperty("Authorization", "Bearer $credential")
+                connection.outputStream.use {
+                    it.write(payload.toString().toByteArray(Charsets.UTF_8))
+                }
+                val status = connection.responseCode
+                if (status != 200) {
+                    return@withContext JarvisAiOutcome(when (status) {
+                        401 -> "Az OpenRouter-kulcs érvénytelen vagy visszavonták."
+                        402 -> "Az OpenRouter-egyenleg nem elegendő."
+                        403 -> "Az AI-hozzáférés nincs engedélyezve."
+                        404 -> http404Message(true)
+                        429 -> "Az OpenRouter használati limitet jelzett."
+                        301, 302, 303, 307, 308 ->
+                            "Az AI-szerver átirányított; biztonsági okból megszakítottam."
+                        else -> "Az OpenRouter hibát jelzett (HTTP $status)."
+                    })
+                }
+                if (!connection.contentType.orEmpty().lowercase().contains("text/event-stream")) {
+                    // Some providers ignore stream=true but return a valid,
+                    // complete JSON chat result. Preserve working plain chat
+                    // without retrying the request or authorizing new tools.
+                    if (connection.contentType.orEmpty().lowercase().contains("json")) {
+                        val fullBody = connection.inputStream.use {
+                            JarvisNetworkSafety.readUtf8Limited(it)
+                        }
+                        val parsed = JarvisAiTools.fromProvider(JSONObject(fullBody), message)
+                        return@withContext JarvisAiOutcome(parsed.message)
+                    }
+                    return@withContext JarvisAiOutcome(
+                        "Az AI-szolgáltató nem küldött folyamatos szöveget. Próbáld újra.")
+                }
+                connection.inputStream.bufferedReader(Charsets.UTF_8).use { reader ->
+                    while (kotlin.coroutines.coroutineContext.isActive && !decoder.done) {
+                        val line = reader.readLine() ?: break
+                        val delta = decoder.accept(line) ?: continue
+                        val ready = phrases.accept(delta)
+                        withContext(Dispatchers.Main.immediate) {
+                            onDelta(delta)
+                            ready.forEach(onPhrase)
+                        }
+                    }
+                }
+                if (!decoder.done || decoder.failure != null) {
+                    val reason = decoder.failure
+                        ?: "A hálózati válasz idő előtt megszakadt."
+                    return@withContext JarvisAiOutcome(
+                        decoder.text.takeIf { it.isNotBlank() }?.plus(
+                            "\n($reason)")
+                            ?: reason)
+                }
+                val last = phrases.finish()
+                if (last.isNotBlank()) withContext(Dispatchers.Main.immediate) {
+                    onPhrase(last)
+                }
+                JarvisAiOutcome(decoder.text.ifBlank { "Az AI nem adott szöveges választ." })
+            } catch (cancel: kotlinx.coroutines.CancellationException) {
+                throw cancel
+            } catch (_: Exception) {
+                JarvisAiOutcome(decoder.text.takeIf { it.isNotBlank() }?.plus(
+                    "\n(Az AI-kapcsolat megszakadt.)")
+                    ?: "Nem sikerült kapcsolódni az AI-hoz. Ellenőrizd az internetet és a kulcsot.")
+            } finally {
+                cancellation.release(connection)
+                connection?.disconnect()
+            }
+        }
     }
 
     suspend fun ask(context: Context, message: String): String =

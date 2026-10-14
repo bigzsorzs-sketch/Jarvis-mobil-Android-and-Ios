@@ -72,4 +72,25 @@ class JarvisAiToolPolicyTest {
             assertEquals(input, 0, JarvisAiToolPolicy.selectedTools(input).length())
         }
     }
+
+    @Test fun simpleChatGetsCompactPromptButCapabilitiesAndActionsKeepFullRules() {
+        val greeting = JarvisAiToolPolicy.providerPayload("Halló, jó estét")
+        val brief = greeting.getJSONArray("messages").getJSONObject(0).getString("content")
+        assertTrue(brief.contains("1-3 mondatban"))
+        assertFalse(brief.contains("Az aktuális Jarvis-menüpontok"))
+        assertEquals(JarvisAiGateway.TEST_MODEL, greeting.getString("model"))
+        assertFalse(greeting.getBoolean("stream"))
+
+        val about = JarvisAiToolPolicy.providerPayload("Mit tudsz Jarvis?")
+            .getJSONArray("messages").getJSONObject(0).getString("content")
+        assertTrue(about.contains("Az aktuális Jarvis-menüpontok"))
+
+        val command = JarvisAiToolPolicy.providerPayload("Hívd fel Esztert")
+            .getJSONArray("messages").getJSONObject(0).getString("content")
+        assertTrue(command.contains("Az aktuális Jarvis-menüpontok"))
+
+        val live = JarvisAiToolPolicy.providerPayload("Keress a neten friss híreket")
+            .getJSONArray("messages").getJSONObject(0).getString("content")
+        assertTrue(live.contains("Az aktuális Jarvis-menüpontok"))
+    }
 }
