@@ -886,7 +886,7 @@ fun JarvisApp(context: Context, launcherRequest: String? = null) {
         // turn-by-turn intent, never dropped in favour of an empty map view.
         VoiceNavigation.destinationFrom(command)?.let { destination ->
             val result = if (VoiceNavigation.resolve(context, destination) == null &&
-                !VoiceNavigation.maySearchNamedPlace(destination)
+                !VoiceNavigation.maySearchNamedPlace(destination))
                 "Az úti célhoz nem találok mentett címet."
             else JarvisNavigationText.result(
                 language, VoiceNavigation.openDetailed(context, destination)
