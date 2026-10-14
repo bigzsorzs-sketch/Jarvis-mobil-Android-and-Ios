@@ -78,10 +78,18 @@ internal object VoiceNavigation {
         if (index != 0) return raw
         // The suffix belongs to the saved-place reference ("helyhez"), not to the place name.
         if (JarvisSavedPlaces.importedName(raw) != null) return raw
+        // A destination addressed as a person (Eszterhez) must resolve to
+        // a saved person address. It must not turn into an unrelated Maps search
+        // for "Eszter" if the person has no saved address.
+        val personSuffix = Regex("""(?iu)(?:hoz|hez|höz)$""")
         val explicit = separatedHungarianCase.matchEntire(raw)
-        if (explicit != null) return explicit.groupValues[1].trim()
+        if (explicit != null) {
+            val target = explicit.groupValues[1].trim()
+            return if (personSuffix.containsMatchIn(raw)) "PERSON:$target" else target
+        }
         val joined = joinedHungarianCase.matchEntire(raw)
-        return (joined?.groupValues?.get(1) ?: raw).trim().takeIf { it.isNotBlank() }
+        val target = (joined?.groupValues?.get(1) ?: raw).trim().takeIf { it.isNotBlank() }
+        return if (target != null && personSuffix.containsMatchIn(raw)) "PERSON:$target" else target
     }
 
     fun homeAddress(context: Context): String =
