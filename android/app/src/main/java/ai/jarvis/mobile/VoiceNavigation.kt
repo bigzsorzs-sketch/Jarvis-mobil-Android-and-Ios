@@ -11,7 +11,7 @@ import java.util.Locale
  * A Maps URL fallback may show directions, but cannot promise guidance has started.
  */
 internal object VoiceNavigation {
-    internal enum class LaunchResult { GUIDANCE_REQUESTED, DIRECTIONS_OPENED, UNAVAILABLE }
+    internal enum class LaunchResult { GUIDANCE_REQUESTED, DIRECTIONS_OPENED, SAVED_NAME_SEARCH_OPENED, UNAVAILABLE }
 
     private val personDestination = Regex(
         """(?iu)^(?:nyisd\s+meg\s+a\s+térképet\s+és\s+állítsd\s+be\s+(?:a\s+|az\s+)?|navigálj\s+)(.+?)\s+(?:címnek|címére|címéhez)[.!?]?$"""
@@ -129,10 +129,31 @@ internal object VoiceNavigation {
         return destination
     }
 
+    /** Google Maps private saved-place lists are NOT readable through Android
+     * intents. If a Hungarian person name has no known local address, hand the
+     * *name* to Maps search for user verification, never auto-start navigation
+     * to an unrelated search result.
+     */
     fun openDetailed(context: Context, destination: String): LaunchResult {
         val resolved = resolve(context, destination)?.trim()
             ?.takeIf { it.isNotBlank() && it.length <= 180 && !it.contains('\n') && !it.contains('\r') }
-            ?: return LaunchResult.UNAVAILABLE
+        if (resolved == null) {
+            if (!destination.startsWith("PERSON:")) return LaunchResult.UNAVAILABLE
+            val name = destination.removePrefix("PERSON:").trim()
+            if (name.length !in 2..80 || name.any { it == '\n' || it == '\r' })
+                return LaunchResult.UNAVAILABLE
+            val encodedName = Uri.encode(name)
+            val mapsSearch = Intent(Intent.ACTION_VIEW,
+                Uri.parse("geo:0,0?q=$encodedName"))
+                .setPackage("com.google.android.apps.maps")
+            if (openSystemIntent(context, mapsSearch))
+                return LaunchResult.SAVED_NAME_SEARCH_OPENED
+            val browserSearch = Intent(Intent.ACTION_VIEW, Uri.parse(
+                "https://www.google.com/maps/search/?api=1&query=$encodedName"
+            ))
+            return if (openSystemIntent(context, browserSearch))
+                LaunchResult.SAVED_NAME_SEARCH_OPENED else LaunchResult.UNAVAILABLE
+        }
         val encoded = Uri.encode(resolved)
         val mapsNavigation = Intent(Intent.ACTION_VIEW,
             Uri.parse("google.navigation:q=$encoded&mode=d"))
