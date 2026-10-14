@@ -42,6 +42,8 @@ class SpokenAlarmTimeTest {
             AlarmCommands.parseAlarmTime("Stell einen Wecker um sieben Uhr abends"))
         assertEquals(AlarmTime(19, 0),
             AlarmCommands.parseAlarmTime("Pon una alarma a las siete de la noche"))
+        assertEquals(AlarmTime(7, 0),
+            AlarmCommands.parseAlarmTime("Pon una alarma a las siete de la mañana"))
         assertEquals(AlarmTime(7, 30),
             AlarmCommands.parseAlarmTime("Stell einen Wecker auf halb acht morgens"))
     }
@@ -57,6 +59,7 @@ class SpokenAlarmTimeTest {
             "Ustaw budzik na siódmą codziennie",
             "Állíts ébresztőt holnap reggel hétre",
             "Set an alarm for seven tomorrow",
+            "Pon una alarma mañana a las siete",
             "Ne állíts ébresztőt reggel hétre",
             "Don't set an alarm for seven",
             "Do not set an alarm for seven",
