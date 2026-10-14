@@ -130,6 +130,12 @@ class HandsFreeService : Service(), RecognitionListener {
         if (intent?.action !in setOf(START, START_TAP) || running) return START_NOT_STICKY
         // Tap-to-talk is distinct from optional hands-free wake-word listening.
         tapActivated = intent?.action == START_TAP
+        // Tapped voice uses the language picked on Home, avoiding optional
+        // seven-language OEM auto-switching until voice capture is reliable.
+        autoLanguageSwitchEnabled = VoiceSessionPolicy.useAutomaticLanguageSwitch(
+            userTappedMic = tapActivated,
+            supported = Build.VERSION.SDK_INT >= 34
+        )
         awaitingCommand = tapActivated
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED
             || !SpeechRecognizer.isRecognitionAvailable(this)) {
@@ -253,6 +259,7 @@ class HandsFreeService : Service(), RecognitionListener {
         try {
             recognizedUtteranceLanguage = null
             speechObservedThisTurn = false
+            HandsFreeStatus.heard = ""
             HandsFreeStatus.listening = false
             HandsFreeStatus.status = when {
                 proposed != null -> "Megerősítést várok: igen vagy nem"
@@ -1115,6 +1122,9 @@ class HandsFreeService : Service(), RecognitionListener {
             ?.firstOrNull()?.take(120).orEmpty()
         if (partial.isNotBlank()) {
             speechObservedThisTurn = true
+            // Show what Android has decoded, but NEVER execute partial words:
+            // final recognition and foreground confirmation remain required.
+            HandsFreeStatus.heard = partial
             HandsFreeStatus.status = "Beszéd felismerése…"
         }
     }

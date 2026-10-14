@@ -226,6 +226,12 @@ internal fun JarvisHomeScreen(
             Text(issue, color = Color(0xFFAA2732), fontSize = 12.sp,
                 modifier = Modifier.padding(horizontal = 16.dp))
         }
+        // Diagnostic preview only: partial speech is never dispatched as a command.
+        if (handsFree && HandsFreeStatus.heard.isNotBlank()) {
+            Text("Felismert beszéd: " + HandsFreeStatus.heard.take(120),
+                color = JarvisMuted, fontSize = 12.sp,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
+        }
         if (HandsFreeStatus.audioError.isNotBlank()) {
             Spacer(Modifier.height(4.dp))
             Text("AI-hang hiba: " + HandsFreeStatus.audioError,
