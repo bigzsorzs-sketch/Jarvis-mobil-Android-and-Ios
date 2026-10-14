@@ -238,67 +238,85 @@ internal object JarvisAiGateway {
             val endpoint = if (direct) "https://openrouter.ai/api/v1/audio/speech"
                 else normalizedBaseUrl(baseUrl(context))?.plus("/v1/speech")
                     ?: return@withContext null
-            var connection: HttpURLConnection? = null
-            try {
-                connection = URL(endpoint).openConnection() as HttpURLConnection
-                connection.requestMethod = "POST"
-                connection.instanceFollowRedirects = false
-                connection.connectTimeout = 10000
-                connection.readTimeout = 30000
-                connection.doOutput = true
-                connection.setRequestProperty("Authorization", "Bearer $token")
-                connection.setRequestProperty("Content-Type", "application/json; charset=utf-8")
-                connection.setRequestProperty("Accept", "audio/mpeg")
-                val payload = if (direct) JSONObject()
-                    .put("model", SPEECH_MODEL).put("input", text)
-                    .put("voice", JarvisSpeechVoiceConfig.voice(language)).put("response_format", "mp3")
-                else JSONObject().put("text", text).put("language", language.tag)
-                connection.outputStream.use {
-                    it.write(payload.toString().toByteArray(Charsets.UTF_8))
-                }
-                val responseStatus = connection.responseCode
-                if (responseStatus != 200) {
-                    lastSpeechError = when (responseStatus) {
-                        400 -> "A hangmodell nem fogadta el a választott nyelvet vagy hangot (HTTP 400)."
-                        401 -> "Az OpenRouter nem fogadta el a hanghoz az API-kulcsot (HTTP 401)."
-                        402 -> "A hangkérés keret- vagy költési limitbe ütközött (HTTP 402)."
-                        403 -> "A hangmodellhez nincs hozzáférés vagy szolgáltatói engedély (HTTP 403)."
-                        404 -> "Az OpenRouter nem talált elérhető hangmodellt/végpontot (HTTP 404)."
-                        429 -> "A hangszolgáltató sebességkorlátot jelzett (HTTP 429)."
-                        else -> "A felhős hangszolgáltató hibát jelzett (HTTP $responseStatus)."
+            val choices = if (direct) listOf(
+                JarvisSpeechVoiceConfig.MODEL to JarvisSpeechVoiceConfig.voice(language),
+                JarvisSpeechVoiceConfig.FALLBACK_MODEL to JarvisSpeechVoiceConfig.fallbackVoice(language)
+            ) else listOf("" to "")
+            // Fail over only between Azure voices that are available for the
+            // selected locale. No token or spoken text is logged.
+            for ((model, selectedVoice) in choices) {
+                var connection: HttpURLConnection? = null
+                try {
+                    connection = URL(endpoint).openConnection() as HttpURLConnection
+                    connection.requestMethod = "POST"
+                    connection.instanceFollowRedirects = false
+                    connection.connectTimeout = 10000
+                    connection.readTimeout = 30000
+                    connection.doOutput = true
+                    connection.setRequestProperty("Authorization", "Bearer $token")
+                    connection.setRequestProperty("Content-Type", "application/json; charset=utf-8")
+                    connection.setRequestProperty("Accept", "audio/mpeg")
+                    val payload = if (direct) JSONObject()
+                        .put("model", model).put("input", text)
+                        .put("voice", selectedVoice).put("response_format", "mp3")
+                    else JSONObject().put("text", text).put("language", language.tag)
+                    connection.outputStream.use {
+                        it.write(payload.toString().toByteArray(Charsets.UTF_8))
                     }
-                    return@withContext null
-                }
-                if (!connection.contentType.orEmpty().lowercase().startsWith("audio/mpeg")) {
-                    lastSpeechError = "A hangszolgáltató nem MP3-hangot küldött."
-                    return@withContext null
-                }
-                val audio = ByteArrayOutputStream()
-                val limit = 3 * 1024 * 1024
-                connection.inputStream.use { body ->
-                    val buffer = ByteArray(8192)
-                    var size = 0
-                    while (true) {
-                        val read = body.read(buffer)
-                        if (read == -1) break
-                        size += read
-                        if (size > limit) { 
-                            lastSpeechError = "A hangfájl túllépte a megengedett méretet."
-                            return@withContext null
+                    val responseStatus = connection.responseCode
+                    if (responseStatus != 200) {
+                        lastSpeechError = when (responseStatus) {
+                            400 -> "A hangmodell nem fogadta el a választott nyelvet vagy hangot (HTTP 400)."
+                            401 -> "Az OpenRouter nem fogadta el a hanghoz az API-kulcsot (HTTP 401)."
+                            402 -> "A hangkérés keret- vagy költési limitbe ütközött (HTTP 402)."
+                            403 -> "A hangmodellhez nincs hozzáférés vagy szolgáltatói engedély (HTTP 403)."
+                            404 -> "Az OpenRouter nem talált elérhető hangmodellt/végpontot (HTTP 404)."
+                            429 -> "A hangszolgáltató sebességkorlátot jelzett (HTTP 429)."
+                            else -> "A felhős hangszolgáltató hibát jelzett (HTTP $responseStatus)."
                         }
-                        audio.write(buffer, 0, read)
+                        // Credentials/credit/consent failures cannot be fixed
+                        // with a different model, do not send another request.
+                        if (responseStatus in listOf(401, 402, 403)) return@withContext null
+                        continue
                     }
-                }
-                audio.toByteArray().takeIf { it.size > 100 } ?: run {
+                    if (!connection.contentType.orEmpty().lowercase().startsWith("audio/mpeg")) {
+                        lastSpeechError = "A hangszolgáltató nem MP3-hangot küldött."
+                        continue
+                    }
+                    val audio = ByteArrayOutputStream()
+                    val limit = 3 * 1024 * 1024
+                    var oversized = false
+                    connection.inputStream.use { body ->
+                        val buffer = ByteArray(8192)
+                        var size = 0
+                        while (true) {
+                            val read = body.read(buffer)
+                            if (read == -1) break
+                            size += read
+                            if (size > limit) {
+                                oversized = true
+                                break
+                            }
+                            audio.write(buffer, 0, read)
+                        }
+                    }
+                    if (oversized) {
+                        lastSpeechError = "A hangfájl túllépte a megengedett méretet."
+                        continue
+                    }
+                    val bytes = audio.toByteArray()
+                    if (bytes.size > 100) {
+                        lastSpeechError = ""
+                        return@withContext bytes
+                    }
                     lastSpeechError = "A felhős hangszolgáltató túl rövid vagy üres hangfájlt küldött."
-                    null
+                } catch (_: Exception) {
+                    lastSpeechError = "Hálózati hiba történt a felhős hang letöltésekor."
+                } finally {
+                    connection?.disconnect()
                 }
-            } catch (_: Exception) {
-                lastSpeechError = "Hálózati hiba történt a felhős hang letöltésekor."
-                null
-            } finally {
-                connection?.disconnect()
             }
+            null
         }
 
     /** Server and direct-provider modes must use the same selected response language.
