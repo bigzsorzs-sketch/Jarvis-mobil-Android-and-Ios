@@ -19,6 +19,10 @@ internal object JarvisCommandExecutor {
             onNavigate(route)
             return "Megnyitottam a Jarvis $route oldalát."
         }
+        if (SpokenAlarmTime.isSetIntent(text) &&
+            AlarmCommands.parseAlarmTime(text) == null) {
+            return JarvisAlarmText.invalid(context)
+        }
         return when {
             ExternalTasks.parseMessage(text) != null ->
                 ExternalTasks.dispatch(context, HandoffTask.Message(ExternalTasks.parseMessage(text)!!))
@@ -35,7 +39,8 @@ internal object JarvisCommandExecutor {
             VoiceNavigation.destinationFrom(text) != null -> {
                 val destination = VoiceNavigation.destinationFrom(text)!!
                 when {
-                    VoiceNavigation.resolve(context, destination) == null ->
+                    VoiceNavigation.resolve(context, destination) == null &&
+                        !VoiceNavigation.maySearchNamedPlace(destination) ->
                         "Ehhez a személyhez nem mentettél el címet."
                     else -> JarvisNavigationText.result(
                         JarvisLanguageSettings.load(context),

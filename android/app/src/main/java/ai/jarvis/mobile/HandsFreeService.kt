@@ -446,6 +446,18 @@ class HandsFreeService : Service(), RecognitionListener {
         HandsFreeStatus.heard = heard
         errors = 0
         val now = SystemClock.elapsedRealtime()
+        if (VoiceIntentParser.isPlaybackStop(heard)) {
+            // The user requested silence. Stop streamed/cloud service speech AND
+            // the separate Activity read-aloud player; do not speak an acknowledgement.
+            JarvisForegroundCommands.interruptSpeech?.invoke()
+            JarvisVoiceStreamBridge.stopLocalNarration?.invoke()
+            foregroundReplyPending = false
+            handler.removeCallbacks(foregroundReplyTimeout)
+            awaitingCommand = true
+            HandsFreeStatus.status = "Felolvasás leállítva. Figyelek."
+            again(VoiceSessionPolicy.AFTER_REPLY_DELAY_MS)
+            return
+        }
         if (VoiceIntentParser.isStop(heard) || VoiceIntentParser.isStop(
                 VoiceIntentParser.afterWakeWord(heard).orEmpty())) {
             shutdown("A hangfigyelés leállt.")
@@ -801,7 +813,8 @@ class HandsFreeService : Service(), RecognitionListener {
             when {
                 !privateVoiceAllowed() ->
                     speak("Oldd fel a telefont a navigáció indításához.")
-                VoiceNavigation.resolve(this, destination) == null ->
+                VoiceNavigation.resolve(this, destination) == null &&
+                    !VoiceNavigation.maySearchNamedPlace(destination) ->
                     speak(JarvisNavigationText.missingDestination(chosen))
                 else -> {
                     // Android permits launching Maps from our foreground Activity,
@@ -889,6 +902,10 @@ class HandsFreeService : Service(), RecognitionListener {
                 speak("Előkészítettem a kért Android-műveletet. " +
                     "Előtérben lévő Jarvisból, harminc másodpercen belül nyitható meg.")
             }
+            return
+        }
+        if (SpokenAlarmTime.isSetIntent(command)) {
+            speak(JarvisAlarmText.invalid(this))
             return
         }
         val systemPanel = JarvisSystemPanels.identify(command)
@@ -1056,7 +1073,8 @@ class HandsFreeService : Service(), RecognitionListener {
         if (nav != null) {
             val chosen = recognizedUtteranceLanguage
                 ?: JarvisLanguageSettings.load(applicationContext)
-            if (VoiceNavigation.resolve(this, nav) == null) {
+            if (VoiceNavigation.resolve(this, nav) == null &&
+                !VoiceNavigation.maySearchNamedPlace(nav)) {
                 speak(JarvisNavigationText.missingDestination(chosen))
             } else {
                 // A foreground activity immediately launches Google Maps. A service

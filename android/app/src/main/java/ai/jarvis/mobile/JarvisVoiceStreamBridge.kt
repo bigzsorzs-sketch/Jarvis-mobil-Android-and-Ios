@@ -10,6 +10,9 @@ internal object JarvisVoiceStreamBridge {
     // Only the foreground Activity may own this callback. It invalidates and
     // cancels the matching active AI coroutine when a real user interrupts.
     var interruptCurrent: (() -> Unit)? = null
+    // Foreground read-aloud has a different player from the service voice.
+    // Only the Activity owns this callback, so a spoken STOP silences both.
+    var stopLocalNarration: (() -> Unit)? = null
     fun interruptActive() {
         val cancel = interruptCurrent
         interruptCurrent = null

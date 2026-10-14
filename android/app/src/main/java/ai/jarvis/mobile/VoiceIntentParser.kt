@@ -23,6 +23,22 @@ internal object VoiceIntentParser {
             .trim().trimStart(',', '.', '!', ':', ' ')
     }
 
+    /**
+     * Explicit command to interrupt speech output, without necessarily
+     * switching off hands-free listening. Exact normalized utterances only:
+     * story text mentioning "stop" must not cancel playback.
+     */
+    fun isPlaybackStop(raw: String): Boolean {
+        val command = afterWakeWord(raw) ?: raw
+        val normalized = normalize(command).trim()
+            .trimEnd('.', '!', '?', ',')
+        return normalized in setOf(
+            "allj", "allj meg", "ne olvass tovabb", "ne olvasd tovabb",
+            "hagyd abba a felolvasast", "fejezd be a felolvasast",
+            "stop", "stop reading", "stop speaking", "be quiet"
+        )
+    }
+
     fun isStop(raw: String): Boolean {
         val n = normalize(raw)
         return listOf("allj le", "leallas", "hagyd abba", "kapcsold ki a figyelest", "stop listening")

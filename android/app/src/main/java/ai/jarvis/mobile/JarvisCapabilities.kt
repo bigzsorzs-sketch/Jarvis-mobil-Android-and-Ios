@@ -70,17 +70,19 @@ internal object JarvisCapabilities {
             return "A Jarvis Mobile önálló fejlesztésű alkalmazás. A válaszaimhoz " +
                 "külső AI-modellt használok, de a Jarvis alkalmazást nem az OpenAI fejlesztette."
         }
-        val menu = JarvisToolCatalog.all.joinToString(", ") { it.name }
-        return "Jarvis vagyok, a Jarvis Mobile Android-asszisztense. " +
-            "A saját alkalmazásom menüjében ezek érhetők el: $menu. " +
-            "Szöveges kérdésekre válaszolhatok és felolvashatom a választ. " +
-            "A támogatott helyi parancsokkal oldalakat nyithatok meg, illetve " +
-            "telefonos műveleteket készíthetek elő. A telepített appok megnyitását " +
-            "pontos név alapján is kérheted, és a helyi Előzmények oldalon titkosítva " +
-            "mentett Jarvis-beszélgetéseid között kereshetsz. Hívás, üzenet és külső alkalmazás " +
-            "esetén engedély vagy jóváhagyás kellhet. " +
-            "Az AI-válaszaim önmagukban nem vezérelnek tetszőleges eszközt, " +
-            "és nem látom automatikusan a telefon teljes tartalmát."
+        if (isIdentityQuestion(n)) {
+            return "Jarvis vagyok, az Android-asszisztensed. A Vércukor, " +
+                "Hívás, navigáció, üzenetek és a többi támogatott Jarvis-funkció " +
+                "hanggal vagy írással használható, megfelelő engedéllyel. " +
+                "Az AI-válaszaim önmagukban nem vezérelnek tetszőleges eszközt. " +
+                "A teljes listához kérdezd: Milyen funkciókat tudsz használni?"
+        }
+        val tools = JarvisToolCatalog.all.joinToString(", ") { it.name }
+        return "Az elérhető Jarvis-funkciók: $tools. " +
+            "Tudok útvonalat kérni a térképen, névjegyet keresni, hívást előkészíteni, " +
+            "helyi adatokat olvasni és támogatott alkalmazásokat megnyitni. " +
+            "Egyes műveletekhez külön engedély vagy megerősítés kell; " +
+            "külső alkalmazások végső eredményét nem mindig látom."
     }
 
     /** Menu and nested settings share the same offline navigation for voice/text.

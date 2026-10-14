@@ -8,13 +8,23 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /** User-controlled app picker, without global package-management permissions. */
 @Composable
 internal fun JarvisInstalledAppsScreen(context: Context) {
-    var apps by remember { mutableStateOf(JarvisInstalledApps.list(context)) }
+    var apps by remember(context) { mutableStateOf<List<JarvisInstalledApp>>(emptyList()) }
+    var loading by remember(context) { mutableStateOf(true) }
     var filter by remember { mutableStateOf("") }
     var feedback by remember { mutableStateOf("") }
+    val scope = rememberCoroutineScope()
+    // PackageManager can block on large app sets; do not run it in composition.
+    LaunchedEffect(context) {
+        apps = withContext(Dispatchers.IO) { JarvisInstalledApps.list(context) }
+        loading = false
+    }
     Text("Telepített alkalmazások", style = MaterialTheme.typography.headlineSmall)
     Text("Jarvis csak megnyitja a kiválasztott alkalmazást. Nem olvas bele, " +
         "nem nyom meg gombokat és nem küld üzeneteket helyetted. " +
@@ -27,8 +37,19 @@ internal fun JarvisInstalledAppsScreen(context: Context) {
         label = { Text("Keresés az alkalmazások között") },
         singleLine = true, modifier = Modifier.fillMaxWidth()
     , commandLabel = "Keresés az alkalmazások között")
-    ControlledTextButton(onClick = { apps = JarvisInstalledApps.list(context); feedback = "" }, commandLabel = "Lista frissítése") {
+    ControlledTextButton(onClick = {
+        if (!loading) scope.launch {
+            loading = true
+            feedback = ""
+            apps = withContext(Dispatchers.IO) { JarvisInstalledApps.list(context) }
+            loading = false
+        }
+    }, commandLabel = "Lista frissítése") {
         Text("Lista frissítése")
+    }
+    if (loading) {
+        Text("Alkalmazáslista betöltése…", style = MaterialTheme.typography.bodySmall)
+        CircularProgressIndicator()
     }
     if (feedback.isNotBlank()) Text(feedback, color = MaterialTheme.colorScheme.primary)
     val visible = apps.filter { it.label.contains(filter, ignoreCase = true) }

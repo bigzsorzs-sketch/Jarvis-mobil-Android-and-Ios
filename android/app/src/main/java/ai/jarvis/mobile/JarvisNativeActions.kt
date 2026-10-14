@@ -42,8 +42,9 @@ internal object JarvisNativeActions {
                 RegexOption.IGNORE_CASE).containsMatchIn(command) &&
             ("ebreszt" in n || "alarm" in n)) return CANCEL_ALARM
 
-        if (Regex("""^(?:[aá]ll[ií]tsd\s+be|[eé]bressz|[eé]breszt[oő]t\s+[aá]ll[ií]ts|set\s+alarm|kelts)\b""",
-                RegexOption.IGNORE_CASE).containsMatchIn(command) &&
+        // The same seven-language offline parser authorizes both typed
+        // and hands-free commands. It never accepts model-generated times.
+        if (SpokenAlarmTime.isSetIntent(command) &&
             AlarmCommands.parseAlarmTime(command) != null) return SET_ALARM
 
         if (VoiceNavigation.destinationFrom(command) != null) return NAVIGATE
@@ -74,25 +75,23 @@ internal object JarvisNativeActions {
             NAVIGATE -> {
                 val target = VoiceNavigation.destinationFrom(command)
                     ?: return "Nem azonosítható a navigáció célpontja."
-                when {
-                    VoiceNavigation.resolve(context, target) == null ->
-                        "Ehhez a célponthoz nincs mentett cím."
-                    VoiceNavigation.open(context, target) ->
-                        "Az útvonalat átadtam a térképalkalmazásnak. Az indulást ott ellenőrizd."
-                    else -> "Nem sikerült megnyitni a térképalkalmazást."
+                if (VoiceNavigation.resolve(context, target) == null &&
+                    !VoiceNavigation.maySearchNamedPlace(target)) {
+                    "Ehhez a célponthoz nincs mentett cím."
+                } else when (VoiceNavigation.openDetailed(context, target)) {
+                    VoiceNavigation.LaunchResult.SAVED_NAME_SEARCH_OPENED ->
+                        "Google Maps névkeresés megnyitva. Válaszd ki a mentett helyet; navigáció nem indult."
+                    VoiceNavigation.LaunchResult.GUIDANCE_REQUESTED ->
+                        "A navigációindítási kérést átadtam a Google Mapsnek; az indulás nem igazolt."
+                    VoiceNavigation.LaunchResult.DIRECTIONS_OPENED ->
+                        "Az útvonalnézet megnyílt; a navigáció indítása még szükséges lehet."
+                    VoiceNavigation.LaunchResult.UNAVAILABLE ->
+                        "Nem sikerült megnyitni a térképalkalmazást."
                 }
             }
-            SET_ALARM -> when (val result = JarvisAlarms.schedule(context,
+            SET_ALARM -> JarvisAlarmText.result(context, JarvisAlarms.schedule(context,
                 AlarmCommands.parseAlarmTime(command)
-                    ?: return "Érvénytelen ébresztési idő.")) {
-                is JarvisAlarms.Result.Created ->
-                    "A Jarvis-ébresztőt " + result.time + " időpontra időzítettem. Ellenőrizd a telefonon."
-                JarvisAlarms.Result.NoExactAlarmPermission ->
-                    "A pontos ébresztéshez Android-engedély szükséges."
-                JarvisAlarms.Result.NoNotificationPermission ->
-                    "Az ébresztő értesítéseihez engedély szükséges."
-                JarvisAlarms.Result.Failed -> "Nem sikerült létrehozni az ébresztőt."
-            }
+                    ?: return JarvisAlarmText.invalid(context)))
             CANCEL_ALARM -> if (JarvisAlarms.cancel(context))
                 "A Jarvis saját ébresztőjét töröltem."
                 else "Nem találtam törölhető Jarvis-ébresztőt."

@@ -11,7 +11,7 @@ import java.util.Locale
  * A Maps URL fallback may show directions, but cannot promise guidance has started.
  */
 internal object VoiceNavigation {
-    internal enum class LaunchResult { GUIDANCE_REQUESTED, DIRECTIONS_OPENED, UNAVAILABLE }
+    internal enum class LaunchResult { GUIDANCE_REQUESTED, DIRECTIONS_OPENED, SAVED_NAME_SEARCH_OPENED, UNAVAILABLE }
 
     private val personDestination = Regex(
         """(?iu)^(?:nyisd\s+meg\s+a\s+térképet\s+és\s+állítsd\s+be\s+(?:a\s+|az\s+)?|navigálj\s+)(.+?)\s+(?:címnek|címére|címéhez)[.!?]?$"""
@@ -92,6 +92,13 @@ internal object VoiceNavigation {
         return if (target != null && personSuffix.containsMatchIn(raw)) "PERSON:$target" else target
     }
 
+    /** Maps can search an explicit name; this never verifies a private saved list. */
+    fun maySearchNamedPlace(destination: String): Boolean =
+        destination.startsWith("PERSON:") &&
+        destination.removePrefix("PERSON:").trim().let {
+            it.length in 2..80 && !it.contains('\n') && !it.contains('\r')
+        }
+
     fun homeAddress(context: Context): String =
         SecurePrefs(context).read("home_destination", "")
 
@@ -100,23 +107,60 @@ internal object VoiceNavigation {
         SecurePrefs(context).write("home_destination", destination.trim())
     }
 
+    /** Consistent Hungarian/English contact destination lookup. The person's
+     * name must NEVER go to Google Maps as if it were a routable address.
+     */
+    private fun knownPersonAddress(context: Context, spoken: String): String? {
+        val stored = PeopleDirectory.find(context, spoken)
+        if (stored != null) return stored.address.trim().takeIf { it.isNotEmpty() }
+        val places = JarvisSavedPlaces.list(context).filter {
+            PeopleDirectory.matchingName(spoken, it.name)
+        }
+        if (places.size == 1) return places.single().destination
+        if (places.size > 1) return null
+        return JarvisContactAddresses.find(context, spoken)
+    }
+
     fun resolve(context: Context, destination: String): String? {
         if (destination == "HOME") return homeAddress(context).takeIf { it.isNotBlank() }
         if (destination.startsWith("PERSON:")) {
-            return PeopleDirectory.find(context, destination.removePrefix("PERSON:"))
-                ?.address?.takeIf { it.isNotBlank() }
+            return knownPersonAddress(context, destination.removePrefix("PERSON:"))
         }
         JarvisSavedPlaces.importedName(destination)?.let { savedName ->
             return JarvisSavedPlaces.resolveImported(context, savedName)
         }
-        val person = PeopleDirectory.find(context, destination)
-        return if (person != null) person.address.takeIf { it.isNotBlank() } else destination
+        knownPersonAddress(context, destination)?.let { return it }
+        // If the phrase names a known Android contact but that contact has no
+        // unique routable address, do not send their name to Maps as a fake place.
+        if (VoiceCalling.candidates(context, destination).isNotEmpty()) return null
+        return destination
     }
 
+    /** Google Maps private saved-place lists are NOT readable through Android
+     * intents. If a Hungarian person name has no known local address, hand the
+     * *name* to Maps search for user verification, never auto-start navigation
+     * to an unrelated search result.
+     */
     fun openDetailed(context: Context, destination: String): LaunchResult {
         val resolved = resolve(context, destination)?.trim()
             ?.takeIf { it.isNotBlank() && it.length <= 180 && !it.contains('\n') && !it.contains('\r') }
-            ?: return LaunchResult.UNAVAILABLE
+        if (resolved == null) {
+            if (!destination.startsWith("PERSON:")) return LaunchResult.UNAVAILABLE
+            val name = destination.removePrefix("PERSON:").trim()
+            if (name.length !in 2..80 || name.any { it == '\n' || it == '\r' })
+                return LaunchResult.UNAVAILABLE
+            val encodedName = Uri.encode(name)
+            val mapsSearch = Intent(Intent.ACTION_VIEW,
+                Uri.parse("geo:0,0?q=$encodedName"))
+                .setPackage("com.google.android.apps.maps")
+            if (openSystemIntent(context, mapsSearch))
+                return LaunchResult.SAVED_NAME_SEARCH_OPENED
+            val browserSearch = Intent(Intent.ACTION_VIEW, Uri.parse(
+                "https://www.google.com/maps/search/?api=1&query=$encodedName"
+            ))
+            return if (openSystemIntent(context, browserSearch))
+                LaunchResult.SAVED_NAME_SEARCH_OPENED else LaunchResult.UNAVAILABLE
+        }
         val encoded = Uri.encode(resolved)
         val mapsNavigation = Intent(Intent.ACTION_VIEW,
             Uri.parse("google.navigation:q=$encoded&mode=d"))

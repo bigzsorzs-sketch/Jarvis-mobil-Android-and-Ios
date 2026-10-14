@@ -33,6 +33,17 @@ internal object GmailDraftConversationFlow {
         .replace(Regex("""\p{M}+"""), "")
         .replace(Regex("""\s+"""), " ").trim()
 
+    // A standalone recipient address is meaningful only when a Gmail draft
+    // is explicitly waiting for a recipient. Never infer delivery permission.
+    private val recipientEmail = Regex("""[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}""")
+    fun recipientAddress(raw: String): String? = raw.trim().takeIf {
+        it.length <= 254 && recipientEmail.matches(it)
+    }
+
+    fun isWakeWord(raw: String): Boolean =
+        normalized(raw).trimEnd('.', '!', '?', ',') in
+            setOf("jarvis", "hey jarvis", "hej jarvis", "szia jarvis", "ok jarvis")
+
     fun isCancel(raw: String): Boolean =
         normalized(raw).trimEnd('.', '!') in
             setOf("megse", "torold", "megszakitas", "cancel", "stop", "ne kuldd", "nem")
@@ -53,6 +64,7 @@ internal object GmailDraftConversationFlow {
     fun advance(draft: GmailDraftConversation, input: String): GmailDraftNext {
         val raw = input.trim()
         if (isCancel(raw)) return GmailDraftNext.Cancelled
+        if (isWakeWord(raw) || recipientAddress(raw) != null) return GmailDraftNext.NotRelated
         if (raw.length !in 2..4000 || raw.contains('\n') && raw.length > 3500)
             return GmailDraftNext.NotRelated
         // These are new independent commands, not answer text for the pending

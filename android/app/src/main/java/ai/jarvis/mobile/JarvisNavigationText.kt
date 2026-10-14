@@ -20,6 +20,14 @@ internal object JarvisNavigationText {
                 "He abierto la ruta. Sin Google Maps, puede que debas pulsar Iniciar.",
                 "Ho aperto il percorso. Senza Google Maps potrebbe essere necessario toccare Avvia.",
                 "Trasa została otwarta. Bez Map Google może być konieczne naciśnięcie Start.")
+            VoiceNavigation.LaunchResult.SAVED_NAME_SEARCH_OPENED -> choose(language,
+                "Megnyitottam a név keresését a Google Mapsben. A mentett cím nem ellenőrizhető Jarvisból; válaszd ki a megfelelő találatot, mielőtt navigálsz.",
+                "I opened a name search in Google Maps. Jarvis cannot verify the saved address; choose the right result before navigating.",
+                "Die Namenssuche in Google Maps ist geöffnet. Überprüfe das Ziel vor der Navigation.",
+                "La recherche du nom est ouverte dans Google Maps. Vérifie le lieu avant de démarrer.",
+                "Abrí la búsqueda del nombre en Google Maps. Comprueba el destino antes de navegar.",
+                "Ho aperto la ricerca del nome in Google Maps. Controlla la destinazione prima di navigare.",
+                "Otworzyłem wyszukiwanie nazwy w Mapach Google. Sprawdź cel przed nawigacją.")
             VoiceNavigation.LaunchResult.UNAVAILABLE -> choose(language,
                 "Nem sikerült megnyitni a navigációt. Ellenőrizd a térképalkalmazást.",
                 "I couldn't open navigation. Check your maps app.",
