@@ -977,7 +977,9 @@ fun JarvisApp(context: Context, launcherRequest: String? = null) {
                 phoneAction == null &&
                 BasicCommandRouter.classify(command) == BasicAction.UNKNOWN &&
                 JarvisCapabilities.localPageToOpen(command) == null)) {
-            addHistory(command to JarvisInstalledApps.openRequested(context, command))
+            // Already resolved the exact app; do not query the entire launcher list
+            // twice again. openSelected still revalidates the Android component.
+            addHistory(command to JarvisInstalledApps.openSelected(context, appSelection))
             
             return
         }
