@@ -144,7 +144,10 @@ internal object SpokenAlarmTime {
         val multi = Regex(
             """\b(?:majd|aztan|and\s+then|then|ensuite|puis|despues|luego|danach|dopo|poi|potem)\b"""
         )
+        // Spanish "mañana" means both "tomorrow" and "morning".
+        // The explicit time-of-day phrase "de la mañana" is NOT a date.
+        val dateText = s.replace(Regex("""\b(?:de la|por la) manana\b"""), "morning")
         return negations.containsMatchIn(s) || repeats.containsMatchIn(s) ||
-            dates.containsMatchIn(s) || multi.containsMatchIn(s)
+            dates.containsMatchIn(dateText) || multi.containsMatchIn(s)
     }
 }
