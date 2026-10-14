@@ -89,11 +89,11 @@ internal class JarvisLearningWorker(
 ) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result {
         val context = applicationContext
-        // Existing consent and connection are necessary; never prompt in background.
-        if (!JarvisAiGateway.configured(context)) return Result.success()
-        val prefs = SecurePrefs(context)
         val day = System.currentTimeMillis() / 86_400_000L
         return try {
+            // Existing cloud permission and a configured key are necessary.
+            if (!JarvisAiGateway.configured(context)) return Result.success()
+            val prefs = SecurePrefs(context)
             if (prefs.read(JarvisBackgroundBrain.LAST_ATTEMPT_DAY, "") == day.toString()) {
                 return Result.success()
             }
@@ -117,7 +117,8 @@ internal class JarvisLearningWorker(
                 outcome.callTarget != null || outcome.messageDraft != null ||
                 outcome.nativeAction != null
             val valid = !forbiddenAction && note.length in 180..3200 &&
-                note.contains(lesson.officialSite.substringBefore("/", "https:").ifBlank { "https" })
+                note.contains(java.net.URI(lesson.officialSite).host, ignoreCase = true) &&
+                note.contains("https://")
             if (valid) {
                 prefs.write(JarvisBackgroundBrain.NOTE, note.take(1800))
                 prefs.write(JarvisBackgroundBrain.NOTE_TOPIC, lesson.id)
