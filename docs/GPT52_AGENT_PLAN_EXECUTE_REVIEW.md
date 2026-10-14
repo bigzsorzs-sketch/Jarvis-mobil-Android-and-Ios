@@ -48,3 +48,15 @@ Verify that provider quotas and failed web searches produce truthful failures.
 The research agent deliberately does not use normal chat streaming so it can
 review the completed research; the existing voice reply is delivered only when
 the final response is ready.
+
+## Foreground multi-step Android execution (this follow-up)
+
+- A spoken or typed **explicit 2–3 step request** using connectors such as "majd", "aztán", "és", "and then" is split into user-authored fragments.
+- Each fragment is independently validated by the existing native parser. Supported initial action kinds: Jarvis page navigation, local light/dark theme, supported language changes; an exact named phone-app opening or destination navigation may be the **last** step only.
+- GPT-5.2 receives only the approved action types and ordinal indices, returns an exact JSON plan, and may answer CONTINUE or STOP after each *locally verified* action.
+- The model cannot change targets, insert steps, impersonate a successful Android receipt or use free-form response text as a device command.
+- The app checks UI routing state or persisted settings/language as local receipts. External Android intents return HANDOFF, explicitly **not verified completion** in the target app. Any failed, cancelled or handoff result stops the action loop.
+- Calls, messaging, email sending, financial tasks, payment, deletion, authorization, installations, generic accessibility taps, automatic permission changes and arbitrary apps are **not** part of this chain. Existing single-action execution and dedicated call/message confirmations remain untouched.
+- Requires existing cloud AI consent and configured OpenRouter/backend, an active foreground Jarvis Activity, and an explicit original user request. No scheduled/background autonomous phone actions.
+- Performance: up to 3 model calls for a 3-step task (one plan + up to two decisions); do not assume it is faster than native commands.
+- Example safe test: "Nyisd meg a Beállítások oldalát, majd kapcsold be a sötét módot". Example handoff: "Kapcsold be a sötét módot, majd navigálj Leedsbe". Test these on a real phone before issuing an APK update.
