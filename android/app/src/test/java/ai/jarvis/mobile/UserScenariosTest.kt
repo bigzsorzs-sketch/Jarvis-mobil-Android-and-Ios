@@ -35,7 +35,7 @@ class UserScenariosTest {
     @Test fun mapsRequiresPrivateContactAddressForNamedNavigation() {
         assertEquals("PERSON:Esztert", VoiceNavigation.destinationFrom(
             "Nyisd meg a térképet és állítsd be az Esztert címnek"))
-        assertEquals("Eszter", VoiceNavigation.destinationFrom("Navigálj Eszterhez"))
+        assertEquals("PERSON:Eszter", VoiceNavigation.destinationFrom("Navigálj Eszterhez"))
     }
     @Test fun vagueEmailCannotBeTruthfullySearched() {
         assertNull(ExternalTasks.parseGmailSearch("Keresd meg ezt az emailt és írj neki választ"))

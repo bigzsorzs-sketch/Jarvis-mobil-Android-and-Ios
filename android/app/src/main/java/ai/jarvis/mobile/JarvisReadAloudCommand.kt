@@ -92,6 +92,28 @@ internal object JarvisReadAloudCommand {
  * Keep chunks reasonably small for cloud speech API processing.
  */
 internal object JarvisSpeechChunks {
+    /**
+     * Start speaking after the first short, natural phrase; synthesize the
+     * remainder while that phrase is already playing. Keep every character.
+     */
+    fun splitForConversation(text: String): List<String> {
+        // Avoid a second HTTP request for short answers. For longer answers
+        // use an early, natural phrase to reduce time to the FIRST audible word.
+        // Subsequent phrases are prefetched while the first MP3 is playing.
+        if (text.length <= 210) return listOf(text).filter { it.isNotEmpty() }
+        val limit = minOf(180, text.length - 1)
+        val sentenceEnd = (60..limit).firstOrNull { index ->
+            text[index] in ".!?\n" && (index + 1 == text.length ||
+                text[index + 1].isWhitespace())
+        }?.plus(1)
+        val end = sentenceEnd
+            ?: (limit downTo 100).firstOrNull { text[it].isWhitespace() }?.plus(1)
+            ?: if (text[limit - 1].isHighSurrogate() &&
+                text[limit].isLowSurrogate()) limit - 1 else limit
+        // Lossless slicing: do not trim either side or drop punctuation.
+        return listOf(text.substring(0, end)) + split(text.substring(end), maxChars = 850)
+    }
+
     fun split(text: String, maxChars: Int = 2600): List<String> {
         require(maxChars >= 16)
         val result = mutableListOf<String>()
