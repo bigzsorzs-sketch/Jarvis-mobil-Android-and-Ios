@@ -96,6 +96,8 @@ class HandsFreeService : Service(), RecognitionListener {
     private var recognizer: SpeechRecognizer? = null
     private var recognizerGeneration = 0
     private var cloudVoice: JarvisCloudVoicePlayer? = null
+    private var bargeInMonitor: JarvisBargeInMonitor? = null
+    private var spokenReplySerial = 0L
     private var activeVoiceCommand: String? = null
     private var turnCounter = 0L
     private var usingOnDeviceRecognizer = false
@@ -174,6 +176,8 @@ class HandsFreeService : Service(), RecognitionListener {
         }
         running = true
         JarvisForegroundCommands.interruptSpeech = {
+            spokenReplySerial++
+            bargeInMonitor?.stop()
             aiJob?.cancel()
             cloudVoice?.stop()
             activeVoiceCommand = null
@@ -184,6 +188,7 @@ class HandsFreeService : Service(), RecognitionListener {
         HandsFreeStatus.running = true
         HandsFreeStatus.audioError = ""
         cloudVoice = JarvisCloudVoicePlayer(applicationContext)
+        bargeInMonitor = JarvisBargeInMonitor(applicationContext) { onBargeIn() }
         try {
             // Prefer the system recognizer for the selected language: presence of
             // an offline engine does not mean it has a Hungarian model.
@@ -288,7 +293,23 @@ class HandsFreeService : Service(), RecognitionListener {
             again(VoiceSessionPolicy.retryDelay(SpeechRecognizer.ERROR_CLIENT, errors))
         }
     }
+    private fun onBargeIn() {
+        // A real mic onset interrupts ONLY speech output, never executes a
+        // partial transcript. The existing recognizer handles the new turn.
+        if (!running || !speaking || !HandsFreeStatus.speaking) return
+        spokenReplySerial++
+        cloudVoice?.stop()
+        bargeInMonitor?.stop()
+        speaking = false
+        HandsFreeStatus.speaking = false
+        HandsFreeStatus.outputLevel = 0f
+        HandsFreeStatus.status = "Közbeszóltál. Figyelek a kérésedre…"
+        if (tapActivated) awaitingCommand = true
+        again(110L)
+    }
+
     private fun finishSpokenReply() {
+        bargeInMonitor?.stop()
         speaking = false
         HandsFreeStatus.speaking = false
         HandsFreeStatus.outputLevel = 0f
@@ -299,6 +320,8 @@ class HandsFreeService : Service(), RecognitionListener {
     }
 
     private fun speak(text: String) {
+        val replySerial = ++spokenReplySerial
+        bargeInMonitor?.stop()
         val wantedLanguage = recognizedUtteranceLanguage ?:
             JarvisLanguageSettings.load(applicationContext)
         HandsFreeStatus.answer = text
@@ -323,14 +346,15 @@ class HandsFreeService : Service(), RecognitionListener {
         }
         val started = cloudVoice?.speak(text, wantedLanguage,
             onStart = {
-                if (running) {
+                if (running && spokenReplySerial == replySerial) {
                     HandsFreeStatus.speaking = true
                     HandsFreeStatus.audioError = ""
                     HandsFreeStatus.status = "Jarvis AI-hang lejátszása…"
+                    bargeInMonitor?.start()
                 }
             }
         ) { successful ->
-            if (running) {
+            if (running && spokenReplySerial == replySerial) {
                 if (!successful) {
                     val failure = cloudVoice?.lastFailure.orEmpty().ifBlank {
                         JarvisReadAloudCommand.response(wantedLanguage, "failed")
@@ -1234,6 +1258,9 @@ class HandsFreeService : Service(), RecognitionListener {
         again(VoiceSessionPolicy.retryDelay(error, errors))
     }
     private fun shutdown(status: String) {
+        spokenReplySerial++
+        bargeInMonitor?.close()
+        bargeInMonitor = null
         running = false
         JarvisForegroundCommands.interruptSpeech = null
         HandsFreeStatus.running = false
