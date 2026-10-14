@@ -493,8 +493,18 @@ class HandsFreeService : Service(), RecognitionListener {
                                     if (running && foregroundTurnId == turn) {
                                         foregroundStream = null
                                         if (!successful) {
+                                            // The first cloud MP3 can fail while
+                                            // the text SSE is still in progress.
+                                            // End this turn rather than leaving
+                                            // foregroundReplyPending true forever.
                                             HandsFreeStatus.audioError =
                                                 cloudVoice?.lastFailure.orEmpty()
+                                                    .ifBlank { "A felhős hanggenerálás megszakadt." }
+                                            foregroundReplyPending = false
+                                            handler.removeCallbacks(foregroundReplyTimeout)
+                                            JarvisVoiceStreamBridge.receiver = null
+                                            JarvisVoiceStreamBridge.interruptActive()
+                                            HandsFreeStatus.status = "AI-hang hiba. Újra figyelek rád."
                                         }
                                         finishSpokenReply()
                                     }
