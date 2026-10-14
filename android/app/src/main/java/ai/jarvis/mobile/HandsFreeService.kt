@@ -102,6 +102,8 @@ class HandsFreeService : Service(), RecognitionListener {
     private var foregroundTurnId = 0L
     private fun cancelForegroundStream() {
         foregroundTurnId++
+        // Barge-in must cancel the old AI HTTP turn, not only its MP3 audio.
+        JarvisVoiceStreamBridge.interruptActive()
         JarvisVoiceStreamBridge.receiver = null
         foregroundStream?.cancel()
         foregroundStream = null
