@@ -207,7 +207,8 @@ internal fun JarvisHomeScreen(
                 .padding(start = 16.dp, end = 16.dp, top = 12.dp),
             contentAlignment = Alignment.Center
         ) {
-            JarvisMenuButton(onMenu, Modifier.align(Alignment.CenterStart).testTag("jarvis-home-drawer-trigger"))
+            JarvisMenuButton({ keyboard?.hide(); onMenu() },
+                Modifier.align(Alignment.CenterStart).testTag("jarvis-home-drawer-trigger"))
             Row(
                 modifier = Modifier.align(Alignment.CenterEnd),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),

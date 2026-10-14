@@ -128,8 +128,7 @@ class JarvisNavigationInstrumentedTest {
     @Test fun savedPlacesImportRemainsAccessibleFromSettingsWithoutNavigationMenu() {
         finishOnboarding()
         composeRule.onNodeWithTag("jarvis-home-drawer-trigger").performClick()
-        // The drawer contains a lazy list: Settings is below the viewport on
-        // phones and is not composed until the list scrolls to that item.
+        // Settings stays available below the scrollable conversation list.
         composeRule.onNodeWithTag("jarvis-drawer-settings").performClick()
         composeRule.onNodeWithText("Mentett helyek és otthoni cím")
             .performScrollTo().performClick()

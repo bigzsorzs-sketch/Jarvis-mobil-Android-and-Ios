@@ -56,8 +56,9 @@ internal object JarvisToolCatalog {
 @Composable
 internal fun JarvisMenuButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
     val label = JarvisTranslations.text("Menü megnyitása", LocalJarvisLanguage.current)
-    Surface(shape = CircleShape, color = Color.White, shadowElevation = 2.dp, modifier = modifier) {
-        IconButton(onClick = onClick, modifier = Modifier.size(48.dp).semantics { contentDescription = label }) {
+    Surface(onClick = onClick, shape = CircleShape, color = Color.White, shadowElevation = 2.dp,
+        modifier = modifier.size(48.dp).semantics { contentDescription = label }) {
+        Box(contentAlignment = Alignment.Center) {
             Canvas(Modifier.size(23.dp)) {
                 drawLine(Color(0xFF101820), Offset(1.dp.toPx(), size.height * .35f),
                     Offset(size.width - 1.dp.toPx(), size.height * .35f), 2.dp.toPx(), StrokeCap.Round)
