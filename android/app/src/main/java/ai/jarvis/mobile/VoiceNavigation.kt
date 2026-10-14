@@ -38,7 +38,9 @@ internal object VoiceNavigation {
     )
 
     private val spokenPrefix = Regex("""(?iu)^(?:(?:hey|hej|szia|ok|okay)\s+)?jarvis\s*[,!:]?\s*""")
-    private val pleasePrefix = Regex("""(?iu)^k[eé]rlek[,\s]+""")
+    private val pleasePrefix = Regex(
+        """(?iu)^(?:k[eé]rlek|l[eé]gy\s+sz[ií]ves|figyelj|please)[,!\s]+"""
+    )
     // A compound instruction means one navigation request, not "open Maps" plus
     // another app action. The user does not need to tap Start in Jarvis.
     private val mapsPreamble = Regex(
@@ -53,7 +55,10 @@ internal object VoiceNavigation {
     private val joinedHungarianCase = Regex("""(?iu)^(.+?)(?:hoz|hez|höz|ba|be)$""")
 
     fun destinationFrom(command: String): String? {
-        val initial = command.trim().replace(spokenPrefix, "").replace(pleasePrefix, "").trim()
+        // Spoken politeness is not a destination. Strip at most two prefixes.
+        // A negative request is still rejected by the action parser.
+        var initial = command.trim().replace(spokenPrefix, "").trim()
+        repeat(2) { initial = initial.replace(pleasePrefix, "").trim() }
         // Keep legacy named-contact address navigation before removing the
         // "open Maps and" prefix used by direct city navigation.
         personDestination.matchEntire(initial)?.let { return "PERSON:" + it.groupValues[1].trim() }
