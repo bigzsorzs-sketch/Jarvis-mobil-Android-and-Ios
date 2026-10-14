@@ -55,7 +55,9 @@ internal object JarvisAgentActions {
     /** Exact list and order only: no extra actions, parameters or commands. */
     fun validModelPlan(raw: String, authorized: List<AgentStep>): Boolean {
         if (raw.length !in 12..1200 || authorized.size !in 2..3) return false
-        val obj = try { JSONObject(raw.trim()) } catch (_: Exception) { return false }
+        val clean = raw.trim().removePrefix("```json").removePrefix("```")
+            .removeSuffix("```").trim()
+        val obj = try { JSONObject(clean) } catch (_: Exception) { return false }
         if (obj.length() != 1 || !obj.has("steps")) return false
         val a = obj.optJSONArray("steps") ?: return false
         if (a.length() != authorized.size) return false
@@ -83,7 +85,7 @@ internal object JarvisAgentActions {
         isCurrent: () -> Boolean, execute: (AgentStep) -> AgentReceipt): String {
         val steps = eligible(original)
             ?: return "Nem támogatott műveletsor; nem indítottam semmit."
-        if (!JarvisAiGateway.configured(context))
+        if (!runCatching { JarvisAiGateway.configured(context) }.getOrDefault(false))
             return "A több lépéses AI-feladathoz engedélyezett AI-kapcsolat szükséges."
         val plan = "Tervezési ellenőrzés. Kizárólag JSON-t válaszolj, semmilyen eszközt ne " +
             "használj. Az Android ellenőrizte a felhasználó eredeti parancsait. " +
