@@ -15,6 +15,11 @@ internal object VoiceSessionPolicy {
     const val RECOGNITION_TIMEOUT_MS = 25_000L
     const val RESULT_TIMEOUT_MS = 8_500L
 
+    // User-tapped Home microphone uses the chosen language first; the
+    // multi-language recognizer is optional and can fail on some OEM engines.
+    fun useAutomaticLanguageSwitch(userTappedMic: Boolean, supported: Boolean): Boolean =
+        supported && !userTappedMic
+
     fun retryDelay(error: Int, consecutiveFailures: Int = 0): Long {
         val base = when (error) {
             SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> 3_500L
