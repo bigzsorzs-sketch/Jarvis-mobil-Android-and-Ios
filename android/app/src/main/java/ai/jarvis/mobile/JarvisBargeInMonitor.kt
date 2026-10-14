@@ -13,6 +13,7 @@ import android.media.audiofx.NoiseSuppressor
 import android.os.Build
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -104,7 +105,9 @@ internal class JarvisBargeInMonitor(
         val token = ++generation
         recorder = owned
         active = true
-        work = scope.launch {
+        // ATOMIC guarantees the finally/release block runs even if STOP
+        // happens before the IO dispatcher schedules its first instruction.
+        work = scope.launch(start = CoroutineStart.ATOMIC) {
             var voiceDetected = false
             try {
                 val samples = ShortArray(320) // 20 ms at 16 kHz
