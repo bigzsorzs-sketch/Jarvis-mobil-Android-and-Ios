@@ -59,21 +59,22 @@ internal class JarvisBargeInMonitor(
         var echo: AcousticEchoCanceler? = null
         var noise: NoiseSuppressor? = null
         try {
-            record = AudioRecord.Builder()
+            val created = AudioRecord.Builder()
                 .setAudioSource(MediaRecorder.AudioSource.VOICE_COMMUNICATION)
                 .setAudioFormat(format)
                 .setBufferSizeInBytes(maxOf(minBytes, 4_096))
                 .build()
-            if (record.state != AudioRecord.STATE_INITIALIZED) {
-                record.release()
+            record = created
+            if (created.state != AudioRecord.STATE_INITIALIZED) {
+                created.release()
                 return false
             }
             if (AcousticEchoCanceler.isAvailable()) {
-                echo = runCatching { AcousticEchoCanceler.create(record.audioSessionId) }.getOrNull()
+                echo = runCatching { AcousticEchoCanceler.create(created.audioSessionId) }.getOrNull()
                 runCatching { echo?.enabled = true }
             }
             if (NoiseSuppressor.isAvailable()) {
-                noise = runCatching { NoiseSuppressor.create(record.audioSessionId) }.getOrNull()
+                noise = runCatching { NoiseSuppressor.create(created.audioSessionId) }.getOrNull()
                 runCatching { noise?.enabled = true }
             }
             // Speakerphone without active AEC is unsafe: it would listen to
