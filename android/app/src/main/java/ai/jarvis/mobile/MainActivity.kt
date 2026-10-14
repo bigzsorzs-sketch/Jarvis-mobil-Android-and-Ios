@@ -814,6 +814,29 @@ fun JarvisApp(context: Context, launcherRequest: String? = null) {
             val progressive = StringBuilder()
             var lastVisibleUpdateMs = 0L
             drawerScope.launch {
+                val spokenStream = JarvisAiGateway.canStreamText(context, command) &&
+                    voiceReply?.first == command
+                val aiJob = kotlinx.coroutines.currentCoroutineContext()[kotlinx.coroutines.Job]
+                val abortTurn: (() -> Unit)? = if (spokenStream) {
+                    {
+                        if (requestRevision == commandRevision &&
+                            voiceReply?.first == command) {
+                            // Clear the old answer on real user interruption.
+                            commandRevision += 1
+                            voiceReply = null
+                            if (pendingIndex in conversation.indices &&
+                                conversation[pendingIndex].first == command) {
+                                val cancelled = command to "A hangos választ megszakítottad."
+                                conversation[pendingIndex] = cancelled
+                                saveChatTurn(cancelled)
+                            }
+                            aiJob?.cancel()
+                        }
+                    }
+                } else null
+                if (abortTurn != null)
+                    JarvisVoiceStreamBridge.interruptCurrent = abortTurn
+                try {
                 val outcome = if (JarvisAiGateway.canStreamText(context, command)) {
                     JarvisAiGateway.askIncremental(context, command, language.tag,
                         onDelta = { delta ->
@@ -882,6 +905,11 @@ fun JarvisApp(context: Context, launcherRequest: String? = null) {
                     conversation[index] = command to answer
                     saveChatTurn(command to answer)
                     completeCommand(command, answer)
+                }
+                } finally {
+                    // Do not clear a newer turn's cancellation callback.
+                    if (JarvisVoiceStreamBridge.interruptCurrent === abortTurn)
+                        JarvisVoiceStreamBridge.interruptCurrent = null
                 }
             }
         } else {
