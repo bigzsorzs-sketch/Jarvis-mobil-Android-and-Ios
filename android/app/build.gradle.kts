@@ -61,6 +61,7 @@ android {
 dependencies {
     implementation(platform("androidx.compose:compose-bom:2024.12.01"))
     implementation("androidx.activity:activity-compose:1.9.3")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.7")
     implementation("androidx.core:core-ktx:1.15.0")
     // Google Identity AuthorizationClient: no account passwords or client secrets in APK.
     implementation("com.google.android.gms:play-services-auth:22.0.0")

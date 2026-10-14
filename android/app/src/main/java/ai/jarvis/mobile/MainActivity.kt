@@ -35,6 +35,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.ViewModelProvider
 import androidx.core.content.FileProvider
 import androidx.core.view.WindowInsetsControllerCompat
 import kotlinx.coroutines.launch
@@ -53,6 +54,7 @@ data class Invoice(val client: String, val amount: String, val stamp: String)
 
 class MainActivity : ComponentActivity() {
     private var assistantRequested = false
+    private var launcherRequest by mutableStateOf<String?>(null)
     private val assistantMicPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) startAssistantVoice()
     }
@@ -72,6 +74,8 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        if (intent.action == Intent.ACTION_MAIN && intent.hasCategory(Intent.CATEGORY_LAUNCHER))
+            launcherRequest = java.util.UUID.randomUUID().toString()
         assistantRequested = JarvisAssistantLaunch.consume(intent)
     }
 
@@ -101,7 +105,7 @@ class MainActivity : ComponentActivity() {
         // and pushes the orb behind the system status bar on some OEM phones).
         window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
         assistantRequested = JarvisAssistantLaunch.consume(intent)
-        setContent { JarvisApp(this) }
+        setContent { JarvisApp(this, launcherRequest) }
     }
 }
 
@@ -112,7 +116,7 @@ private val White: Color @Composable get() = JarvisPalette.mainText
 private val Soft: Color @Composable get() = JarvisPalette.subtleText
 
 @Composable
-fun JarvisApp(context: Context) {
+fun JarvisApp(context: Context, launcherRequest: String? = null) {
     val securePrefs = remember { SecurePrefs(context) }
     val billingRepo = remember(context) { BillingRepository(context) }
     val narrator = remember(context) { JarvisReadAloud(context) }
@@ -161,42 +165,18 @@ fun JarvisApp(context: Context) {
             reply.second(answer)
         }
     }
-    val chatStore = remember(context) { JarvisChatStore(context) }
-    val conversation = remember(chatStore) { mutableStateListOf<Pair<String, String>>() }
-    var chatStorageWarning by remember { mutableStateOf("") }
-    var oldestChatId by remember(chatStore) { mutableLongStateOf(0L) }
-    var hasOlderChat by remember(chatStore) { mutableStateOf(false) }
-    var loadingOlderChat by remember(chatStore) { mutableStateOf(false) }
-    // Keystore + database access must never block the first Compose frame.
-    // Preserve messages submitted while the earlier history is loading.
-    LaunchedEffect(chatStore) {
-        val loaded = withContext(Dispatchers.IO) { runCatching { chatStore.recent(50) } }
-        if (loaded.isSuccess) {
-            val earlier = loaded.getOrDefault(emptyList())
-            val newest = conversation.toList()
-            conversation.clear()
-            conversation.addAll(earlier.map { it.request to it.answer })
-            newest.forEach { turn -> conversation.add(turn) }
-            oldestChatId = earlier.firstOrNull()?.id ?: 0L
-            hasOlderChat = earlier.size == 50
-        } else {
-            chatStorageWarning =
-                "Nem tudtam betölteni a helyi beszélgetésnaplót; az adatokat nem töröltem."
-        }
+    val chatSession = remember(context) {
+        ViewModelProvider(context as ComponentActivity)[JarvisChatSession::class.java]
     }
+    val currentChat = chatSession.current
+    val conversation = currentChat.turns
+    val chatStorageWarning = chatSession.warning
     var commandRevision by remember { mutableIntStateOf(0) }
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val drawerScope = rememberCoroutineScope()
     fun saveChatTurn(turn: Pair<String, String>) {
-        drawerScope.launch(Dispatchers.IO) {
-            try {
-                chatStore.append(turn.first, turn.second)
-            } catch (_: Exception) {
-                withContext(Dispatchers.Main) {
-                    chatStorageWarning = "Hiba: egy beszélgetési bejegyzést nem sikerült titkosítva menteni."
-                }
-            }
-        }
+        // Capture the actual chat object; a delayed response belongs to its origin.
+        chatSession.save(currentChat, turn)
     }
     fun addHistory(turn: Pair<String, String>) {
         // Voice answers are still delivered, but successful local actions
@@ -228,7 +208,9 @@ fun JarvisApp(context: Context) {
     var gmailLookupInstruction by remember { mutableStateOf<String?>(null) }
     var gmailStatus by remember { mutableStateOf("") }
     var gmailReadText by remember { mutableStateOf("") }
-    val gmailAction = rememberJarvisGmail { request, outcome ->
+    val gmailOrigins = remember { java.util.IdentityHashMap<GmailRequest, String>() }
+    val runGmailAction = rememberJarvisGmail { request, outcome ->
+        if (gmailOrigins.remove(request) != currentChat.id) return@rememberJarvisGmail
         if (request.operation is GmailOperation.ResolveRecipient) {
             if (gmailLookupInstruction != request.instruction) return@rememberJarvisGmail
             gmailLookupInstruction = null
@@ -282,6 +264,10 @@ fun JarvisApp(context: Context) {
             }
         }
     }
+    fun gmailAction(request: GmailRequest) {
+        gmailOrigins[request] = currentChat.id
+        runGmailAction(request)
+    }
     // Spoken commands share the same encrypted local timeline as typed messages.
     // Consume exactly once even when the Activity is recomposed.
     val completedVoiceTurn = HandsFreeNavigation.completedVoiceTurn
@@ -290,24 +276,6 @@ fun JarvisApp(context: Context) {
             addHistory(turn.request to turn.answer)
             if (HandsFreeNavigation.completedVoiceTurn == turn)
                 HandsFreeNavigation.completedVoiceTurn = null
-        }
-    }
-    suspend fun loadEarlierConversation() {
-        if (!hasOlderChat || loadingOlderChat || oldestChatId <= 0L) return
-        loadingOlderChat = true
-        try {
-            val entries = withContext(Dispatchers.IO) {
-                chatStore.before(oldestChatId, 50)
-            }
-            if (entries.isNotEmpty()) {
-                conversation.addAll(0, entries.map { it.request to it.answer })
-                oldestChatId = entries.first().id
-            }
-            hasOlderChat = entries.size == 50
-        } catch (_: Exception) {
-            chatStorageWarning = "Nem tudtam betölteni a régebbi helyi beszélgetéseket."
-        } finally {
-            loadingOlderChat = false
         }
     }
     var pendingCall by remember { mutableStateOf<VoiceCalling.Target?>(null) }
@@ -407,7 +375,7 @@ fun JarvisApp(context: Context) {
         return "Megnyitottam a Jarvis $destination oldalát."
     }
     fun submitAttachments(question: String, attachments: List<JarvisAttachment>) {
-        if (attachments.isEmpty()) return
+        if (attachments.isEmpty() || currentChat.loading) return
         // Upload only as a consequence of explicit Send. No contacts or phone
         // state in payload; never execute any tools returned by attachment AI.
         clearCallFlow()
@@ -437,6 +405,10 @@ fun JarvisApp(context: Context) {
     }
     fun executeHome(command: String) {
         if (command.isBlank()) return
+        if (currentChat.loading) {
+            completeCommand(command, JarvisTranslations.text("Betöltés…", language))
+            return
+        }
         // Every newly submitted command invalidates older pending approvals and
         // any in-flight AI result; a stale network response cannot act later.
         commandRevision += 1
@@ -842,8 +814,11 @@ fun JarvisApp(context: Context) {
                 val outcome = JarvisAiGateway.askStructured(context, command)
                 if (requestRevision != commandRevision) {
                     val oldIndex = JarvisPendingTurn.findIndex(conversation, pending)
-                    if (oldIndex >= 0) conversation[oldIndex] =
-                        command to "Egy újabb kérés miatt a korábbi AI-parancsot megszakítottam."
+                    if (oldIndex >= 0) {
+                        val cancelled = command to "Egy újabb kérés miatt a korábbi AI-parancsot megszakítottam."
+                        conversation[oldIndex] = cancelled
+                        saveChatTurn(cancelled)
+                    }
                     return@launch
                 }
                 val answer = when {
@@ -903,6 +878,29 @@ fun JarvisApp(context: Context) {
         voiceReply = null
         JarvisForegroundCommands.interruptSpeech?.invoke()
         executeHome(command)
+    }
+    fun selectConversation(id: String? = null) {
+        commandRevision += 1
+        voiceReply?.second?.invoke(JarvisTranslations.text("Új beszélgetés", language))
+        voiceReply = null
+        JarvisForegroundCommands.interruptSpeech?.invoke()
+        clearCallFlow()
+        pendingMessage = null
+        pendingSequence = null
+        gmailDraft = null
+        gmailChoice = null
+        gmailLookupInstruction = null
+        lastAmazonSearch = null
+        lastCommandReply = ""
+        commandPanel = false
+        if (id == null) chatSession.newChat() else chatSession.open(id)
+        page = "Főoldal"
+        drawerScope.launch { drawerState.close() }
+    }
+    LaunchedEffect(launcherRequest) {
+        // Only a fresh launcher intent starts another chat. Returning from Maps,
+        // permissions, Gmail authorization or the file picker keeps the session.
+        if (launcherRequest != null) selectConversation()
     }
     BackHandler(enabled = drawerState.isOpen || page != "Főoldal") {
         if (drawerState.isOpen) drawerScope.launch { drawerState.close() }
@@ -1040,6 +1038,7 @@ fun JarvisApp(context: Context) {
             primary = Cyan, background = Night, surface = Panel,
             onSurface = White, onBackground = White, onPrimary = Night
         )) {
+            RegisterJarvisControl("Új beszélgetés", click = { selectConversation() })
             if (commandPanel) {
                 JarvisCommandPanel(context, lastCommandReply,
                     onCommand = { executeTyped(it) }, onDismiss = { commandPanel = false })
@@ -1047,10 +1046,17 @@ fun JarvisApp(context: Context) {
             ModalNavigationDrawer(
                 drawerState = drawerState,
                 drawerContent = {
-                    JarvisDrawer(page) { selected ->
-                        openTool(selected, asPage = true)
-                        drawerScope.launch { drawerState.close() }
-                    }
+                    JarvisDrawer(
+                        selected = page,
+                        conversations = chatSession.summaries,
+                        currentConversationId = currentChat.id,
+                        onNewConversation = { selectConversation() },
+                        onOpenConversation = { selectConversation(it) },
+                        onSelect = { selected ->
+                            openTool(selected, asPage = true)
+                            drawerScope.launch { drawerState.close() }
+                        }
+                    )
                 }
             ) {
                 Column(
@@ -1064,7 +1070,9 @@ fun JarvisApp(context: Context) {
                             modifier = Modifier.fillMaxWidth().padding(8.dp))
                     }
                     if (onHome) {
+                        key(currentChat.id) {
                         JarvisHomeScreen(
+                            loadingConversation = currentChat.loading,
                             context = context,
                             isDark = isDark,
                             onToggleTheme = toggleTheme,
@@ -1076,9 +1084,9 @@ fun JarvisApp(context: Context) {
                                 submitAttachments(question, selected)
                             },
                             history = conversation,
-                            hasOlderHistory = hasOlderChat,
-                            loadingOlderHistory = loadingOlderChat,
-                            onLoadOlderHistory = { loadEarlierConversation() },
+                            hasOlderHistory = currentChat.hasOlder,
+                            loadingOlderHistory = currentChat.loadingOlder,
+                            onLoadOlderHistory = { chatSession.loadEarlier(currentChat) },
                             pendingCall = pendingCall,
                             pendingMessage = pendingMessage,
                             pendingSequence = pendingSequence,
@@ -1124,6 +1132,7 @@ fun JarvisApp(context: Context) {
                             },
                             onCallDismiss = { clearCallFlow() }
                         )
+                        }
                     } else {
                         Row(
                             Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp),
@@ -1175,7 +1184,7 @@ fun JarvisApp(context: Context) {
                                     }
                                 )
                                 "Alkalmazások" -> JarvisInstalledAppsScreen(context)
-                                "Előzmények" -> JarvisChatHistoryScreen(context)
+                                "Előzmények" -> JarvisChatHistoryScreen(context, onOpenConversation = { selectConversation(it) })
                                 "Üzenetek" -> MessageInboxScreen(context, onPermissions = {
                                     page = "Engedélyek"
                                 })
@@ -1183,7 +1192,7 @@ fun JarvisApp(context: Context) {
                                     securePrefs.write("readings", writeReadings(readings))
                                 }
                                 "Számlák" -> JarvisBillingScreen(context, billingRepo, language)
-                                "Email" -> JarvisGmailScreen(language, gmailStatus, gmailReadText, gmailAction)
+                                "Email" -> JarvisGmailScreen(language, gmailStatus, gmailReadText, ::gmailAction)
                                 "Amazon" -> JarvisAmazonScreen(language, ::executeAmazon)
                                 "Jegyzetek" -> LocalNotesScreen(notes) {
                                     securePrefs.write("notes", JSONArray(notes).toString())

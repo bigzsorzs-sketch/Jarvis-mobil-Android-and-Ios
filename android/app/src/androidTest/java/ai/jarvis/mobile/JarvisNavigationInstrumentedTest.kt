@@ -122,7 +122,7 @@ class JarvisNavigationInstrumentedTest {
         composeRule.onNodeWithText("Hívás").assertDoesNotExist()
         composeRule.onNodeWithText("Navigáció").assertDoesNotExist()
         composeRule.onNodeWithText("Névjegyek").assertDoesNotExist()
-        composeRule.onNodeWithText(displayedRoute("Főoldal")).assertExists()
+        composeRule.onNodeWithTag("jarvis-new-chat").assertExists()
     }
 
     @Test fun savedPlacesImportRemainsAccessibleFromSettingsWithoutNavigationMenu() {
@@ -130,9 +130,7 @@ class JarvisNavigationInstrumentedTest {
         composeRule.onNodeWithTag("jarvis-home-drawer-trigger").performClick()
         // The drawer contains a lazy list: Settings is below the viewport on
         // phones and is not composed until the list scrolls to that item.
-        composeRule.onNodeWithTag("jarvis-drawer-list")
-            .performScrollToNode(hasText(displayedRoute("Beállítások")))
-        composeRule.onNodeWithText(displayedRoute("Beállítások")).performClick()
+        composeRule.onNodeWithTag("jarvis-drawer-settings").performClick()
         composeRule.onNodeWithText("Mentett helyek és otthoni cím")
             .performScrollTo().performClick()
         composeRule.onNodeWithText("Otthoni cím mentése").assertExists()
@@ -152,7 +150,9 @@ class JarvisNavigationInstrumentedTest {
         composeRule.onNodeWithText(displayedRoute("Telepített alkalmazások")).assertExists()
         // Header opens the same drawer without a duplicate floating hamburger.
         composeRule.onNodeWithTag("jarvis-subpage-header").performClick()
-        composeRule.onNodeWithText(displayedRoute("Előzmények")).assertExists().performClick()
+        composeRule.onNodeWithTag("jarvis-drawer-list").performScrollToNode(
+            androidx.compose.ui.test.hasTestTag("jarvis-all-history"))
+        composeRule.onNodeWithTag("jarvis-all-history").performClick()
         composeRule.onNodeWithText(displayedRoute("Helyi beszélgetések")).assertExists()
         composeRule.onNodeWithText(displayedRoute("Keresés az előzményekben")).assertExists()
     }

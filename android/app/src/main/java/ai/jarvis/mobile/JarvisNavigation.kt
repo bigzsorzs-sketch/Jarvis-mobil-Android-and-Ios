@@ -3,6 +3,13 @@ package ai.jarvis.mobile
 import ai.jarvis.mobile.LocalizedText as Text
 
 import android.content.Context
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.layout.*
@@ -34,6 +41,9 @@ internal object JarvisToolCatalog {
         JarvisTool("Ébresztő", "Ébresztő", "◷"),
         JarvisTool("Beállítások", "Beállítások", "⚙")
     )
+    val primary = all.filter { it.route in setOf("Alkalmazások", "Vércukor", "Számlák", "Email") }
+    val more = all.filter { it.route !in primary.map { tool -> tool.route } &&
+        it.route !in setOf("Főoldal", "Előzmények", "Beállítások") }
     // Actual destinations reachable from tool pages and Settings.
     val subpages = listOf(
         JarvisTool("Hangbeállítások", "Hangbeállítások", "≋"),
@@ -44,38 +54,119 @@ internal object JarvisToolCatalog {
 }
 
 @Composable
-internal fun JarvisDrawer(selected: String, onSelect: (String) -> Unit) {
-    val dark = LocalJarvisDark.current
+internal fun JarvisMenuButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val label = JarvisTranslations.text("Menü megnyitása", LocalJarvisLanguage.current)
+    Surface(shape = CircleShape, color = Color.White, shadowElevation = 2.dp, modifier = modifier) {
+        IconButton(onClick = onClick, modifier = Modifier.size(48.dp).semantics { contentDescription = label }) {
+            Canvas(Modifier.size(23.dp)) {
+                drawLine(Color(0xFF101820), Offset(1.dp.toPx(), size.height * .35f),
+                    Offset(size.width - 1.dp.toPx(), size.height * .35f), 2.dp.toPx(), StrokeCap.Round)
+                drawLine(Color(0xFF101820), Offset(1.dp.toPx(), size.height * .65f),
+                    Offset(size.width * .65f, size.height * .65f), 2.dp.toPx(), StrokeCap.Round)
+            }
+        }
+    }
+}
+
+@Composable
+private fun DrawerTool(item: JarvisTool, selected: Boolean, onClick: () -> Unit) {
+    NavigationDrawerItem(
+        label = { Text(item.name, fontSize = 15.sp, color = JarvisPalette.mainText) },
+        icon = { Box(Modifier.width(24.dp), contentAlignment = Alignment.Center) {
+            Text(item.glyph, fontSize = 21.sp, color = JarvisPalette.accent)
+        } },
+        selected = selected,
+        colors = NavigationDrawerItemDefaults.colors(
+            selectedContainerColor = if (LocalJarvisDark.current) Color(0xFF172F56) else Color(0xFFDDEAFF),
+            unselectedContainerColor = Color.Transparent
+        ),
+        onClick = onClick,
+        modifier = Modifier.heightIn(min = 48.dp).testTag("jarvis-tool-" + item.route)
+    )
+}
+
+@Composable
+internal fun JarvisDrawer(
+    selected: String,
+    conversations: List<JarvisChatSummary>,
+    currentConversationId: String,
+    onNewConversation: () -> Unit,
+    onOpenConversation: (String) -> Unit,
+    onSelect: (String) -> Unit
+) {
+    var moreExpanded by remember { mutableStateOf(false) }
     ModalDrawerSheet(
-        modifier = Modifier.widthIn(max = 320.dp),
+        modifier = Modifier.fillMaxWidth(.86f).widthIn(max = 360.dp),
         drawerContainerColor = JarvisPalette.background
     ) {
-        Text("Jarvis", color = JarvisPalette.mainText, fontSize = 31.sp,
+        Text("Jarvis", color = JarvisPalette.mainText, fontSize = 29.sp,
             fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(start = 22.dp, top = 24.dp, bottom = 24.dp))
-        HorizontalDivider(color = if (dark) Color(0xFF25344E) else Color(0xFFE7ECF5))
+            modifier = Modifier.padding(start = 24.dp, top = 18.dp, bottom = 14.dp))
         LazyColumn(
             modifier = Modifier.weight(1f).testTag("jarvis-drawer-list"),
-            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
-            verticalArrangement = Arrangement.spacedBy(2.dp)
+            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
         ) {
-            items(JarvisToolCatalog.all, key = { it.route }) { item ->
+            items(JarvisToolCatalog.primary, key = { "tool-" + it.route }) { tool ->
+                DrawerTool(tool, selected == tool.route) { onSelect(tool.route) }
+            }
+            item(key = "more") {
                 NavigationDrawerItem(
-                    label = { Text(item.name, fontSize = 15.sp,
-                        color = JarvisPalette.mainText) },
-                    icon = {
-                        Box(Modifier.width(28.dp), contentAlignment = Alignment.Center) {
-                            Text(item.glyph, fontSize = 23.sp, color = JarvisPalette.accent)
-                        }
-                    },
-                    selected = selected == item.route,
-                    colors = NavigationDrawerItemDefaults.colors(
-                        selectedContainerColor = if (dark) Color(0xFF172F56) else Color(0xFFDDEAFF),
-                        unselectedContainerColor = Color.Transparent
-                    ),
-                    onClick = { onSelect(item.route) },
-                    modifier = Modifier.heightIn(min = 48.dp)
+                    label = { Text("Továbbiak", color = JarvisPalette.mainText) },
+                    icon = { Text("▦", fontSize = 23.sp, color = JarvisPalette.accent) },
+                    badge = { Text(if (moreExpanded) "−" else "+", color = JarvisPalette.subtleText) },
+                    selected = false,
+                    onClick = { moreExpanded = !moreExpanded },
+                    modifier = Modifier.testTag("jarvis-drawer-more")
                 )
+            }
+            if (moreExpanded) {
+                items(JarvisToolCatalog.more + JarvisToolCatalog.subpages, key = { "extra-" + it.route }) { tool ->
+                    // The existing settings subpage keeps its route, with a distinct visible label.
+                    val entry = if (tool.route == "Továbbiak") tool.copy(name = "További beállítások") else tool
+                    DrawerTool(entry, selected == tool.route) { onSelect(tool.route) }
+                }
+            }
+            item(key = "recent-header") {
+                Text("Legutóbbiak", color = JarvisPalette.subtleText, fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(start = 16.dp, top = 22.dp, bottom = 8.dp))
+            }
+            if (conversations.isEmpty()) item(key = "empty") {
+                Text("Még nincs mentett beszélgetés", color = JarvisPalette.subtleText,
+                    fontSize = 13.sp, modifier = Modifier.padding(16.dp))
+            }
+            items(conversations, key = { "chat-" + it.id }) { chat ->
+                NavigationDrawerItem(
+                    label = {
+                        // User-authored titles must never pass through the UI translator.
+                        androidx.compose.material3.Text(
+                            if (chat.id == "legacy") JarvisTranslations.text("Korábbi beszélgetések", LocalJarvisLanguage.current)
+                            else chat.title,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis,
+                            color = JarvisPalette.mainText, fontSize = 15.sp)
+                    },
+                    selected = selected == "Főoldal" && currentConversationId == chat.id,
+                    onClick = { onOpenConversation(chat.id) },
+                    modifier = Modifier.testTag("jarvis-conversation-" + chat.id)
+                )
+            }
+            item(key = "history") {
+                TextButton(onClick = { onSelect("Előzmények") }, modifier = Modifier.testTag("jarvis-all-history")) {
+                    Text("Keresés az előzményekben")
+                }
+            }
+        }
+        HorizontalDivider(color = JarvisPalette.subtleText.copy(alpha = .16f))
+        Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Button(onClick = onNewConversation, modifier = Modifier.weight(1f).testTag("jarvis-new-chat"),
+                shape = CircleShape, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF075FF1))) {
+                Text("Új beszélgetés", color = Color.White)
+            }
+            Spacer(Modifier.width(8.dp))
+            val settingsLabel = JarvisTranslations.text("Beállítások", LocalJarvisLanguage.current)
+            IconButton(onClick = { onSelect("Beállítások") }, modifier = Modifier.testTag("jarvis-drawer-settings")
+                .semantics { contentDescription = settingsLabel }) {
+                Text("⚙", fontSize = 26.sp, color = JarvisPalette.mainText)
             }
         }
     }

@@ -63,6 +63,11 @@ internal val LocalJarvisLanguage = compositionLocalOf { JarvisLanguage.HUNGARIAN
 internal object JarvisTranslations {
     internal fun fixedTextKeys(): Set<String> = english.keys
     private val english = mapOf(
+        "Új beszélgetés" to "New chat",
+        "Legutóbbiak" to "Recents",
+        "Még nincs mentett beszélgetés" to "No saved conversations yet",
+        "Korábbi beszélgetések" to "Previous conversations",
+        "További beállítások" to "More settings",
         "Saját OpenRouter-kapcsolat: nincs szükség Jarvis-szervercímre. Az API-kulcsodat a telefon titkosított tárhelyére mentjük." to "Personal OpenRouter connection: no Jarvis server address is needed. Your API key is saved in encrypted storage on this phone.",
         "Főoldal" to "Home",
         "Munka" to "Work",

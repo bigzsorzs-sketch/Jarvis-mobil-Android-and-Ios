@@ -19,7 +19,7 @@ import java.util.Locale
 
 /** Searches the encrypted database on the phone. No AI request or cloud upload. */
 @Composable
-internal fun JarvisChatHistoryScreen(context: Context) {
+internal fun JarvisChatHistoryScreen(context: Context, onOpenConversation: (String) -> Unit) {
     val store = remember(context) { JarvisChatStore(context) }
     var term by remember { mutableStateOf("") }
     var results by remember { mutableStateOf<List<JarvisChatEntry>>(emptyList()) }
@@ -67,6 +67,7 @@ internal fun JarvisChatHistoryScreen(context: Context) {
                 Text(item.request, style = MaterialTheme.typography.titleSmall)
                 Spacer(Modifier.height(4.dp))
                 Text(item.answer, style = MaterialTheme.typography.bodyMedium)
+                TextButton(onClick = { onOpenConversation(item.conversationId) }) { Text("Megnyitás") }
             }
         }
     }
