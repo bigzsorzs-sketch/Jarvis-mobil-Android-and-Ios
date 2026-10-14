@@ -9,6 +9,17 @@ class VoiceTranscriptSelectionTest {
         assertNull(VoiceTranscriptSelection.select(listOf("", "   "), null))
     }
 
+    @Test fun explicitlyStartedMicrophoneAcceptsLowConfidenceRecognizedWords() {
+        assertEquals("Jarvis, hallasz engem?",
+            VoiceTranscriptSelection.select(listOf(" Jarvis, hallasz engem? "),
+                floatArrayOf(0.07f), userInitiated = true))
+        assertEquals("navigálj Leedsbe",
+            VoiceTranscriptSelection.select(listOf("navigálj Leedsbe"),
+                floatArrayOf(0f), userInitiated = true))
+        assertNull(VoiceTranscriptSelection.select(listOf("   "),
+            floatArrayOf(0.95f), userInitiated = true))
+    }
+
     @Test fun recognizersWithoutConfidenceDoNotSilenceRealSpeech() {
         assertEquals("navigálj Leedsbe",
             VoiceTranscriptSelection.select(listOf(" navigálj Leedsbe "), null))
