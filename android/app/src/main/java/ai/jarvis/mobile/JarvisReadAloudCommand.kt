@@ -100,7 +100,7 @@ internal object JarvisSpeechChunks {
         if (text.length <= 260) return listOf(text).filter { it.isNotEmpty() }
         val limit = minOf(260, text.length - 1)
         val sentenceEnd = (100..limit).firstOrNull { index ->
-            text[index] in ".!?\\n" && (index + 1 == text.length ||
+            text[index] in ".!?\n" && (index + 1 == text.length ||
                 text[index + 1].isWhitespace())
         }?.plus(1)
         val end = sentenceEnd
