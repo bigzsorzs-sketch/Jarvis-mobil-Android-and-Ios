@@ -23,6 +23,8 @@ internal object HandsFreeStatus {
     var userSpeaking by mutableStateOf(false)
     var micLevel by mutableFloatStateOf(0f)
     var outputLevel by mutableFloatStateOf(0f)
+    // Persist actionable output errors across recognition restarts.
+    var audioError by mutableStateOf("")
 }
 internal data class PendingPhoneApp(val action: String, val createdAtMs: Long)
 internal data class PendingNativeAction(val action: String, val original: String, val createdAtMs: Long)
@@ -72,6 +74,7 @@ class HandsFreeService : Service(), RecognitionListener {
         }
     }
     private var recognizer: SpeechRecognizer? = null
+    private var recognizerGeneration = 0
     private var cloudVoice: JarvisCloudVoicePlayer? = null
     private var activeVoiceCommand: String? = null
     private var turnCounter = 0L
@@ -153,10 +156,12 @@ class HandsFreeService : Service(), RecognitionListener {
             finishSpokenReply()
         }
         HandsFreeStatus.running = true
+        HandsFreeStatus.audioError = ""
         cloudVoice = JarvisCloudVoicePlayer(applicationContext)
         try {
-            usingOnDeviceRecognizer = Build.VERSION.SDK_INT >= 31 &&
-                SpeechRecognizer.isOnDeviceRecognitionAvailable(this)
+            // Prefer the system recognizer for the selected language: presence of
+            // an offline engine does not mean it has a Hungarian model.
+            usingOnDeviceRecognizer = false
             createRecognizer()
             again(450)
         } catch (_: Exception) {
@@ -173,12 +178,47 @@ class HandsFreeService : Service(), RecognitionListener {
 
     private fun createRecognizer() {
         recognizerListening = false
+        val generation = ++recognizerGeneration
         recognizer?.setRecognitionListener(null)
         recognizer?.destroy()
         recognizer = if (usingOnDeviceRecognizer && Build.VERSION.SDK_INT >= 31)
             SpeechRecognizer.createOnDeviceSpeechRecognizer(this)
         else SpeechRecognizer.createSpeechRecognizer(this)
-        recognizer?.setRecognitionListener(this)
+        // Disconnected Android recognizers may send a late onError after a
+        // replacement was started. Never let that callback end a new turn.
+        recognizer?.setRecognitionListener(object : RecognitionListener {
+            private fun active() = generation == recognizerGeneration
+            override fun onReadyForSpeech(params: Bundle?) {
+                if (active()) this@HandsFreeService.onReadyForSpeech(params)
+            }
+            override fun onBeginningOfSpeech() {
+                if (active()) this@HandsFreeService.onBeginningOfSpeech()
+            }
+            override fun onRmsChanged(rmsdB: Float) {
+                if (active()) this@HandsFreeService.onRmsChanged(rmsdB)
+            }
+            override fun onBufferReceived(buffer: ByteArray?) {
+                if (active()) this@HandsFreeService.onBufferReceived(buffer)
+            }
+            override fun onEndOfSpeech() {
+                if (active()) this@HandsFreeService.onEndOfSpeech()
+            }
+            override fun onError(error: Int) {
+                if (active()) this@HandsFreeService.onError(error)
+            }
+            override fun onResults(results: Bundle?) {
+                if (active()) this@HandsFreeService.onResults(results)
+            }
+            override fun onPartialResults(partials: Bundle?) {
+                if (active()) this@HandsFreeService.onPartialResults(partials)
+            }
+            override fun onEvent(eventType: Int, params: Bundle?) {
+                if (active()) this@HandsFreeService.onEvent(eventType, params)
+            }
+            override fun onLanguageDetection(results: Bundle) {
+                if (active()) this@HandsFreeService.onLanguageDetection(results)
+            }
+        })
     }
 
     private fun again(delay: Long) {
@@ -202,13 +242,17 @@ class HandsFreeService : Service(), RecognitionListener {
                 JarvisSpeechRecognition.configure(this, JarvisLanguageSettings.load(applicationContext),
                     autoLanguageSwitchEnabled)
                 putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, usingOnDeviceRecognizer)
-                putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
+                putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
+                // Best effort only: Android speech services may ignore these.
+                putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 900L)
+                putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 1600L)
             })
         } catch (_: Exception) {
             recognizerListening = false
             errors++
-            if (errors >= 5) shutdown("A beszédfelismerés hibázott.")
-            else again(2500)
+            HandsFreeStatus.status = "A beszédfelismerő nem indult. Újrapróbálom."
+            runCatching { createRecognizer() }
+            again(VoiceSessionPolicy.retryDelay(SpeechRecognizer.ERROR_CLIENT, errors))
         }
     }
     private fun finishSpokenReply() {
@@ -243,18 +287,32 @@ class HandsFreeService : Service(), RecognitionListener {
             recognizer?.cancel()
         }
         val started = cloudVoice?.speak(text, wantedLanguage,
-            onStart = { if (running) HandsFreeStatus.speaking = true }
+            onStart = {
+                if (running) {
+                    HandsFreeStatus.speaking = true
+                    HandsFreeStatus.audioError = ""
+                    HandsFreeStatus.status = "Jarvis AI-hang lejátszása…"
+                }
+            }
         ) { successful ->
             if (running) {
-                if (!successful) HandsFreeStatus.status =
-                    cloudVoice?.lastFailure.orEmpty().ifBlank {
+                if (!successful) {
+                    val failure = cloudVoice?.lastFailure.orEmpty().ifBlank {
                         JarvisReadAloudCommand.response(wantedLanguage, "failed")
                     }
+                    HandsFreeStatus.audioError = failure + " " +
+                        JarvisVoiceReadiness.mediaVolumeMessage(applicationContext)
+                    HandsFreeStatus.status = "AI-hang hiba. Nézd meg a hangellenőrzést."
+                }
                 finishSpokenReply()
             }
         } == true
         if (!started) {
-            HandsFreeStatus.status = JarvisReadAloudCommand.response(wantedLanguage, "missingTts")
+            HandsFreeStatus.audioError = cloudVoice?.lastFailure.orEmpty().ifBlank {
+                JarvisVoiceReadiness.reason(applicationContext)
+                    ?: "Nem tudtam elindítani az AI-hang lejátszását."
+            }
+            HandsFreeStatus.status = "AI-hang nem indult; ellenőrizd a Beállítások → AI-agy oldalt."
             finishSpokenReply()
         }
     }
@@ -1008,7 +1066,15 @@ class HandsFreeService : Service(), RecognitionListener {
         HandsFreeStatus.userSpeaking = false
         HandsFreeStatus.micLevel = 0f
     }
-    override fun onPartialResults(partialResults: Bundle?) {}
+    override fun onPartialResults(partialResults: Bundle?) {
+        if (!recognizerListening || speaking) return
+        // The recognizer, not a raw PCM microphone stream, applies its own
+        // device-dependent acoustic/noise processing.
+        val partial = partialResults
+            ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+            ?.firstOrNull()?.take(120).orEmpty()
+        if (partial.isNotBlank()) HandsFreeStatus.status = "Beszéd felismerése…"
+    }
     override fun onLanguageDetection(results: Bundle) {
         if (!running || speaking || !autoLanguageSwitchEnabled) return
         val detected = JarvisSpeechRecognition.fromPlatformResult(
@@ -1025,39 +1091,33 @@ class HandsFreeService : Service(), RecognitionListener {
         recognizerListening = false
         HandsFreeStatus.userSpeaking = false
         HandsFreeStatus.micLevel = 0f
-        if (running && !speaking)
-            process(results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty())
+        if (running && !speaking) {
+            val candidates = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                ?: arrayListOf()
+            val transcript = VoiceTranscriptSelection.select(candidates,
+                results?.getFloatArray(SpeechRecognizer.CONFIDENCE_SCORES))
+            if (transcript == null) {
+                HandsFreeStatus.status = "Zaj vagy bizonytalan beszéd. Mondd újra a kérést."
+                again(VoiceSessionPolicy.retryDelay(SpeechRecognizer.ERROR_NO_MATCH))
+            } else process(transcript)
+        }
     }
     override fun onError(error: Int) {
-        if (!recognizerListening) return // Cancellation is not a new listen error.
+        if (!recognizerListening) return // Ignore late callbacks from cancelled turns.
         recognizerListening = false
         HandsFreeStatus.userSpeaking = false
         HandsFreeStatus.micLevel = 0f
         if (!running || speaking || foregroundReplyPending) return
         if (VoiceRecognitionPolicy.needsSystemFallback(usingOnDeviceRecognizer, error)) {
-            // Availability of an offline recognizer does not imply a Hungarian model.
             usingOnDeviceRecognizer = false
             errors = 0
             try {
                 createRecognizer()
-                HandsFreeStatus.status = "A telefon rendszer-beszédfelismerőjére váltok."
-                again(450)
+                HandsFreeStatus.status = "A rendszer beszédfelismerőjére váltok."
+                again(VoiceSessionPolicy.AFTER_REPLY_DELAY_MS)
             } catch (_: Exception) {
-                shutdown("Nem érhető el a beszédfelismerő. Ellenőrizd a telefon hangbeállításait.")
-            }
-            return
-        }
-        if (error == SpeechRecognizer.ERROR_LANGUAGE_NOT_SUPPORTED ||
-            error == SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE) {
-            if (autoLanguageSwitchEnabled) {
-                // Missing extra-language models must not break the user's original
-                // single-language voice command flow. Retry without auto switching.
-                autoLanguageSwitchEnabled = false
-                errors = 0
-                HandsFreeStatus.status = "Automatikus nyelvváltás nem elérhető; a kiválasztott nyelvre váltok."
-                again(450)
-            } else {
-                shutdown("A beszédfelismerés a kiválasztott nyelven nem elérhető. Telepítsd a nyelvi modellt a telefon beállításaiban.")
+                HandsFreeStatus.status = "Nem sikerült beszédfelismerőt választani."
+                again(VoiceSessionPolicy.retryDelay(error, 3))
             }
             return
         }
@@ -1065,13 +1125,46 @@ class HandsFreeService : Service(), RecognitionListener {
             shutdown("A mikrofonengedély megszűnt.")
             return
         }
-        if (error == SpeechRecognizer.ERROR_NO_MATCH || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT) {
-            HandsFreeStatus.status = "Nem értettem. Próbáld újra, most figyelek."
+        if (error == SpeechRecognizer.ERROR_LANGUAGE_NOT_SUPPORTED ||
+            error == SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE) {
+            if (autoLanguageSwitchEnabled) {
+                // One unavailable language pack must not disable manual voice.
+                autoLanguageSwitchEnabled = false
+                errors = 0
+                HandsFreeStatus.status = "Automatikus nyelvváltás nem elérhető; a kiválasztott nyelven figyelek."
+                again(VoiceSessionPolicy.AFTER_REPLY_DELAY_MS)
+            } else {
+                shutdown("A kiválasztott nyelv beszédfelismerése hiányzik. Ellenőrizd az Android nyelvi modelljeit.")
+            }
+            return
+        }
+        if (error == SpeechRecognizer.ERROR_NO_MATCH ||
+            error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT) {
+            // Silence is not a failure of a user-started conversation. Keep
+            // listening until explicit STOP rather than ending after 5 errors.
             errors = 0
+            HandsFreeStatus.status = "Nem hallottam érthető beszédet. Újra figyelek."
             if (tapActivated) awaitingCommand = true
-        } else errors++
-        if (errors >= 5) shutdown("A beszédfelismerés nem működik stabilan.")
-        else again(VoiceSessionPolicy.retryDelay(error))
+            again(VoiceSessionPolicy.retryDelay(error))
+            return
+        }
+        errors++
+        if (error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY ||
+            error == SpeechRecognizer.ERROR_CLIENT ||
+            error == SpeechRecognizer.ERROR_SERVER_DISCONNECTED) {
+            // A provider can leave its speech service in a BUSY/dead state.
+            // Discard it before restarting, without losing the user's session.
+            runCatching { createRecognizer() }
+        }
+        HandsFreeStatus.status = when (error) {
+            SpeechRecognizer.ERROR_NETWORK, SpeechRecognizer.ERROR_NETWORK_TIMEOUT ->
+                "A telefon beszédfelismerője hálózati hibát jelzett. Újrapróbálom."
+            SpeechRecognizer.ERROR_RECOGNIZER_BUSY ->
+                "A mikrofon foglalt volt. Újraindítom a felismerést."
+            else -> "A beszédfelismerő hibázott ($error). Újrapróbálom."
+        }
+        // Temporary provider errors must never look like an intentional STOP.
+        again(VoiceSessionPolicy.retryDelay(error, errors))
     }
     private fun shutdown(status: String) {
         running = false
@@ -1097,6 +1190,7 @@ class HandsFreeService : Service(), RecognitionListener {
         handler.removeCallbacks(restart)
         handler.removeCallbacks(foregroundReplyTimeout)
         recognizerListening = false
+        ++recognizerGeneration
         foregroundReplyPending = false
         aiJob?.cancel()
         aiJob = null

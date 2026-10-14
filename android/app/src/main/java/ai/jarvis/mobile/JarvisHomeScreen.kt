@@ -87,10 +87,6 @@ internal fun JarvisHomeScreen(
     val handsFree = HandsFreeStatus.running
     val chatListState = rememberLazyListState()
     val chatScope = rememberCoroutineScope()
-    val dictation = remember(context) { JarvisDictation(context) }
-    DisposableEffect(dictation) {
-        onDispose { dictation.stop() }
-    }
     // New messages and completed AI answers stay at the bottom, like a messenger.
     // Loading older pages does not jump back to the newest turn.
     LaunchedEffect(history.lastOrNull()) {
@@ -122,9 +118,6 @@ internal fun JarvisHomeScreen(
                 return
             }
         }
-        // User may manually send a partial dictation; stop listening first so
-        // a delayed final-recognition callback cannot execute it twice.
-        dictation.stop()
         keyboard?.hide()
         text = ""
         issue = ""
@@ -141,15 +134,15 @@ internal fun JarvisHomeScreen(
     RegisterJarvisControl("Küldés", text.isNotBlank() || stagedAttachments.isNotEmpty(), click = { submit(text) })
     fun startVoice() {
         if (HandsFreeStatus.running) return
-        // Explicitly switching FROM one-shot dictation TO continuous voice
-        // releases the small microphone before requesting the service.
-        dictation.stop()
         try {
             ContextCompat.startForegroundService(
                 context,
                 Intent(context, HandsFreeService::class.java).setAction(HandsFreeService.START_TAP)
             )
-            issue = ""
+            // Starting speech recognition does not guarantee that voice
+            // generation is configured. Keep capture available for commands,
+            // but prominently explain why an audible reply may be missing.
+            issue = JarvisVoiceReadiness.reason(context).orEmpty()
         } catch (_: Exception) {
             issue = "A telefon nem engedte elindítani a mikrofont."
         }
@@ -163,33 +156,6 @@ internal fun JarvisHomeScreen(
                     PackageManager.PERMISSION_GRANTED, grants)) startVoice()
         else issue = "A kéz nélküli módhoz mikrofonengedély szükséges."
     }
-    fun startDictation() {
-        // Do NOT stop the live voice conversation just because the user tapped
-        // the small dictation icon: two recognizers cannot share Android audio.
-        // The large mic alone owns the continuous session until explicit STOP.
-        if (HandsFreeStatus.running) {
-            issue = "A folyamatos hangbeszélgetés már aktív. Beszélj Jarvishoz, vagy a nagy kék mikrofonnal állítsd le, ha külön diktálni szeretnél."
-            return
-        }
-        dictation.start(
-            partial = { recognized -> text = recognized },
-            complete = { recognized ->
-                text = recognized
-                submit(recognized)
-            },
-            status = { feedback -> issue = feedback },
-            onLanguageDetected = { detected ->
-                JarvisSpeechLanguageEvents.detected = detected
-            }
-        )
-    }
-    val dictatePermission = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        if (granted) startDictation()
-        else issue = "A diktáláshoz engedélyezd a mikrofont."
-    }
-
     BoxWithConstraints(Modifier.fillMaxSize()) {
     // Reserve room for chat and the composer on compact phones.
     val orbHeight = (maxHeight * 0.235f).coerceIn(100.dp, 225.dp)
@@ -258,6 +224,12 @@ internal fun JarvisHomeScreen(
             Spacer(Modifier.height(12.dp))
             Text(issue, color = Color(0xFFAA2732), fontSize = 12.sp,
                 modifier = Modifier.padding(horizontal = 16.dp))
+        }
+        if (HandsFreeStatus.audioError.isNotBlank()) {
+            Spacer(Modifier.height(4.dp))
+            Text("AI-hang hiba: " + HandsFreeStatus.audioError,
+                color = if (isDark) Color(0xFFFFB6B6) else Color(0xFFAA2732),
+                fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp))
         }
         if (HandsFreeStatus.status != "Kikapcsolva") {
             Text(HandsFreeStatus.status, color = JarvisMuted, fontSize = 12.sp,
@@ -400,18 +372,15 @@ internal fun JarvisHomeScreen(
                     }
                 }
             )
-            IconButton(
-                modifier = Modifier.testTag("jarvis-home-send"),
-                onClick = {
-                    if (text.isNotBlank() || stagedAttachments.isNotEmpty()) submit(text)
-                    else if (ContextCompat.checkSelfPermission(
-                            context, Manifest.permission.RECORD_AUDIO) ==
-                        PackageManager.PERMISSION_GRANTED) startDictation()
-                    else dictatePermission.launch(Manifest.permission.RECORD_AUDIO)
+            // A send button is only shown for a composed text or attachment.
+            // Voice has ONE entry point: the blue/red microphone on Home.
+            if (text.isNotBlank() || stagedAttachments.isNotEmpty()) {
+                IconButton(
+                    modifier = Modifier.testTag("jarvis-home-send"),
+                    onClick = { submit(text) }
+                ) {
+                    Text("➤", fontSize = 23.sp, color = JarvisInk)
                 }
-            ) {
-                Text(if (text.isBlank() && stagedAttachments.isEmpty()) "🎙" else "➤",
-                    fontSize = 23.sp, color = JarvisInk)
             }
             Surface(
                 color = if (handsFree) Color(0xFFEC455C) else JarvisBlue,

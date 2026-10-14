@@ -16,7 +16,7 @@ class JarvisAiGatewayTest {
 
     @Test fun fixedTextModelIsGPT52ButSpeechUsesActualTtsModel() {
         assertEquals("openai/gpt-5.2", JarvisAiGateway.TEST_MODEL)
-        assertEquals("openai/gpt-4o-mini-tts-2025-12-15", JarvisAiGateway.SPEECH_MODEL)
+        assertEquals("microsoft/mai-voice-2.1-flash", JarvisAiGateway.SPEECH_MODEL)
         assertNotEquals(JarvisAiGateway.TEST_MODEL, JarvisAiGateway.SPEECH_MODEL)
         val payload = JarvisAiToolPolicy.providerPayload("Hogy vagy?")
         assertEquals("openai/gpt-5.2", payload.getString("model"))
