@@ -215,7 +215,11 @@ internal object JarvisAiTools {
     fun fromProvider(body: JSONObject, originalInput: String): JarvisAiOutcome {
         val message = body.optJSONArray("choices")?.optJSONObject(0)
             ?.optJSONObject("message")
-            ?: return JarvisAiOutcome("Az AI nem küldött értelmezhető választ.")
+            ?: return JarvisAiOutcome(
+                if (body.optJSONObject("error") != null)
+                    "Az AI-szolgáltató HTTP 200 mellett hibát küldött. Ellenőrizd a modellt és a hozzáférést."
+                else "Az AI 200-as válasza nem tartalmazott szabványos choices/message adatot. Ellenőrizd a modellkimenetet."
+            )
         val calls = message.optJSONArray("tool_calls")
         if (calls != null && calls.length() > 0) {
             if (calls.length() != 1) return JarvisAiOutcome(
@@ -263,8 +267,20 @@ internal object JarvisAiTools {
         if (JarvisNativeActions.identify(originalInput) != null) {
             return JarvisAiOutcome("Az AI nem adott ellenőrzött Android-parancsot. Nem történt végrehajtás.")
         }
-        return JarvisAiOutcome(message.optString("content", "").trim()
-            .ifEmpty { "Az AI üres választ küldött." })
+        // OpenAI-compatible models can return either plain string content
+        // or an array of typed text blocks. Never parse answer text as commands.
+        val answer = when (val content = message.opt("content")) {
+            is String -> content.trim()
+            is JSONArray -> (0 until content.length())
+                .mapNotNull { index ->
+                    content.optJSONObject(index)?.takeIf { it.optString("type") == "text" }
+                        ?.optString("text")?.trim()?.takeIf { it.isNotBlank() }
+                }.joinToString("\n")
+            else -> ""
+        }
+        return JarvisAiOutcome(answer.ifEmpty {
+            "Az AI üres szöveges választ küldött; ellenőrizd a választott modell beállításait."
+        })
     }
 
     /** The private server only proposes an action, it must never execute one. */
