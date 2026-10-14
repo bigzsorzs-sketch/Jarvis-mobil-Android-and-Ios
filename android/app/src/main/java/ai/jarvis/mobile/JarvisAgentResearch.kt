@@ -27,8 +27,8 @@ internal object JarvisAgentResearch {
     )
     fun shouldHandle(input: String): Boolean {
         val q = input.trim().lowercase(Locale.ROOT)
-        return q.length in 15..1400 && explicit.any(q::contains) &&
-            technical.any(q::contains) && sensitiveMarkers.none(q::contains) &&
+        return q.length in 15..1400 && explicit.any { q.contains(it) } &&
+            technical.any { q.contains(it) } && sensitiveMarkers.none { q.contains(it) } &&
             JarvisNativeActions.identify(input) == null &&
             JarvisSequence.plan(input) == null &&
             JarvisMessageIntent.parse(input) == null &&
@@ -49,11 +49,11 @@ internal object JarvisAgentResearch {
             val normalized = step.trim()
             val check = normalized.lowercase(Locale.ROOT)
             if (normalized.length !in 12..180 ||
-                sensitiveMarkers.any(check::contains) ||
+                sensitiveMarkers.any { check.contains(it) } ||
                 listOf("http://", "javascript:", "file://", "rm -", "sudo ",
                     "curl ", "wget ", "ssh ", "token", "credential", "git push",
                     "send email", "küldj", "töröld", "delete", "futtasd",
-                    "run code", "telepítsd").any(check::contains)) return null
+                    "run code", "telepítsd").any { check.contains(it) }) return null
             if (normalized in result) return null
             result.add(normalized)
         }
