@@ -5,6 +5,16 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class VoiceSessionPolicyTest {
+    @Test fun tappedHomeMicrophoneUsesSelectedLanguageWithoutOptionalAutoSwitch() {
+        assertFalse(VoiceSessionPolicy.useAutomaticLanguageSwitch(
+            userTappedMic = true, supported = true))
+        assertFalse(VoiceSessionPolicy.useAutomaticLanguageSwitch(
+            userTappedMic = true, supported = false))
+        assertTrue(VoiceSessionPolicy.useAutomaticLanguageSwitch(
+            userTappedMic = false, supported = true))
+        assertFalse(VoiceSessionPolicy.useAutomaticLanguageSwitch(
+            userTappedMic = false, supported = false))
+    }
     @Test fun silenceAndBusyNeverCreateHotRestartLoop() {
         assertTrue(VoiceSessionPolicy.retryDelay(SpeechRecognizer.ERROR_NO_MATCH) >= 1_800L)
         assertTrue(VoiceSessionPolicy.retryDelay(SpeechRecognizer.ERROR_SPEECH_TIMEOUT) >= 2_000L)
