@@ -10,6 +10,8 @@ internal class JarvisSseDecoder {
     private val full = StringBuilder()
     var done: Boolean = false
         private set
+    var failure: String? = null
+        private set
     val text: String get() = full.toString()
 
     /**
@@ -26,14 +28,27 @@ internal class JarvisSseDecoder {
         if (body.isEmpty() || body.length > 65_536) return null
         val event = runCatching { JSONObject(body) }.getOrNull() ?: return null
         if (event.has("error")) {
+            failure = "Az AI-szolgáltató megszakította a folyamatos választ."
             done = true
             return null
         }
         val choice = event.optJSONArray("choices")?.optJSONObject(0) ?: return null
         val delta = choice.optJSONObject("delta")?.opt("content") as? String
-        if (choice.optString("finish_reason") == "stop") done = true
+        when (choice.optString("finish_reason")) {
+            "stop" -> done = true
+            "length" -> {
+                failure = "Az AI válasza a szolgáltató korlátja miatt megszakadt."
+                done = true
+            }
+            "tool_calls", "function_call" -> {
+                failure = "A szolgáltató váratlan eszközkérést küldött; nem hajtottam végre."
+                done = true
+                return null
+            }
+        }
         if (delta.isNullOrEmpty()) return null
         if (full.length + delta.length > 16_000) {
+            failure = "Az AI válasza túllépte a biztonságos szöveghatárt."
             done = true
             return null
         }
