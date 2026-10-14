@@ -207,18 +207,25 @@ fun JarvisApp(context: Context, launcherRequest: String? = null) {
     }
     var gmailDraft by remember { mutableStateOf<GmailDraftConversation?>(null) }
     var gmailChoice by remember { mutableStateOf<GmailRecipientChoice?>(null) }
+    // Waiting for an address after a user-initiated Gmail draft. No background send.
+    var gmailRecipientWait by remember { mutableStateOf<Pair<Boolean, Long>?>(null) }
     var gmailLookupInstruction by remember { mutableStateOf<String?>(null) }
     var gmailStatus by remember { mutableStateOf("") }
     var gmailReadText by remember { mutableStateOf("") }
-    val gmailOrigins = remember { java.util.IdentityHashMap<GmailRequest, String>() }
+    val gmailOrigins = remember { java.util.IdentityHashMap<GmailRequest, Pair<String, Int>>() }
     val runGmailAction = rememberJarvisGmail { request, outcome ->
-        if (gmailOrigins.remove(request) != currentChat.id) return@rememberJarvisGmail
+        val origin = gmailOrigins.remove(request) ?: return@rememberJarvisGmail
+        // Never show a delayed Gmail lookup/error as the reply to a later user turn.
+        if (origin.first != currentChat.id || origin.second != commandRevision)
+            return@rememberJarvisGmail
         if (request.operation is GmailOperation.ResolveRecipient) {
             if (gmailLookupInstruction != request.instruction) return@rememberJarvisGmail
             gmailLookupInstruction = null
             val addresses = outcome.recipientCandidates
             gmailDraft = null
             gmailChoice = null
+            gmailRecipientWait = if (addresses.isEmpty()) request.operation.actuallySend to
+                (android.os.SystemClock.elapsedRealtime() + 180_000L) else null
             when {
                 addresses.size == 1 -> gmailDraft = GmailDraftConversation(
                     addresses.single(), request.operation.actuallySend,
@@ -227,6 +234,11 @@ fun JarvisApp(context: Context, launcherRequest: String? = null) {
                     addresses, request.operation.actuallySend,
                     android.os.SystemClock.elapsedRealtime() + 90_000L)
             }
+        }
+        if (request.operation is GmailOperation.Incomplete &&
+            request.operation.reason.startsWith("Mondd meg a címzett", ignoreCase = true)) {
+            gmailRecipientWait = false to
+                (android.os.SystemClock.elapsedRealtime() + 180_000L)
         }
         gmailStatus = outcome.status
         gmailReadText = outcome.speak.orEmpty()
@@ -267,7 +279,7 @@ fun JarvisApp(context: Context, launcherRequest: String? = null) {
         }
     }
     fun gmailAction(request: GmailRequest) {
-        gmailOrigins[request] = currentChat.id
+        gmailOrigins[request] = currentChat.id to commandRevision
         runGmailAction(request)
     }
     // Spoken commands share the same encrypted local timeline as typed messages.
@@ -417,6 +429,21 @@ fun JarvisApp(context: Context, launcherRequest: String? = null) {
         val requestRevision = commandRevision
         val now = android.os.SystemClock.elapsedRealtime()
         if (gmailLookupInstruction != null) gmailLookupInstruction = null
+        if (GmailDraftConversationFlow.isWakeWord(command)) {
+            addHistory(command to "Igen, figyelek. Miben segíthetek?")
+            return
+        }
+        gmailRecipientWait?.let { waiting ->
+            val address = GmailDraftConversationFlow.recipientAddress(command)
+            gmailRecipientWait = null
+            if (now <= waiting.second && address != null) {
+                gmailDraft = GmailDraftConversation(
+                    address, waiting.first, expiresAtMs = now + 180_000L)
+                gmailChoice = null
+                addHistory(command to "Rögzítettem a címzettet. Mi legyen az email tárgya?")
+                return
+            }
+        }
         if (gmailChoice != null) {
             val choice = gmailChoice!!
             if (now > choice.expiresAtMs || GmailDraftConversationFlow.isCancel(command)) {
@@ -442,6 +469,12 @@ fun JarvisApp(context: Context, launcherRequest: String? = null) {
             val oldDraft = gmailDraft!!
             if (now > oldDraft.expiresAtMs) {
                 gmailDraft = null
+            } else if (GmailDraftConversationFlow.recipientAddress(command) != null) {
+                gmailDraft = oldDraft.copy(recipient =
+                    GmailDraftConversationFlow.recipientAddress(command)!!,
+                    expiresAtMs = now + 180_000L)
+                addHistory(command to "Módosítottam az email címzettjét. Mi legyen a tárgy?")
+                return
             } else when (val next = GmailDraftConversationFlow.advance(oldDraft, command)) {
                 GmailDraftNext.Cancelled -> {
                     gmailDraft = null
@@ -746,6 +779,12 @@ fun JarvisApp(context: Context, launcherRequest: String? = null) {
                 // Do not persist a third-party private notification into chat history.
                 addHistory(command to JarvisReadAloudCommand.response(language, "started"))
             }
+            return
+        }
+        // An email address alone is not an instruction to open an empty composer
+        // or disclose the address to the general AI model.
+        GmailDraftConversationFlow.recipientAddress(command)?.let {
+            addHistory(command to "Emailcímet adtál meg. Ha levelet szeretnél írni, kérd: írj emailt erre a címre.")
             return
         }
         // Route user-originated Gmail actions before generic narration or AI.
@@ -1077,6 +1116,7 @@ fun JarvisApp(context: Context, launcherRequest: String? = null) {
         pendingSequence = null
         gmailDraft = null
         gmailChoice = null
+        gmailRecipientWait = null
         gmailLookupInstruction = null
         lastAmazonSearch = null
         lastCommandReply = ""
