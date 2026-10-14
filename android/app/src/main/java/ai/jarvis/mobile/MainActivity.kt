@@ -809,11 +809,33 @@ fun JarvisApp(context: Context, launcherRequest: String? = null) {
         if (JarvisAiRouting.shouldAskAi(command)) {
             val pending = command to "AI-válaszra várok…"
             conversation.add(pending)
-            
+            val pendingIndex = conversation.lastIndex
+            val pendingChatId = currentChat.id
+            val progressive = StringBuilder()
             drawerScope.launch {
-                val outcome = JarvisAiGateway.askStructured(context, command)
+                val outcome = if (JarvisAiGateway.canStreamText(context, command)) {
+                    JarvisAiGateway.askIncremental(context, command, language.tag,
+                        onDelta = { delta ->
+                            if (requestRevision == commandRevision &&
+                                currentChat.id == pendingChatId &&
+                                pendingIndex in conversation.indices &&
+                                conversation[pendingIndex].first == command) {
+                                progressive.append(delta)
+                                conversation[pendingIndex] = command to progressive.toString()
+                            }
+                        },
+                        onPhrase = { phrase ->
+                            // Only an already-active hands-free turn receives sound.
+                            // Typed chat never starts an unsolicited microphone/TTS.
+                            if (requestRevision == commandRevision &&
+                                voiceReply?.first == command)
+                                JarvisVoiceStreamBridge.deliver(command, phrase)
+                        })
+                } else JarvisAiGateway.askStructured(context, command)
                 if (requestRevision != commandRevision) {
-                    val oldIndex = JarvisPendingTurn.findIndex(conversation, pending)
+                    val oldIndex = if (pendingIndex in conversation.indices &&
+                        conversation[pendingIndex].first == command) pendingIndex
+                        else JarvisPendingTurn.findIndex(conversation, pending)
                     if (oldIndex >= 0) {
                         val cancelled = command to "Egy újabb kérés miatt a korábbi AI-parancsot megszakítottam."
                         conversation[oldIndex] = cancelled
@@ -846,7 +868,9 @@ fun JarvisApp(context: Context, launcherRequest: String? = null) {
                     }
                     else -> outcome.message
                 }
-                val index = JarvisPendingTurn.findIndex(conversation, pending)
+                val index = if (pendingIndex in conversation.indices &&
+                    conversation[pendingIndex].first == command) pendingIndex
+                    else JarvisPendingTurn.findIndex(conversation, pending)
                 if (index >= 0) {
                     conversation[index] = command to answer
                     saveChatTurn(command to answer)
