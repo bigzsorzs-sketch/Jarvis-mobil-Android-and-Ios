@@ -807,6 +807,9 @@ fun JarvisApp(context: Context, launcherRequest: String? = null) {
             return
         }
         if (JarvisAiRouting.shouldAskAi(command)) {
+            // Deep technical requests get a bounded plan -> evidence -> review loop.
+            // All device commands retain the existing native execution path.
+            val researchAgent = JarvisAgentResearch.shouldHandle(command)
             val pending = command to "AI-válaszra várok…"
             conversation.add(pending)
             val pendingIndex = conversation.lastIndex
@@ -814,7 +817,8 @@ fun JarvisApp(context: Context, launcherRequest: String? = null) {
             val progressive = StringBuilder()
             var lastVisibleUpdateMs = 0L
             drawerScope.launch {
-                val spokenStream = JarvisAiGateway.canStreamText(context, command) &&
+                val spokenStream = !researchAgent &&
+                    JarvisAiGateway.canStreamText(context, command) &&
                     voiceReply?.first == command
                 val streamCancellation = JarvisStreamCancellation()
                 val aiJob = kotlinx.coroutines.currentCoroutineContext()[kotlinx.coroutines.Job]
@@ -839,7 +843,9 @@ fun JarvisApp(context: Context, launcherRequest: String? = null) {
                 if (abortTurn != null)
                     JarvisVoiceStreamBridge.interruptCurrent = abortTurn
                 try {
-                val outcome = if (JarvisAiGateway.canStreamText(context, command)) {
+                val outcome = if (researchAgent) {
+                    JarvisAgentResearch.answer(context, command, language.tag)
+                } else if (JarvisAiGateway.canStreamText(context, command)) {
                     JarvisAiGateway.askIncremental(context, command, language.tag,
                         cancellation = streamCancellation,
                         onDelta = { delta ->
