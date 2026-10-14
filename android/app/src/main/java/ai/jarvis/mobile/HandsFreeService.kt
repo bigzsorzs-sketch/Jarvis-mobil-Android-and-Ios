@@ -347,10 +347,12 @@ class HandsFreeService : Service(), RecognitionListener {
         val started = cloudVoice?.speak(text, wantedLanguage,
             onStart = {
                 if (running && spokenReplySerial == replySerial) {
+                    // One monitor for the entire answer, not a restart between
+                    // pre-fetched MP3 chunks: keep capture stable through pauses.
+                    if (!HandsFreeStatus.speaking) bargeInMonitor?.start()
                     HandsFreeStatus.speaking = true
                     HandsFreeStatus.audioError = ""
                     HandsFreeStatus.status = "Jarvis AI-hang lejátszása…"
-                    bargeInMonitor?.start()
                 }
             }
         ) { successful ->
