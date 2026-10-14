@@ -34,7 +34,16 @@ internal object JarvisGlucoseVoice {
         // Never reinterpret a request not to read private health data.
         if (Regex("""\b(?:ne|nem|dont|don't|never)\s+(?:nezd|megnezd|ellenorizd|mutasd|check|show)\b""")
                 .containsMatchIn(q)) return false
-        return q.length in 5..220 && patterns.any { it.containsMatchIn(q) }
+        if (q.length !in 5..220) return false
+        if (patterns.any { it.containsMatchIn(q) }) return true
+        // Some Hungarian dictation inserts repeated clauses ("nézd meg hogy
+        // a cukromat meg tudod-e nézni, hány a cukrom"). Never send a clearly
+        // personal live glucose reading request to the generic AI instead.
+        val personal = Regex("""\b(?:cukrom(?:at)?|vercukrom(?:at)?|vercukorszintem(?:et)?|glukozom(?:at)?|nyascukrom(?:at)?)\b""")
+            .containsMatchIn(q)
+        val read = Regex("""\b(?:nezd|megnezd|megnezni|megnezed|mutasd|mennyi|hany|lekerd|lekered|ellenorizd|olvasd)\b""")
+            .containsMatchIn(q)
+        return personal && read
     }
 
     private fun local(context: Context): JarvisGlucoseData.Point? = runCatching {

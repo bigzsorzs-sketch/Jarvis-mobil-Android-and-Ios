@@ -100,17 +100,33 @@ internal object VoiceNavigation {
         SecurePrefs(context).write("home_destination", destination.trim())
     }
 
+    /** Consistent Hungarian/English contact destination lookup. The person's
+     * name must NEVER go to Google Maps as if it were a routable address.
+     */
+    private fun knownPersonAddress(context: Context, spoken: String): String? {
+        val stored = PeopleDirectory.find(context, spoken)
+        if (stored != null) return stored.address.trim().takeIf { it.isNotEmpty() }
+        val places = JarvisSavedPlaces.list(context).filter {
+            PeopleDirectory.matchingName(spoken, it.name)
+        }
+        if (places.size == 1) return places.single().destination
+        if (places.size > 1) return null
+        return JarvisContactAddresses.find(context, spoken)
+    }
+
     fun resolve(context: Context, destination: String): String? {
         if (destination == "HOME") return homeAddress(context).takeIf { it.isNotBlank() }
         if (destination.startsWith("PERSON:")) {
-            return PeopleDirectory.find(context, destination.removePrefix("PERSON:"))
-                ?.address?.takeIf { it.isNotBlank() }
+            return knownPersonAddress(context, destination.removePrefix("PERSON:"))
         }
         JarvisSavedPlaces.importedName(destination)?.let { savedName ->
             return JarvisSavedPlaces.resolveImported(context, savedName)
         }
-        val person = PeopleDirectory.find(context, destination)
-        return if (person != null) person.address.takeIf { it.isNotBlank() } else destination
+        knownPersonAddress(context, destination)?.let { return it }
+        // If the phrase names a known Android contact but that contact has no
+        // unique routable address, do not send their name to Maps as a fake place.
+        if (VoiceCalling.candidates(context, destination).isNotEmpty()) return null
+        return destination
     }
 
     fun openDetailed(context: Context, destination: String): LaunchResult {

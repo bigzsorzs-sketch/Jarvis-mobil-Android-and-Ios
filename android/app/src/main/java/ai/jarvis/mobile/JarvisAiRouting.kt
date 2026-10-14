@@ -10,6 +10,7 @@ internal object JarvisAiRouting {
             JarvisCapabilities.localPageToOpen(command) != null) return false
         // Exact explicit drafts are always handled locally with recipient/body
         // verification and review; they must not depend on model tools.
+        if (JarvisGlucoseVoice.isQuery(command)) return false
         if (JarvisMessageIntent.parse(command) != null) return false
         if (JarvisPhoneActions.requestedAction(command) != null ||
             JarvisSystemPanels.identify(command) != null) return false
