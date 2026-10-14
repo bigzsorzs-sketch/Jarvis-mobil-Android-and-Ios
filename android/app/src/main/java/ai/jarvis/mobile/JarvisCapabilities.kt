@@ -71,9 +71,11 @@ internal object JarvisCapabilities {
                 "külső AI-modellt használok, de a Jarvis alkalmazást nem az OpenAI fejlesztette."
         }
         if (isIdentityQuestion(n)) {
-            return "Jarvis vagyok, az Android-asszisztensed. Beszélgethetek veled, " +
-                "és a telefonod támogatott funkcióit hanggal vagy írásban kezelhetem. " +
-                "Kérdezd meg: Milyen funkciókat tudsz használni?"
+            return "Jarvis vagyok, az Android-asszisztensed. A Vércukor, " +
+                "Hívás, navigáció, üzenetek és a többi támogatott Jarvis-funkció " +
+                "hanggal vagy írással használható, megfelelő engedéllyel. " +
+                "Az AI-válaszaim önmagukban nem vezérelnek tetszőleges eszközt. " +
+                "A teljes listához kérdezd: Milyen funkciókat tudsz használni?"
         }
         val tools = JarvisToolCatalog.all.joinToString(", ") { it.name }
         return "Az elérhető Jarvis-funkciók: $tools. " +
