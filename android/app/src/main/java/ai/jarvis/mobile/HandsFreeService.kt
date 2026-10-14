@@ -21,6 +21,8 @@ internal object HandsFreeStatus {
     var answer by mutableStateOf("")
     var speaking by mutableStateOf(false)
     var userSpeaking by mutableStateOf(false)
+    // Set only after the Android provider confirms it is ready to capture.
+    var listening by mutableStateOf(false)
     var micLevel by mutableFloatStateOf(0f)
     var outputLevel by mutableFloatStateOf(0f)
     // Persist actionable output errors across recognition restarts.
@@ -62,10 +64,28 @@ class HandsFreeService : Service(), RecognitionListener {
     }
     private val handler = Handler(Looper.getMainLooper())
     private val restart = Runnable { listen() }
+    private val recognitionWatchdog = Runnable {
+        if (running && recognizerListening && !speaking && !foregroundReplyPending) {
+            recognizerListening = false
+            HandsFreeStatus.listening = false
+            HandsFreeStatus.userSpeaking = false
+            HandsFreeStatus.micLevel = 0f
+            errors++
+            HandsFreeStatus.status = "A beszédfelismerő nem válaszol; újraindítom a mikrofont."
+            // Replacing the recognizer invalidates all delayed callbacks.
+            runCatching { createRecognizer() }
+            again(VoiceSessionPolicy.retryDelay(SpeechRecognizer.ERROR_CLIENT, errors))
+        }
+    }
+    private fun recognitionDeadline(delayMs: Long) {
+        handler.removeCallbacks(recognitionWatchdog)
+        if (running && recognizerListening) handler.postDelayed(recognitionWatchdog, delayMs)
+    }
     // SpeechRecognizer is a one-utterance API: track the actual session and
     // asynchronous foreground answer separately. Never start two recognizers,
     // or restart recording while the reply is being generated/read aloud.
     private var recognizerListening = false
+    private var speechObservedThisTurn = false
     private var foregroundReplyPending = false
     private val foregroundReplyTimeout = Runnable {
         if (running && foregroundReplyPending) {
@@ -177,7 +197,9 @@ class HandsFreeService : Service(), RecognitionListener {
     }
 
     private fun createRecognizer() {
+        handler.removeCallbacks(recognitionWatchdog)
         recognizerListening = false
+        HandsFreeStatus.listening = false
         val generation = ++recognizerGeneration
         recognizer?.setRecognitionListener(null)
         recognizer?.destroy()
@@ -230,6 +252,8 @@ class HandsFreeService : Service(), RecognitionListener {
         if (!running || speaking || recognizerListening || foregroundReplyPending) return
         try {
             recognizedUtteranceLanguage = null
+            speechObservedThisTurn = false
+            HandsFreeStatus.listening = false
             HandsFreeStatus.status = when {
                 proposed != null -> "Megerősítést várok: igen vagy nem"
                 awaitingCommand -> "Figyelek a parancsodra"
@@ -243,10 +267,12 @@ class HandsFreeService : Service(), RecognitionListener {
                     autoLanguageSwitchEnabled)
                 putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, usingOnDeviceRecognizer)
                 putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
-                // Best effort only: Android speech services may ignore these.
-                putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 900L)
-                putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 1600L)
+                putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+                // Let normal speech pauses pass. These are hints, not guarantees.
+                putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 1500L)
+                putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 3000L)
             })
+            recognitionDeadline(VoiceSessionPolicy.RECOGNITION_TIMEOUT_MS)
         } catch (_: Exception) {
             recognizerListening = false
             errors++
@@ -276,12 +302,14 @@ class HandsFreeService : Service(), RecognitionListener {
             activeVoiceCommand = null
         }
         handler.removeCallbacks(restart)
+        handler.removeCallbacks(recognitionWatchdog)
         handler.removeCallbacks(foregroundReplyTimeout)
         foregroundReplyPending = false
         speaking = true
         HandsFreeStatus.speaking = false
         HandsFreeStatus.micLevel = 0f
         HandsFreeStatus.userSpeaking = false
+        HandsFreeStatus.listening = false
         if (recognizerListening) {
             recognizerListening = false
             recognizer?.cancel()
@@ -1051,10 +1079,17 @@ class HandsFreeService : Service(), RecognitionListener {
     }
 
     override fun onReadyForSpeech(params: Bundle?) {
-        if (running && !speaking) HandsFreeStatus.status = "Hallgatlak, mondd a kérésed…"
+        if (running && recognizerListening && !speaking) {
+            HandsFreeStatus.listening = true
+            HandsFreeStatus.status = "Hallgatlak, mondd a kérésed…"
+        }
     }
     override fun onBeginningOfSpeech() {
+        if (!running || !recognizerListening || speaking) return
+        speechObservedThisTurn = true
+        HandsFreeStatus.listening = true
         HandsFreeStatus.userSpeaking = true
+        recognitionDeadline(VoiceSessionPolicy.RECOGNITION_TIMEOUT_MS)
     }
     override fun onRmsChanged(rmsdB: Float) {
         if (!running || speaking) return
@@ -1064,7 +1099,12 @@ class HandsFreeService : Service(), RecognitionListener {
     override fun onBufferReceived(buffer: ByteArray?) {}
     override fun onEndOfSpeech() {
         HandsFreeStatus.userSpeaking = false
+        HandsFreeStatus.listening = false
         HandsFreeStatus.micLevel = 0f
+        if (running && recognizerListening) {
+            HandsFreeStatus.status = "Feldolgozom a hallottakat…"
+            recognitionDeadline(VoiceSessionPolicy.RESULT_TIMEOUT_MS)
+        }
     }
     override fun onPartialResults(partialResults: Bundle?) {
         if (!recognizerListening || speaking) return
@@ -1073,7 +1113,10 @@ class HandsFreeService : Service(), RecognitionListener {
         val partial = partialResults
             ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
             ?.firstOrNull()?.take(120).orEmpty()
-        if (partial.isNotBlank()) HandsFreeStatus.status = "Beszéd felismerése…"
+        if (partial.isNotBlank()) {
+            speechObservedThisTurn = true
+            HandsFreeStatus.status = "Beszéd felismerése…"
+        }
     }
     override fun onLanguageDetection(results: Bundle) {
         if (!running || speaking || !autoLanguageSwitchEnabled) return
@@ -1089,13 +1132,16 @@ class HandsFreeService : Service(), RecognitionListener {
     override fun onResults(results: Bundle?) {
         if (!recognizerListening) return // Stale result after cancellation.
         recognizerListening = false
+        handler.removeCallbacks(recognitionWatchdog)
+        HandsFreeStatus.listening = false
         HandsFreeStatus.userSpeaking = false
         HandsFreeStatus.micLevel = 0f
         if (running && !speaking) {
             val candidates = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                 ?: arrayListOf()
             val transcript = VoiceTranscriptSelection.select(candidates,
-                results?.getFloatArray(SpeechRecognizer.CONFIDENCE_SCORES))
+                results?.getFloatArray(SpeechRecognizer.CONFIDENCE_SCORES),
+                userInitiated = tapActivated)
             if (transcript == null) {
                 HandsFreeStatus.status = "Zaj vagy bizonytalan beszéd. Mondd újra a kérést."
                 again(VoiceSessionPolicy.retryDelay(SpeechRecognizer.ERROR_NO_MATCH))
@@ -1105,6 +1151,8 @@ class HandsFreeService : Service(), RecognitionListener {
     override fun onError(error: Int) {
         if (!recognizerListening) return // Ignore late callbacks from cancelled turns.
         recognizerListening = false
+        handler.removeCallbacks(recognitionWatchdog)
+        HandsFreeStatus.listening = false
         HandsFreeStatus.userSpeaking = false
         HandsFreeStatus.micLevel = 0f
         if (!running || speaking || foregroundReplyPending) return
@@ -1140,6 +1188,15 @@ class HandsFreeService : Service(), RecognitionListener {
         }
         if (error == SpeechRecognizer.ERROR_NO_MATCH ||
             error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT) {
+            if (autoLanguageSwitchEnabled && speechObservedThisTurn) {
+                // Some OEM engines advertise language switching but then fail
+                // to decode spoken Hungarian. Retry with the manually selected
+                // language alone; keep the Home picker fully functional.
+                autoLanguageSwitchEnabled = false
+                HandsFreeStatus.status = "Többnyelvű felismerés sikertelen; a kiválasztott nyelvre váltok."
+                again(VoiceSessionPolicy.AFTER_REPLY_DELAY_MS)
+                return
+            }
             // Silence is not a failure of a user-started conversation. Keep
             // listening until explicit STOP rather than ending after 5 errors.
             errors = 0
@@ -1188,8 +1245,10 @@ class HandsFreeService : Service(), RecognitionListener {
         tapActivated = false
         lastMessageKey = null
         handler.removeCallbacks(restart)
+        handler.removeCallbacks(recognitionWatchdog)
         handler.removeCallbacks(foregroundReplyTimeout)
         recognizerListening = false
+        HandsFreeStatus.listening = false
         ++recognizerGeneration
         foregroundReplyPending = false
         aiJob?.cancel()
