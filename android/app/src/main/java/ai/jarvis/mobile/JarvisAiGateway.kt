@@ -24,7 +24,7 @@ internal object JarvisAiGateway {
     private const val KEY_TOKEN = "ai_gateway_access_token"
     private const val KEY_CONSENT = "ai_cloud_text_consent_v1"
     private const val KEY_SPEECH_CONSENT = "ai_cloud_voice_consent_v1"
-    internal const val SPEECH_MODEL = "openai/gpt-4o-mini-tts-2025-12-15"
+    internal const val SPEECH_MODEL = JarvisSpeechVoiceConfig.MODEL
     // No credentials or provider body are ever written to this diagnostic.
     @Volatile internal var lastSpeechError: String = ""
         private set
@@ -251,7 +251,7 @@ internal object JarvisAiGateway {
                 connection.setRequestProperty("Accept", "audio/mpeg")
                 val payload = if (direct) JSONObject()
                     .put("model", SPEECH_MODEL).put("input", text)
-                    .put("voice", "alloy").put("response_format", "mp3")
+                    .put("voice", JarvisSpeechVoiceConfig.voice(language)).put("response_format", "mp3")
                 else JSONObject().put("text", text).put("language", language.tag)
                 connection.outputStream.use {
                     it.write(payload.toString().toByteArray(Charsets.UTF_8))
@@ -259,7 +259,7 @@ internal object JarvisAiGateway {
                 val responseStatus = connection.responseCode
                 if (responseStatus != 200) {
                     lastSpeechError = when (responseStatus) {
-                        400 -> "Az OpenRouter nem fogadta el a hangkérést (HTTP 400)."
+                        400 -> "A hangmodell nem fogadta el a választott nyelvet vagy hangot (HTTP 400)."
                         401 -> "Az OpenRouter nem fogadta el a hanghoz az API-kulcsot (HTTP 401)."
                         402 -> "A hangkérés keret- vagy költési limitbe ütközött (HTTP 402)."
                         403 -> "A hangmodellhez nincs hozzáférés vagy szolgáltatói engedély (HTTP 403)."
@@ -282,7 +282,10 @@ internal object JarvisAiGateway {
                         val read = body.read(buffer)
                         if (read == -1) break
                         size += read
-                        if (size > limit) return@withContext null
+                        if (size > limit) { 
+                            lastSpeechError = "A hangfájl túllépte a megengedett méretet."
+                            return@withContext null
+                        }
                         audio.write(buffer, 0, read)
                     }
                 }
