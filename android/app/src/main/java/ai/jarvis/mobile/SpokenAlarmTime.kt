@@ -21,8 +21,7 @@ internal object SpokenAlarmTime {
             forms.forEach { put(it, number) }
         }
         insert(0, "nulla", "zero", "nul", "null", "cero", "zero")
-        insert(1, "egy", "egyre", "one", "ein", "eins", "einund", "une", "un", "uno",
-            "una", "jeden", "pierwsza", "pierwszej", "pierwsza")
+        insert(1, "egy", "egyre", "one", "ein", "eins", "pierwsza", "pierwszej")
         insert(2, "ketto", "kettore", "ket", "ketre", "two", "zwei", "deux", "dos",
             "due", "dwa", "druga", "drugiej", "druga")
         insert(3, "harom", "haromra", "three", "drei", "trois", "tres", "tre",
@@ -54,6 +53,11 @@ internal object SpokenAlarmTime {
         val numericHour = Regex(
             """(?<!\d)(\d{1,2})\s*(?:ora(?:ra|kor|t)?|uhr|heures?|horas?|ore|godzin[aeąęy]?)(?:\s+(\d{1,2})\s*(?:perc(?:re|et)?|min(?:uten|utes|utos)?))?"""
         ).find(clean)
+        // Articles un/une/una precede alarm nouns in Romance languages.
+        // Treat them as 01:00 only in explicit clock expressions.
+        val romanceOne = Regex(
+            """\b(?:a|alle|a las|a la|pour|para las)\s+(?:un|une|una|uno)\s*(?:heure|heures|hora|horas|ore)?\b"""
+        ).find(clean)
         val prepositionHour = Regex(
             """\b(?:at|um|alle|a las|a la|pour|na|o)\s+(\d{1,2})(?!\d)"""
         ).find(clean)
@@ -70,6 +74,7 @@ internal object SpokenAlarmTime {
                 minute = numericHour.groupValues[2].toIntOrNull() ?: 0
             }
             prepositionHour != null -> hour = prepositionHour.groupValues[1].toInt()
+            romanceOne != null -> hour = 1
             magyarSuffix != null -> hour = magyarSuffix.groupValues[1].toInt()
             else -> {
                 // Colloquial Hungarian "fél nyolc" and German "halb acht" = 07:30.
