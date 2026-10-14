@@ -16,6 +16,7 @@ internal object AlarmCommands {
     /** Android's generic clock intent cannot schedule a specific calendar date. */
     fun parseAlarmTime(command: String): AlarmTime? {
         val text = normal(command)
+        if (SpokenAlarmTime.unsupported(command)) return null
         // Never schedule an alarm from a negation, question or a partial
         // multi-step instruction. A verified workflow parses each step alone.
         if (Regex("""\b(ne|nem|dont|never|soha|do not)\b""").containsMatchIn(text) ||
@@ -23,7 +24,7 @@ internal object AlarmCommands {
             Regex("""\b(es|and)\s+(nyisd|hivd|kuldd|torold|allitsd|navigalj)\b""").containsMatchIn(text)) return null
         if (listOf("torold", "torles", "kapcsold ki", "kikapcsol", "nyisd meg", "mutasd").any { it in text }) return null
         if (hasUnsupportedDate(command)) return null
-        if (!listOf("ebreszt", "ebressz", "kelts", "alarm", "set alarm").any { it in text }) return null
+        if (!SpokenAlarmTime.isSetIntent(command)) return null
         val clock = Regex("(?<!\\d)(\\d{1,2})\\s*[:.]\\s*(\\d{1,2})(?!\\d)").find(text)
         val spelled = Regex("(?<!\\d)(\\d{1,2})\\s*ora(?:ra|kor|t)?(?:\\s*(\\d{1,2})\\s*perc(?:re|kor|et)?)?").find(text)
         val half = Regex("\\bfel\\s+(\\d{1,2})\\b").find(text)
@@ -42,7 +43,7 @@ internal object AlarmCommands {
                 hour = half.groupValues[1].toInt() - 1
                 minute = 30
             }
-            else -> return null
+            else -> return SpokenAlarmTime.parse(command)
         }
         if (hour !in 0..23 || minute !in 0..59) return null
         if ("este" in text || "delutan" in text) {
