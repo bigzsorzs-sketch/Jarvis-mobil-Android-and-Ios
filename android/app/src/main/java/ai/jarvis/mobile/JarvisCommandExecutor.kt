@@ -19,6 +19,10 @@ internal object JarvisCommandExecutor {
             onNavigate(route)
             return "Megnyitottam a Jarvis $route oldalát."
         }
+        if (SpokenAlarmTime.isSetIntent(text) &&
+            AlarmCommands.parseAlarmTime(text) == null) {
+            return "Nem értettem az egyszeri ébresztés idejét. Nem hoztam létre ébresztőt."
+        }
         return when {
             ExternalTasks.parseMessage(text) != null ->
                 ExternalTasks.dispatch(context, HandoffTask.Message(ExternalTasks.parseMessage(text)!!))
