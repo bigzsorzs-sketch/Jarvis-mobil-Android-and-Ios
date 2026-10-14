@@ -6,6 +6,7 @@ import android.content.*
 import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.os.*
+import android.util.Log
 import android.speech.*
 import androidx.compose.runtime.*
 import androidx.core.content.ContextCompat
@@ -98,6 +99,8 @@ class HandsFreeService : Service(), RecognitionListener {
     private var cloudVoice: JarvisCloudVoicePlayer? = null
     private var bargeInMonitor: JarvisBargeInMonitor? = null
     private var spokenReplySerial = 0L
+    // Non-identifying debug latency metric for measurable Basic voice QA.
+    private var lastVoiceEndedAtMs = 0L
     private var activeVoiceCommand: String? = null
     private var turnCounter = 0L
     private var usingOnDeviceRecognizer = false
@@ -353,6 +356,16 @@ class HandsFreeService : Service(), RecognitionListener {
                     HandsFreeStatus.speaking = true
                     HandsFreeStatus.audioError = ""
                     HandsFreeStatus.status = "Jarvis AI-hang lejátszása…"
+                    // Measure first ACTUAL audible playback, not when text arrives.
+                    // No transcript, API token, identity or personal data is logged.
+                    if (lastVoiceEndedAtMs > 0L) {
+                        val elapsedMs = SystemClock.elapsedRealtime() - lastVoiceEndedAtMs
+                        if (BuildConfig.DEBUG && elapsedMs in 0L..120_000L) {
+                            Log.d("JarvisVoiceLatency",
+                                "end_of_speech_to_first_audio_ms=$elapsedMs")
+                        }
+                        lastVoiceEndedAtMs = 0L
+                    }
                 }
             }
         ) { successful ->
@@ -1135,6 +1148,7 @@ class HandsFreeService : Service(), RecognitionListener {
         HandsFreeStatus.listening = false
         HandsFreeStatus.micLevel = 0f
         if (running && recognizerListening) {
+            if (speechObservedThisTurn) lastVoiceEndedAtMs = SystemClock.elapsedRealtime()
             HandsFreeStatus.status = "Feldolgozom a hallottakat…"
             recognitionDeadline(VoiceSessionPolicy.RESULT_TIMEOUT_MS)
         }
@@ -1261,6 +1275,7 @@ class HandsFreeService : Service(), RecognitionListener {
     }
     private fun shutdown(status: String) {
         spokenReplySerial++
+        lastVoiceEndedAtMs = 0L
         bargeInMonitor?.close()
         bargeInMonitor = null
         running = false
