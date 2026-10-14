@@ -42,8 +42,9 @@ internal object JarvisNativeActions {
                 RegexOption.IGNORE_CASE).containsMatchIn(command) &&
             ("ebreszt" in n || "alarm" in n)) return CANCEL_ALARM
 
-        if (Regex("""^(?:[aá]ll[ií]tsd\s+be|[eé]bressz|[eé]breszt[oő]t\s+[aá]ll[ií]ts|set\s+alarm|kelts)\b""",
-                RegexOption.IGNORE_CASE).containsMatchIn(command) &&
+        // The same seven-language offline parser authorizes both typed
+        // and hands-free commands. It never accepts model-generated times.
+        if (SpokenAlarmTime.isSetIntent(command) &&
             AlarmCommands.parseAlarmTime(command) != null) return SET_ALARM
 
         if (VoiceNavigation.destinationFrom(command) != null) return NAVIGATE
