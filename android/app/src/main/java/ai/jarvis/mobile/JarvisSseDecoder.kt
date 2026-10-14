@@ -60,15 +60,17 @@ internal class JarvisSseDecoder {
 /** Turns model tokens into speakable units, without waiting for the full response. */
 internal class JarvisIncrementalPhrases {
     private val waiting = StringBuilder()
+    private var firstPhrase = true
     fun accept(delta: String): List<String> {
         if (delta.isEmpty()) return emptyList()
         waiting.append(delta)
         val ready = mutableListOf<String>()
-        while (waiting.length >= 75) {
-            // Prefer a completed sentence; never split a word.
+        while (waiting.length >= if (firstPhrase) 55 else 90) {
+            // The first completed sentence can start speaking sooner; later
+            // sentences remain larger to avoid many short, costly TTS calls.
             val upper = minOf(waiting.length, 205)
             var cut = -1
-            for (i in 55 until upper) {
+            for (i in (if (firstPhrase) 32 else 55) until upper) {
                 if (waiting[i] in ".!?。！？\n" &&
                     (i + 1 == waiting.length || waiting[i + 1].isWhitespace())) {
                     cut = i + 1
@@ -81,7 +83,10 @@ internal class JarvisIncrementalPhrases {
             if (cut < 0) break
             val phrase = waiting.substring(0, cut).trim()
             waiting.delete(0, cut)
-            if (phrase.isNotBlank()) ready.add(phrase)
+            if (phrase.isNotBlank()) {
+                ready.add(phrase)
+                firstPhrase = false
+            }
         }
         return ready
     }
