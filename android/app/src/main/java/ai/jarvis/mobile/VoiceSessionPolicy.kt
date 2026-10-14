@@ -10,6 +10,10 @@ import android.speech.SpeechRecognizer
 internal object VoiceSessionPolicy {
     const val AFTER_REPLY_DELAY_MS = 850L
     const val REPLY_TIMEOUT_MS = 45_000L
+    // A speech provider can never call onResults/onError after ending capture.
+    // Bound its lifetime so a running UI never masks a dead microphone.
+    const val RECOGNITION_TIMEOUT_MS = 25_000L
+    const val RESULT_TIMEOUT_MS = 8_500L
 
     fun retryDelay(error: Int, consecutiveFailures: Int = 0): Long {
         val base = when (error) {
