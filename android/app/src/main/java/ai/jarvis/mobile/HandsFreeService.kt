@@ -813,7 +813,8 @@ class HandsFreeService : Service(), RecognitionListener {
             when {
                 !privateVoiceAllowed() ->
                     speak("Oldd fel a telefont a navigáció indításához.")
-                VoiceNavigation.resolve(this, destination) == null ->
+                VoiceNavigation.resolve(this, destination) == null &&
+                    !VoiceNavigation.maySearchNamedPlace(destination) ->
                     speak(JarvisNavigationText.missingDestination(chosen))
                 else -> {
                     // Android permits launching Maps from our foreground Activity,
@@ -1068,7 +1069,8 @@ class HandsFreeService : Service(), RecognitionListener {
         if (nav != null) {
             val chosen = recognizedUtteranceLanguage
                 ?: JarvisLanguageSettings.load(applicationContext)
-            if (VoiceNavigation.resolve(this, nav) == null) {
+            if (VoiceNavigation.resolve(this, nav) == null &&
+                !VoiceNavigation.maySearchNamedPlace(nav)) {
                 speak(JarvisNavigationText.missingDestination(chosen))
             } else {
                 // A foreground activity immediately launches Google Maps. A service
