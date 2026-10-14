@@ -7,6 +7,8 @@ class VoiceCallingTest {
     @Test fun politeHungarianCallsStillNeedRealRecipientAndConfirmation() {
         assertEquals("Esztert", VoiceCalling.extractRequest("Légy szíves, hívd fel Esztert"))
         assertEquals("Vivit", VoiceCalling.extractRequest("Figyelj, légy szíves hívd fel Vivit"))
+        assertEquals("Vivit", VoiceCalling.extractRequest("Figyelj, légy szíves, hívd fel Vivit"))
+        assertNull(VoiceCalling.extractRequest("Légy szíves, hívd fel Esztert és Vivit"))
         assertNull(VoiceCalling.extractRequest("Légy szíves, ne hívd fel Esztert"))
         assertTrue(VoiceCalling.needsTarget("Légy szíves hívd fel"))
     }
