@@ -960,6 +960,10 @@ fun JarvisApp(context: Context, launcherRequest: String? = null) {
             
             return
         }
+        if (SpokenAlarmTime.isSetIntent(command)) {
+            addHistory(command to "Nem sikerült biztonságosan értelmezni az ébresztő időpontját vagy ismétlését. Nem állítottam be ébresztőt. Adj meg egy egyszeri pontos időt.")
+            return
+        }
         val systemPanel = JarvisSystemPanels.identify(command)
         if (systemPanel != null) {
             addHistory(command to JarvisSystemPanels.open(context, systemPanel, command))
