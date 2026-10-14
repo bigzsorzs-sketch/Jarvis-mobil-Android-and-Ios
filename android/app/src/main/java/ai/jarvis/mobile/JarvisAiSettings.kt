@@ -27,6 +27,12 @@ internal fun JarvisAiSettings(context: Context) {
     var voiceConsent by remember { mutableStateOf(JarvisAiGateway.voiceConsent(context)) }
     val selectedLanguage = LocalJarvisLanguage.current
     val scope = rememberCoroutineScope()
+    var audioTestRunning by remember { mutableStateOf(false) }
+    var audioTestStatus by remember { mutableStateOf("") }
+    val voiceTester = remember(context) { JarvisCloudVoicePlayer(context) }
+    DisposableEffect(voiceTester) {
+        onDispose { voiceTester.release() }
+    }
 
     Text("AI-agy",
         style = MaterialTheme.typography.titleLarge)
@@ -188,6 +194,55 @@ internal fun JarvisAiSettings(context: Context) {
         )[selectedLanguage.ordinal],
         style = MaterialTheme.typography.bodySmall
     )
+    Spacer(Modifier.height(12.dp))
+    Text("Hangellenőrzés: " + (JarvisVoiceReadiness.reason(context)
+        ?: "Az AI-hang beállításai rendben vannak."),
+        style = MaterialTheme.typography.bodySmall)
+    Text(JarvisVoiceReadiness.mediaVolumeMessage(context),
+        style = MaterialTheme.typography.bodySmall)
+    ControlledOutlinedButton(
+        enabled = !audioTestRunning,
+        onClick = {
+            val unavailable = JarvisVoiceReadiness.reason(context)
+            if (unavailable != null) {
+                audioTestStatus = unavailable
+            } else {
+                audioTestRunning = true
+                audioTestStatus = "Kapcsolódás a felhős AI-hanghoz…"
+                val testPhrase = when (selectedLanguage) {
+                    JarvisLanguage.HUNGARIAN -> "Jarvis hangteszt. Ha ezt hallod, az AI-hang és a lejátszás működik."
+                    JarvisLanguage.ENGLISH -> "Jarvis voice test. If you hear this, AI speech playback is working."
+                    JarvisLanguage.GERMAN -> "Jarvis Sprachtest. Wenn du mich hörst, funktioniert die Sprachausgabe."
+                    JarvisLanguage.FRENCH -> "Test vocal Jarvis. Si vous entendez ceci, le son fonctionne."
+                    JarvisLanguage.SPANISH -> "Prueba de voz Jarvis. Si me escuchas, la voz funciona."
+                    JarvisLanguage.ITALIAN -> "Test voce Jarvis. Se mi senti, la voce funziona."
+                    JarvisLanguage.POLISH -> "Test głosu Jarvis. Jeśli mnie słyszysz, dźwięk działa."
+                }
+                val started = voiceTester.speak(testPhrase, selectedLanguage,
+                    onStart = {
+                        audioTestStatus = "Az Android elindította a médiahang lejátszását. " +
+                            JarvisVoiceReadiness.mediaVolumeMessage(context)
+                    },
+                    completed = { success ->
+                        audioTestRunning = false
+                        audioTestStatus = if (success)
+                            "Az MP3 lejátszása technikailag befejeződött. Ha nem hallottad, ellenőrizd a médiahangot és a Bluetooth-kimenetet."
+                        else voiceTester.lastFailure.ifBlank {
+                            "Az AI-hang nem játszható le. Ellenőrizd a kapcsolatot és a telefon hangkimenetét."
+                        }
+                    })
+                if (!started) {
+                    audioTestRunning = false
+                    audioTestStatus = voiceTester.lastFailure.ifBlank {
+                        "AI-hang nem indult el; ellenőrizd a hozzájárulást és a beállításokat."
+                    }
+                }
+            }
+        },
+        commandLabel = "AI-hang tesztelése"
+    ) { Text(if (audioTestRunning) "AI-hang teszt folyamatban…" else "AI-hang tesztelése") }
+    if (audioTestStatus.isNotBlank())
+        Text(audioTestStatus, style = MaterialTheme.typography.bodySmall)
     Spacer(Modifier.height(12.dp))
     Text(
         if (paired && selectedMode == savedMode) "AI-hozzáférés mentve ezen a telefonon."

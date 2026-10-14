@@ -1,6 +1,7 @@
 package ai.jarvis.mobile
 
 import android.content.Context
+import android.media.AudioAttributes
 import android.media.MediaPlayer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -32,9 +33,16 @@ internal class JarvisCloudVoicePlayer(context: Context) {
 
     /** Returns false immediately when speech lacks explicit separate cloud consent. */
     fun speak(text: String, language: JarvisLanguage, onStart: () -> Unit = {}, completed: (Boolean) -> Unit): Boolean {
-        if (closed || text.isBlank() || text.length > 30_000 ||
-            !JarvisAiGateway.configured(appContext) || !JarvisAiGateway.voiceConsent(appContext))
+        lastFailure = JarvisVoiceReadiness.reason(appContext).orEmpty()
+        if (closed) {
+            lastFailure = "A Jarvis AI-hanglejátszó bezárult. Indítsd újra a beszélgetést."
             return false
+        }
+        if (text.isBlank() || text.length > 30_000) {
+            lastFailure = "A felolvasandó szöveg hiányzik vagy túl hosszú."
+            return false
+        }
+        if (lastFailure.isNotBlank()) return false
         val chunks = JarvisSpeechChunks.split(text, maxChars = 1200)
         if (chunks.isEmpty()) return false
         stop()
@@ -91,10 +99,21 @@ internal class JarvisCloudVoicePlayer(context: Context) {
             val media = MediaPlayer()
             player = media
             try {
+                // Explicitly route AI voice through the Android MEDIA stream,
+                // not call/ringtone volume. Bluetooth output stays user-selected.
+                media.setAudioAttributes(
+                    AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_MEDIA)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                        .build()
+                )
                 media.setDataSource(file.absolutePath)
                 media.setOnPreparedListener {
                     if (request == serial && continuation.isActive) {
-                        try { it.start(); onStart() }
+                        try {
+                            it.start()
+                            onStart()
+                        }
                         catch (_: Exception) {
                             if (continuation.isActive) continuation.resume(false)
                         }

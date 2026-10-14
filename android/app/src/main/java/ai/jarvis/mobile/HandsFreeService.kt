@@ -23,6 +23,8 @@ internal object HandsFreeStatus {
     var userSpeaking by mutableStateOf(false)
     var micLevel by mutableFloatStateOf(0f)
     var outputLevel by mutableFloatStateOf(0f)
+    // Persist actionable output errors across recognition restarts.
+    var audioError by mutableStateOf("")
 }
 internal data class PendingPhoneApp(val action: String, val createdAtMs: Long)
 internal data class PendingNativeAction(val action: String, val original: String, val createdAtMs: Long)
@@ -153,6 +155,7 @@ class HandsFreeService : Service(), RecognitionListener {
             finishSpokenReply()
         }
         HandsFreeStatus.running = true
+        HandsFreeStatus.audioError = ""
         cloudVoice = JarvisCloudVoicePlayer(applicationContext)
         try {
             usingOnDeviceRecognizer = Build.VERSION.SDK_INT >= 31 &&
@@ -202,7 +205,10 @@ class HandsFreeService : Service(), RecognitionListener {
                 JarvisSpeechRecognition.configure(this, JarvisLanguageSettings.load(applicationContext),
                     autoLanguageSwitchEnabled)
                 putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, usingOnDeviceRecognizer)
-                putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
+                putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
+                // Best effort only: Android speech services may ignore these.
+                putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 900L)
+                putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 1600L)
             })
         } catch (_: Exception) {
             recognizerListening = false
@@ -243,18 +249,32 @@ class HandsFreeService : Service(), RecognitionListener {
             recognizer?.cancel()
         }
         val started = cloudVoice?.speak(text, wantedLanguage,
-            onStart = { if (running) HandsFreeStatus.speaking = true }
+            onStart = {
+                if (running) {
+                    HandsFreeStatus.speaking = true
+                    HandsFreeStatus.audioError = ""
+                    HandsFreeStatus.status = "Jarvis AI-hang lejátszása…"
+                }
+            }
         ) { successful ->
             if (running) {
-                if (!successful) HandsFreeStatus.status =
-                    cloudVoice?.lastFailure.orEmpty().ifBlank {
+                if (!successful) {
+                    val failure = cloudVoice?.lastFailure.orEmpty().ifBlank {
                         JarvisReadAloudCommand.response(wantedLanguage, "failed")
                     }
+                    HandsFreeStatus.audioError = failure + " " +
+                        JarvisVoiceReadiness.mediaVolumeMessage(applicationContext)
+                    HandsFreeStatus.status = "AI-hang hiba. Nézd meg a hangellenőrzést."
+                }
                 finishSpokenReply()
             }
         } == true
         if (!started) {
-            HandsFreeStatus.status = JarvisReadAloudCommand.response(wantedLanguage, "missingTts")
+            HandsFreeStatus.audioError = cloudVoice?.lastFailure.orEmpty().ifBlank {
+                JarvisVoiceReadiness.reason(applicationContext)
+                    ?: "Nem tudtam elindítani az AI-hang lejátszását."
+            }
+            HandsFreeStatus.status = "AI-hang nem indult; ellenőrizd a Beállítások → AI-agy oldalt."
             finishSpokenReply()
         }
     }
@@ -1008,7 +1028,15 @@ class HandsFreeService : Service(), RecognitionListener {
         HandsFreeStatus.userSpeaking = false
         HandsFreeStatus.micLevel = 0f
     }
-    override fun onPartialResults(partialResults: Bundle?) {}
+    override fun onPartialResults(partialResults: Bundle?) {
+        if (!recognizerListening || speaking) return
+        // The recognizer, not a raw PCM microphone stream, applies its own
+        // device-dependent acoustic/noise processing.
+        val partial = partialResults
+            ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+            ?.firstOrNull()?.take(120).orEmpty()
+        if (partial.isNotBlank()) HandsFreeStatus.status = "Beszéd felismerése…"
+    }
     override fun onLanguageDetection(results: Bundle) {
         if (!running || speaking || !autoLanguageSwitchEnabled) return
         val detected = JarvisSpeechRecognition.fromPlatformResult(
@@ -1025,8 +1053,16 @@ class HandsFreeService : Service(), RecognitionListener {
         recognizerListening = false
         HandsFreeStatus.userSpeaking = false
         HandsFreeStatus.micLevel = 0f
-        if (running && !speaking)
-            process(results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty())
+        if (running && !speaking) {
+            val candidates = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                ?: arrayListOf()
+            val transcript = VoiceTranscriptSelection.select(candidates,
+                results?.getFloatArray(SpeechRecognizer.CONFIDENCE_SCORES))
+            if (transcript == null) {
+                HandsFreeStatus.status = "Zaj vagy bizonytalan beszéd. Mondd újra a kérést."
+                again(VoiceSessionPolicy.retryDelay(SpeechRecognizer.ERROR_NO_MATCH))
+            } else process(transcript)
+        }
     }
     override fun onError(error: Int) {
         if (!recognizerListening) return // Cancellation is not a new listen error.

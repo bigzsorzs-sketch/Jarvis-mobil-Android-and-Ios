@@ -25,6 +25,9 @@ internal fun HandsFreePanel(context: Context) {
     val heard = HandsFreeStatus.heard
     val answer = HandsFreeStatus.answer
     var issue by remember { mutableStateOf("") }
+    var micTestResult by remember { mutableStateOf("") }
+    val micTester = remember(context) { JarvisDictation(context) }
+    DisposableEffect(micTester) { onDispose { micTester.stop() } }
     var allowWhileLocked by remember(context) {
         mutableStateOf(SecurePrefs(context).read("voice_private_on_lock", "false") == "true")
     }
@@ -98,6 +101,25 @@ internal fun HandsFreePanel(context: Context) {
                     Text("Hangfigyelés leállítása")
                 }
             }
+            ControlledOutlinedButton(onClick = {
+                if (HandsFreeStatus.running) {
+                    micTestResult = "Előbb állítsd le a folyamatos beszélgetést, hogy két felismerő ne használja ugyanazt a mikrofont."
+                } else {
+                    micTestResult = "Mikrofon-próba indul: mondd, hogy 'Jarvis, hallasz engem?'"
+                    micTester.start(
+                        partial = { micTestResult = "Felismerés folyamatban: $it" },
+                        complete = { micTestResult = "A telefon ezt értette: $it" },
+                        status = { micTestResult = it }
+                    )
+                }
+            }, commandLabel = "Mikrofon felismerés teszt") {
+                Text("Mikrofon felismerés teszt")
+            }
+            if (micTestResult.isNotBlank())
+                Text(micTestResult, color = JarvisPalette.subtleText,
+                    style = MaterialTheme.typography.bodySmall)
+            if (HandsFreeStatus.audioError.isNotBlank())
+                Text("Hanghiba: " + HandsFreeStatus.audioError, color = Color(0xFFFFAAAA))
             if (issue.isNotBlank()) Text(issue, color = Color(0xFFFFAAAA))
             if (heard.isNotBlank()) Text("Hallottam: $heard", color = JarvisPalette.mainText)
             if (answer.isNotBlank()) Text("Jarvis: $answer", color = JarvisPalette.subtleText)
