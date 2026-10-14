@@ -67,4 +67,12 @@ class JarvisSseDecoderTest {
         assertEquals("Első rész", limited.text)
     }
 
+    @Test fun firstCompletePhraseIsAvailableBeforeLongerAnswerArrives() {
+        val phrases = JarvisIncrementalPhrases()
+        assertTrue(phrases.accept("A kérdésedre röviden azt ").isEmpty())
+        val spoken = phrases.accept("mondom, hogy ez így működik. És még van folytatás.")
+        assertEquals(listOf("A kérdésedre röviden azt mondom, hogy ez így működik."), spoken)
+        assertEquals("És még van folytatás.", phrases.finish())
+    }
+
 }
