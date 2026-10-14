@@ -73,4 +73,25 @@ class JarvisGlucoseDataTest {
         assertFalse(JarvisGlucoseVoice.isQuery("Mire jó a vércukormérő?"))
         assertFalse(JarvisGlucoseVoice.isQuery("How do I treat diabetes?"))
     }
+
+    @Test fun longConversationalHungarianGlucoseCommandsStayOffline() {
+        val said = listOf(
+            "nézd meg hogy ilyen meg tudod-e oldani hogy megnézed a cukrom",
+            "nézd meg hogy a cukromat meg tudod a nézni hogy hány nyascukrom van",
+            "Mennyi most a cukrom?",
+            "Jarvis megnezed a vercukromat?",
+            "Olvasd ki a legutóbbi glukózom értékét"
+        )
+        for (input in said) assertTrue("Expected local glucose lookup: $input",
+            JarvisGlucoseVoice.isQuery(input))
+        val notReadings = listOf(
+            "Ne nézd meg a cukrom",
+            "Mitől magas a cukrom?",
+            "Mire jó a vércukormérő?",
+            "Melyik cukormentes terméket vegyem?",
+            "Hogyan csökkentsem a cukromat?"
+        )
+        for (input in notReadings) assertFalse("Not a personal glucose read: $input",
+            JarvisGlucoseVoice.isQuery(input))
+    }
 }
