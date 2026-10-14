@@ -8,6 +8,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
@@ -43,14 +44,19 @@ internal class JarvisCloudVoicePlayer(context: Context) {
             return false
         }
         if (lastFailure.isNotBlank()) return false
-        val chunks = JarvisSpeechChunks.split(text, maxChars = 1200)
+        val chunks = JarvisSpeechChunks.splitForConversation(text)
         if (chunks.isEmpty()) return false
         stop()
         lastFailure = ""
         val request = serial
         work = scope.launch {
-            for (chunk in chunks) {
-                val audio = JarvisAiGateway.speechBytes(appContext, chunk, language)
+            // Prefetch at most one following MP3 while the current chunk is
+            // playing. This reduces dead air without increasing memory use.
+            var upcoming = async(Dispatchers.IO) {
+                JarvisAiGateway.speechBytes(appContext, chunks.first(), language)
+            }
+            for (index in chunks.indices) {
+                val audio = upcoming.await()
                 if (request != serial) return@launch
                 if (audio == null) {
                     lastFailure = JarvisAiGateway.lastSpeechError
@@ -71,16 +77,23 @@ internal class JarvisCloudVoicePlayer(context: Context) {
                     file.delete()
                     return@launch
                 }
+                upcoming = if (index + 1 < chunks.size) async(Dispatchers.IO) {
+                    JarvisAiGateway.speechBytes(appContext, chunks[index + 1], language)
+                } else upcoming
                 activeFile = file
                 val played = try {
                     playFile(file, request, onStart)
                 } catch (_: Exception) {
                     false
                 } finally {
-                    player?.release()
-                    player = null
+                    // An obsolete coroutine must never release a newer turn's
+                    // player/file after a barge-in or fast user interruption.
+                    if (request == serial) {
+                        player?.release()
+                        player = null
+                    }
                     file.delete()
-                    activeFile = null
+                    if (activeFile === file) activeFile = null
                 }
                 if (request != serial) return@launch
                 if (!played) {
