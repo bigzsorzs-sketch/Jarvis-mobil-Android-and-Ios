@@ -22,8 +22,10 @@ class VoiceNavigationTest {
             "Légy szíves, vigyél haza" to "HOME",
             "Figyelj, légy szíves, navigálj Leedsbe" to "Leeds",
             "Jarvis, légy szíves, nyisd meg a térképet és navigálj Yorkba" to "York",
-            "Figyelj, kérlek, vigyél Eszterhez" to "Eszter",
-            "Kérlek navigálj Manchesterbe" to "Manchester"
+            "Figyelj, kérlek, vigyél Eszterhez" to "PERSON:Eszter",
+            "Kérlek navigálj Manchesterbe" to "Manchester",
+            "Navigálj Eszterhez" to "PERSON:Eszter",
+            "Vigyél Cathy -hez" to "PERSON:Cathy"
         )
         for ((spoken, destination) in requests) {
             assertEquals(spoken, destination, VoiceNavigation.destinationFrom(spoken))
