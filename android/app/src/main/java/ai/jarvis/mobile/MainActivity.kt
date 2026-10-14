@@ -812,6 +812,7 @@ fun JarvisApp(context: Context, launcherRequest: String? = null) {
             val pendingIndex = conversation.lastIndex
             val pendingChatId = currentChat.id
             val progressive = StringBuilder()
+            var lastVisibleUpdateMs = 0L
             drawerScope.launch {
                 val outcome = if (JarvisAiGateway.canStreamText(context, command)) {
                     JarvisAiGateway.askIncremental(context, command, language.tag,
@@ -821,7 +822,13 @@ fun JarvisApp(context: Context, launcherRequest: String? = null) {
                                 pendingIndex in conversation.indices &&
                                 conversation[pendingIndex].first == command) {
                                 progressive.append(delta)
-                                conversation[pendingIndex] = command to progressive.toString()
+                                // Do not recompose the entire chat for every tiny SSE token.
+                                val nowMs = android.os.SystemClock.elapsedRealtime()
+                                if (nowMs - lastVisibleUpdateMs >= 85L ||
+                                    delta.contains('\n') || progressive.length < 30) {
+                                    conversation[pendingIndex] = command to progressive.toString()
+                                    lastVisibleUpdateMs = nowMs
+                                }
                             }
                         },
                         onPhrase = { phrase ->
