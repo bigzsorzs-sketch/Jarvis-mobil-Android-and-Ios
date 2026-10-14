@@ -11,8 +11,12 @@ import java.util.Locale
  */
 internal object JarvisGlucoseVoice {
     private val patterns = listOf(
-        Regex("""\b(nez(d)? meg|mennyi|mutasd|ellenorizd|mi)[a-z\s]{0,35}\b(cukrom|vercukrom|vercukorszintem|glukozom)\b"""),
-        Regex("""\b(cukrom|vercukrom|vercukorszintem|glukozom)[a-z\s]{0,35}\b(mennyi|most|nezd|mutasd|erteke)\b"""),
+        // Hungarian STT often inserts fillers, disfluencies and inflected words:
+        // "nézd meg hogy meg tudod-e oldani hogy megnézed a cukrom",
+        // "hány a cukrom", "nézd meg a cukromat". Treat only personal
+        // measurement requests as local reads; never ask the LLM to guess data.
+        Regex("""\b(nezd(?: meg)?|megnezned|megnezed|megnezni|lekered|lekerni|mennyi|hany|mutasd|ellenorizd|olvasd ki)[a-z0-9\s']{0,145}\b(cukromat?|vercukromat?|vercukorszintemet?|glukozomat?)\b"""),
+        Regex("""\b(cukromat?|vercukromat?|vercukorszintemet?|glukozomat?)\b[a-z0-9\s']{0,80}\b(mennyi|hany|most|nezd|mutasd|erteke|meresem)\b"""),
         Regex("""\b(check|show|tell me|what is|what's)[a-z\s]{0,35}\b(my glucose|my blood sugar|my sugar level)\b"""),
         Regex("""\b(wie hoch|pruf|zeige)[a-z\s]{0,35}\b(mein blutzucker|meinen blutzucker|meine glukose)\b"""),
         Regex("""\b(verifie|montre|combien)[a-z\s]{0,35}\b(ma glycemie|mon taux de sucre)\b"""),
@@ -27,7 +31,10 @@ internal object JarvisGlucoseVoice {
 
     fun isQuery(raw: String): Boolean {
         val q = normalize(raw)
-        return q.length in 5..150 && patterns.any { it.containsMatchIn(q) }
+        // Never reinterpret a request not to read private health data.
+        if (Regex("""\b(?:ne|nem|dont|don't|never)\s+(?:nezd|megnezd|ellenorizd|mutasd|check|show)\b""")
+                .containsMatchIn(q)) return false
+        return q.length in 5..220 && patterns.any { it.containsMatchIn(q) }
     }
 
     private fun local(context: Context): JarvisGlucoseData.Point? = runCatching {
