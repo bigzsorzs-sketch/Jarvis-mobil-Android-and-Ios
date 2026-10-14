@@ -35,7 +35,7 @@ internal object GmailDraftConversationFlow {
 
     // A standalone recipient address is meaningful only when a Gmail draft
     // is explicitly waiting for a recipient. Never infer delivery permission.
-    private val recipientEmail = Regex("""[A-Za-z0-9._%+\\-]+@[A-Za-z0-9.\\-]+\\.[A-Za-z]{2,}""")
+    private val recipientEmail = Regex("""[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}""")
     fun recipientAddress(raw: String): String? = raw.trim().takeIf {
         it.length <= 254 && recipientEmail.matches(it)
     }
