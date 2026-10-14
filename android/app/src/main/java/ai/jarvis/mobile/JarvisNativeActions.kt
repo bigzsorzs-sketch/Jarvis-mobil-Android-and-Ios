@@ -89,17 +89,9 @@ internal object JarvisNativeActions {
                         "Nem sikerült megnyitni a térképalkalmazást."
                 }
             }
-            SET_ALARM -> when (val result = JarvisAlarms.schedule(context,
+            SET_ALARM -> JarvisAlarmText.result(context, JarvisAlarms.schedule(context,
                 AlarmCommands.parseAlarmTime(command)
-                    ?: return "Érvénytelen ébresztési idő.")) {
-                is JarvisAlarms.Result.Created ->
-                    "A Jarvis-ébresztőt " + result.time + " időpontra időzítettem. Ellenőrizd a telefonon."
-                JarvisAlarms.Result.NoExactAlarmPermission ->
-                    "A pontos ébresztéshez Android-engedély szükséges."
-                JarvisAlarms.Result.NoNotificationPermission ->
-                    "Az ébresztő értesítéseihez engedély szükséges."
-                JarvisAlarms.Result.Failed -> "Nem sikerült létrehozni az ébresztőt."
-            }
+                    ?: return JarvisAlarmText.invalid(context)))
             CANCEL_ALARM -> if (JarvisAlarms.cancel(context))
                 "A Jarvis saját ébresztőjét töröltem."
                 else "Nem találtam törölhető Jarvis-ébresztőt."
