@@ -91,12 +91,21 @@ class HandsFreeService : Service(), RecognitionListener {
     private val foregroundReplyTimeout = Runnable {
         if (running && foregroundReplyPending) {
             foregroundReplyPending = false
+            cancelForegroundStream()
             speak("A válasz nem érkezett meg időben. Újra figyelek rád.")
         }
     }
     private var recognizer: SpeechRecognizer? = null
     private var recognizerGeneration = 0
     private var cloudVoice: JarvisCloudVoicePlayer? = null
+    private var foregroundStream: JarvisCloudVoicePlayer.StreamHandle? = null
+    private var foregroundTurnId = 0L
+    private fun cancelForegroundStream() {
+        foregroundTurnId++
+        JarvisVoiceStreamBridge.receiver = null
+        foregroundStream?.cancel()
+        foregroundStream = null
+    }
     private var bargeInMonitor: JarvisBargeInMonitor? = null
     private var spokenReplySerial = 0L
     // Non-identifying debug latency metric for measurable Basic voice QA.
@@ -179,6 +188,7 @@ class HandsFreeService : Service(), RecognitionListener {
         }
         running = true
         JarvisForegroundCommands.interruptSpeech = {
+            cancelForegroundStream()
             spokenReplySerial++
             bargeInMonitor?.stop()
             aiJob?.cancel()
@@ -300,6 +310,9 @@ class HandsFreeService : Service(), RecognitionListener {
         // A real mic onset interrupts ONLY speech output, never executes a
         // partial transcript. The existing recognizer handles the new turn.
         if (!running || !speaking || !HandsFreeStatus.speaking) return
+        cancelForegroundStream()
+        foregroundReplyPending = false
+        handler.removeCallbacks(foregroundReplyTimeout)
         spokenReplySerial++
         cloudVoice?.stop()
         bargeInMonitor?.stop()
@@ -444,13 +457,67 @@ class HandsFreeService : Service(), RecognitionListener {
             if (sharedCommand.isNotBlank()) {
                 aiJob?.cancel()
                 activeVoiceCommand = null // Activity writes the single shared history entry.
+                cancelForegroundStream()
+                val turn = foregroundTurnId
                 foregroundReplyPending = true
                 handler.removeCallbacks(restart)
+                JarvisVoiceStreamBridge.receiver = { requested, phrase ->
+                    if (!running || turn != foregroundTurnId ||
+                        !foregroundReplyPending || requested != sharedCommand) {
+                        false
+                    } else {
+                        if (foregroundStream == null) {
+                            val replySerial = ++spokenReplySerial
+                            val language = recognizedUtteranceLanguage ?:
+                                JarvisLanguageSettings.load(applicationContext)
+                            foregroundStream = cloudVoice?.startStream(language,
+                                onStart = {
+                                    if (running && foregroundTurnId == turn &&
+                                        spokenReplySerial == replySerial) {
+                                        if (!HandsFreeStatus.speaking) bargeInMonitor?.start()
+                                        HandsFreeStatus.speaking = true
+                                        HandsFreeStatus.status = "Jarvis AI-hang lejátszása…"
+                                        HandsFreeStatus.audioError = ""
+                                        if (lastVoiceEndedAtMs > 0L) {
+                                            val elapsed = SystemClock.elapsedRealtime() - lastVoiceEndedAtMs
+                                            if (BuildConfig.DEBUG && elapsed in 0L..120_000L)
+                                                Log.d("JarvisVoiceLatency",
+                                                    "end_of_speech_to_first_audio_ms=$elapsed")
+                                            lastVoiceEndedAtMs = 0L
+                                        }
+                                    }
+                                },
+                                completed = { successful ->
+                                    if (running && foregroundTurnId == turn) {
+                                        foregroundStream = null
+                                        if (!successful) {
+                                            HandsFreeStatus.audioError =
+                                                cloudVoice?.lastFailure.orEmpty()
+                                        }
+                                        finishSpokenReply()
+                                    }
+                                })
+                            if (foregroundStream != null) {
+                                speaking = true
+                                HandsFreeStatus.listening = false
+                                handler.removeCallbacks(foregroundReplyTimeout)
+                            }
+                        }
+                        foregroundStream?.offer(phrase) == true
+                    }
+                }
                 val delivered = JarvisForegroundCommands.submit(sharedCommand) { answer ->
-                    if (running && foregroundReplyPending) {
+                    if (running && foregroundReplyPending && foregroundTurnId == turn) {
                         foregroundReplyPending = false
+                        JarvisVoiceStreamBridge.receiver = null
                         handler.removeCallbacks(foregroundReplyTimeout)
-                        speak(answer)
+                        val queued = foregroundStream
+                        if (queued != null) {
+                            HandsFreeStatus.answer = answer
+                            queued.finish()
+                        } else {
+                            speak(answer)
+                        }
                     }
                 }
                 if (delivered) {
@@ -462,6 +529,7 @@ class HandsFreeService : Service(), RecognitionListener {
                     return
                 }
                 foregroundReplyPending = false
+                cancelForegroundStream()
                 handler.removeCallbacks(foregroundReplyTimeout)
             }
         }
@@ -1305,6 +1373,7 @@ class HandsFreeService : Service(), RecognitionListener {
         HandsFreeStatus.listening = false
         ++recognizerGeneration
         foregroundReplyPending = false
+        cancelForegroundStream()
         aiJob?.cancel()
         aiJob = null
         recognizer?.cancel()
