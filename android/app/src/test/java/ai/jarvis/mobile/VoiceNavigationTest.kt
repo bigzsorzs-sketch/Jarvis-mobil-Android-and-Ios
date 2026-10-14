@@ -17,6 +17,25 @@ class VoiceNavigationTest {
         assertNull(VoiceNavigation.destinationFrom("Navigálj"))
     }
 
+    @Test fun naturalHungarianCommandsAreStillLocalAndNotMisrouted() {
+        val requests = listOf(
+            "Légy szíves, vigyél haza" to "HOME",
+            "Figyelj, légy szíves, navigálj Leedsbe" to "Leeds",
+            "Jarvis, légy szíves, nyisd meg a térképet és navigálj Yorkba" to "York",
+            "Figyelj, kérlek, vigyél Eszterhez" to "PERSON:Eszter",
+            "Kérlek navigálj Manchesterbe" to "Manchester",
+            "Navigálj Eszterhez" to "PERSON:Eszter",
+            "Vigyél Cathy -hez" to "PERSON:Cathy"
+        )
+        for ((spoken, destination) in requests) {
+            assertEquals(spoken, destination, VoiceNavigation.destinationFrom(spoken))
+            assertFalse(spoken, JarvisAiRouting.shouldAskAi(spoken))
+        }
+        assertNull(VoiceNavigation.destinationFrom("Ne vigyél haza"))
+        assertNull(VoiceNavigation.destinationFrom("Légy szíves, ne navigálj Leedsbe"))
+        assertNull(VoiceNavigation.destinationFrom("Figyelj, nyisd meg a térképet"))
+    }
+
     @Test fun harrogateAndLeedsNeedNoMapTapsOrSpellingCorrections() {
         assertEquals("Harrogate", VoiceNavigation.destinationFrom("Vigyél Harrogate-be"))
         assertEquals("Harrogate", VoiceNavigation.destinationFrom("Hey Jarvis, navigálj Harrogate -be"))

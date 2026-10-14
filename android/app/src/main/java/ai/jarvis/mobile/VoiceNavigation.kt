@@ -38,7 +38,9 @@ internal object VoiceNavigation {
     )
 
     private val spokenPrefix = Regex("""(?iu)^(?:(?:hey|hej|szia|ok|okay)\s+)?jarvis\s*[,!:]?\s*""")
-    private val pleasePrefix = Regex("""(?iu)^k[eé]rlek[,\s]+""")
+    private val pleasePrefix = Regex(
+        """(?iu)^(?:k[eé]rlek|l[eé]gy\s+sz[ií]ves|figyelj|please)[,!\s]+"""
+    )
     // A compound instruction means one navigation request, not "open Maps" plus
     // another app action. The user does not need to tap Start in Jarvis.
     private val mapsPreamble = Regex(
@@ -53,7 +55,10 @@ internal object VoiceNavigation {
     private val joinedHungarianCase = Regex("""(?iu)^(.+?)(?:hoz|hez|höz|ba|be)$""")
 
     fun destinationFrom(command: String): String? {
-        val initial = command.trim().replace(spokenPrefix, "").replace(pleasePrefix, "").trim()
+        // Spoken politeness is not a destination. Strip at most two prefixes.
+        // A negative request is still rejected by the action parser.
+        var initial = command.trim().replace(spokenPrefix, "").trim()
+        repeat(2) { initial = initial.replace(pleasePrefix, "").trim() }
         // Keep legacy named-contact address navigation before removing the
         // "open Maps and" prefix used by direct city navigation.
         personDestination.matchEntire(initial)?.let { return "PERSON:" + it.groupValues[1].trim() }
@@ -73,10 +78,18 @@ internal object VoiceNavigation {
         if (index != 0) return raw
         // The suffix belongs to the saved-place reference ("helyhez"), not to the place name.
         if (JarvisSavedPlaces.importedName(raw) != null) return raw
+        // A destination addressed as a person (Eszterhez) must resolve to
+        // a saved person address. It must not turn into an unrelated Maps search
+        // for "Eszter" if the person has no saved address.
+        val personSuffix = Regex("""(?iu)(?:hoz|hez|höz)$""")
         val explicit = separatedHungarianCase.matchEntire(raw)
-        if (explicit != null) return explicit.groupValues[1].trim()
+        if (explicit != null) {
+            val target = explicit.groupValues[1].trim()
+            return if (personSuffix.containsMatchIn(raw)) "PERSON:$target" else target
+        }
         val joined = joinedHungarianCase.matchEntire(raw)
-        return (joined?.groupValues?.get(1) ?: raw).trim().takeIf { it.isNotBlank() }
+        val target = (joined?.groupValues?.get(1) ?: raw).trim().takeIf { it.isNotBlank() }
+        return if (target != null && personSuffix.containsMatchIn(raw)) "PERSON:$target" else target
     }
 
     fun homeAddress(context: Context): String =

@@ -6,6 +6,7 @@ import android.content.*
 import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.os.*
+import android.util.Log
 import android.speech.*
 import androidx.compose.runtime.*
 import androidx.core.content.ContextCompat
@@ -96,6 +97,10 @@ class HandsFreeService : Service(), RecognitionListener {
     private var recognizer: SpeechRecognizer? = null
     private var recognizerGeneration = 0
     private var cloudVoice: JarvisCloudVoicePlayer? = null
+    private var bargeInMonitor: JarvisBargeInMonitor? = null
+    private var spokenReplySerial = 0L
+    // Non-identifying debug latency metric for measurable Basic voice QA.
+    private var lastVoiceEndedAtMs = 0L
     private var activeVoiceCommand: String? = null
     private var turnCounter = 0L
     private var usingOnDeviceRecognizer = false
@@ -174,6 +179,8 @@ class HandsFreeService : Service(), RecognitionListener {
         }
         running = true
         JarvisForegroundCommands.interruptSpeech = {
+            spokenReplySerial++
+            bargeInMonitor?.stop()
             aiJob?.cancel()
             cloudVoice?.stop()
             activeVoiceCommand = null
@@ -184,6 +191,7 @@ class HandsFreeService : Service(), RecognitionListener {
         HandsFreeStatus.running = true
         HandsFreeStatus.audioError = ""
         cloudVoice = JarvisCloudVoicePlayer(applicationContext)
+        bargeInMonitor = JarvisBargeInMonitor(applicationContext) { onBargeIn() }
         try {
             // Prefer the system recognizer for the selected language: presence of
             // an offline engine does not mean it has a Hungarian model.
@@ -288,7 +296,23 @@ class HandsFreeService : Service(), RecognitionListener {
             again(VoiceSessionPolicy.retryDelay(SpeechRecognizer.ERROR_CLIENT, errors))
         }
     }
+    private fun onBargeIn() {
+        // A real mic onset interrupts ONLY speech output, never executes a
+        // partial transcript. The existing recognizer handles the new turn.
+        if (!running || !speaking || !HandsFreeStatus.speaking) return
+        spokenReplySerial++
+        cloudVoice?.stop()
+        bargeInMonitor?.stop()
+        speaking = false
+        HandsFreeStatus.speaking = false
+        HandsFreeStatus.outputLevel = 0f
+        HandsFreeStatus.status = "Közbeszóltál. Figyelek a kérésedre…"
+        if (tapActivated) awaitingCommand = true
+        again(110L)
+    }
+
     private fun finishSpokenReply() {
+        bargeInMonitor?.stop()
         speaking = false
         HandsFreeStatus.speaking = false
         HandsFreeStatus.outputLevel = 0f
@@ -299,6 +323,8 @@ class HandsFreeService : Service(), RecognitionListener {
     }
 
     private fun speak(text: String) {
+        val replySerial = ++spokenReplySerial
+        bargeInMonitor?.stop()
         val wantedLanguage = recognizedUtteranceLanguage ?:
             JarvisLanguageSettings.load(applicationContext)
         HandsFreeStatus.answer = text
@@ -323,14 +349,27 @@ class HandsFreeService : Service(), RecognitionListener {
         }
         val started = cloudVoice?.speak(text, wantedLanguage,
             onStart = {
-                if (running) {
+                if (running && spokenReplySerial == replySerial) {
+                    // One monitor for the entire answer, not a restart between
+                    // pre-fetched MP3 chunks: keep capture stable through pauses.
+                    if (!HandsFreeStatus.speaking) bargeInMonitor?.start()
                     HandsFreeStatus.speaking = true
                     HandsFreeStatus.audioError = ""
                     HandsFreeStatus.status = "Jarvis AI-hang lejátszása…"
+                    // Measure first ACTUAL audible playback, not when text arrives.
+                    // No transcript, API token, identity or personal data is logged.
+                    if (lastVoiceEndedAtMs > 0L) {
+                        val elapsedMs = SystemClock.elapsedRealtime() - lastVoiceEndedAtMs
+                        if (BuildConfig.DEBUG && elapsedMs in 0L..120_000L) {
+                            Log.d("JarvisVoiceLatency",
+                                "end_of_speech_to_first_audio_ms=$elapsedMs")
+                        }
+                        lastVoiceEndedAtMs = 0L
+                    }
                 }
             }
         ) { successful ->
-            if (running) {
+            if (running && spokenReplySerial == replySerial) {
                 if (!successful) {
                     val failure = cloudVoice?.lastFailure.orEmpty().ifBlank {
                         JarvisReadAloudCommand.response(wantedLanguage, "failed")
@@ -1109,6 +1148,7 @@ class HandsFreeService : Service(), RecognitionListener {
         HandsFreeStatus.listening = false
         HandsFreeStatus.micLevel = 0f
         if (running && recognizerListening) {
+            if (speechObservedThisTurn) lastVoiceEndedAtMs = SystemClock.elapsedRealtime()
             HandsFreeStatus.status = "Feldolgozom a hallottakat…"
             recognitionDeadline(VoiceSessionPolicy.RESULT_TIMEOUT_MS)
         }
@@ -1234,6 +1274,10 @@ class HandsFreeService : Service(), RecognitionListener {
         again(VoiceSessionPolicy.retryDelay(error, errors))
     }
     private fun shutdown(status: String) {
+        spokenReplySerial++
+        lastVoiceEndedAtMs = 0L
+        bargeInMonitor?.close()
+        bargeInMonitor = null
         running = false
         JarvisForegroundCommands.interruptSpeech = null
         HandsFreeStatus.running = false
