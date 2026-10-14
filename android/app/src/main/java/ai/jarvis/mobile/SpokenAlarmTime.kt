@@ -110,10 +110,10 @@ internal object SpokenAlarmTime {
     }
 
     private val alarmWords = Regex(
-        """\b(?:ebreszt[a-z]*|ebressz[a-z]*|kelts[a-z]*|alarm[a-z]*|wecker[a-z]*|reveil[a-z]*|sveglia[a-z]*|budzik[a-z]*|budzika[a-z]*|alarma[a-z]*|budz[a-z]*)\b"""
+        """\b(?:ebreszt[a-z]*|ebressz[a-z]*|kelts[a-z]*|alarm[a-z]*|wecker[a-z]*|reveil[a-z]*|sveglia[a-z]*|budzik[a-z]*|budzika[a-z]*|alarma[a-z]*|despertador[a-z]*|budz[a-z]*)\b"""
     )
     private val actionWords = Regex(
-        """\b(?:allits[a-z]*|set|wake|weck[a-z]*|stell[a-z]*|richt[a-z]*|mets|met|regle[a-z]*|reveille[a-z]*|pon|poner|programa[a-z]*|despierta[a-z]*|imposta[a-z]*|svegliami|sveglia[a-z]*|ustaw[a-z]*|nastaw[a-z]*|obudz[a-z]*|zbudz[a-z]*)\b"""
+        """\b(?:allits[a-z]*|set|wake|weck[a-z]*|stell[a-z]*|richt[a-z]*|mets|met|regle[a-z]*|reveille[a-z]*|pon|poner|programa[a-z]*|despierta[a-z]*|imposta[a-z]*|svegliami|ustaw[a-z]*|nastaw[a-z]*|obudz[a-z]*|zbudz[a-z]*)\b"""
     )
 
     fun isSetIntent(raw: String): Boolean {
@@ -124,7 +124,7 @@ internal object SpokenAlarmTime {
         ).containsMatchIn(n)
         return (alarmWords.containsMatchIn(n) &&
             (actionWords.containsMatchIn(n) || spokenTimeCue)) ||
-            Regex("""\b(?:ebressz|kelts|wake me|weck mich|reveille moi|despiertame|svegliami|obudz mnie|zbudz mnie)\b""")
+            Regex("""\b(?:ebressz|kelts|wake me|weck(?:e)? mich|reveille moi|despiertame|svegliami|obudz mnie|zbudz mnie)\b""")
                 .containsMatchIn(n)
     }
 
@@ -133,7 +133,7 @@ internal object SpokenAlarmTime {
         val s = normalize(raw)
         if ('?' in raw) return true
         val negations = Regex(
-            """\b(?:ne|nem|dont|do not|never|without|nicht|kein|keine|pas|jamais|no|nunca|non|senza|nie|bez)\b"""
+            """\b(?:ne|nem|don t|dont|do not|never|without|nicht|kein|keine|pas|jamais|no|nunca|non|senza|nie|bez)\b"""
         )
         val repeats = Regex(
             """\b(?:minden\s+nap|naponta|hetente|minden\s+het|every\s+day|daily|every\s+week|weekly|jeden\s+tag|taglich|tous\s+les\s+jours|chaque\s+jour|cada\s+dia|todos\s+los\s+dias|ogni\s+giorno|tutti\s+i\s+giorni|codziennie|kazdego\s+dnia)\b"""
