@@ -7,6 +7,14 @@ package ai.jarvis.mobile
  */
 internal object JarvisVoiceStreamBridge {
     var receiver: ((request: String, phrase: String) -> Boolean)? = null
+    // Only the foreground Activity may own this callback. It invalidates and
+    // cancels the matching active AI coroutine when a real user interrupts.
+    var interruptCurrent: (() -> Unit)? = null
+    fun interruptActive() {
+        val cancel = interruptCurrent
+        interruptCurrent = null
+        cancel?.invoke()
+    }
     fun deliver(request: String, phrase: String): Boolean =
         receiver?.invoke(request, phrase) == true
 }
