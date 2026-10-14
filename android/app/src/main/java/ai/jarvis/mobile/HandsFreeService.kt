@@ -904,6 +904,10 @@ class HandsFreeService : Service(), RecognitionListener {
             }
             return
         }
+        if (SpokenAlarmTime.isSetIntent(command)) {
+            speak("Nem értettem pontosan az egyszeri ébresztés idejét. Nem állítottam be ébresztőt.")
+            return
+        }
         val systemPanel = JarvisSystemPanels.identify(command)
         if (systemPanel != null) {
             if (!privateVoiceAllowed()) speak("A telefon zárolva van. Oldd fel a beállítások megnyitásához.")
