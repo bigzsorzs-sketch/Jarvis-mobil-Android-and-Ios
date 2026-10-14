@@ -21,8 +21,10 @@ class JarvisScreenshotRegressionsTest {
             JarvisContactAddresses.uniqueAddress("Eszter", listOf(one)))
         assertNull(JarvisContactAddresses.uniqueAddress("Eszter",
             listOf(one, one.copy(address = "21 Broom Road, Mirfield, UK"))))
+        assertEquals("20 Broom Road, Mirfield, UK",
+            JarvisContactAddresses.uniqueAddress("Eszter", listOf(one, other)))
         assertNull(JarvisContactAddresses.uniqueAddress("Eszter",
-            listOf(one, other)))
+            listOf(one.copy(displayName = "Eszter Nagy"), other)))
         assertNull(JarvisContactAddresses.uniqueAddress("Eszter", emptyList()))
         assertNull(JarvisContactAddresses.uniqueAddress("John",
             listOf(one)))
