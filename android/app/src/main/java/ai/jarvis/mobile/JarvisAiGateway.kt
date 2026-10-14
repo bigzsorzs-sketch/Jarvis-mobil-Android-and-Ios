@@ -396,6 +396,16 @@ internal object JarvisAiGateway {
                     })
                 }
                 if (!connection.contentType.orEmpty().lowercase().contains("text/event-stream")) {
+                    // Some providers ignore stream=true but return a valid,
+                    // complete JSON chat result. Preserve working plain chat
+                    // without retrying the request or authorizing new tools.
+                    if (connection.contentType.orEmpty().lowercase().contains("json")) {
+                        val fullBody = connection.inputStream.use {
+                            JarvisNetworkSafety.readUtf8Limited(it)
+                        }
+                        val parsed = JarvisAiTools.fromProvider(JSONObject(fullBody), message)
+                        return@withContext JarvisAiOutcome(parsed.message)
+                    }
                     return@withContext JarvisAiOutcome(
                         "Az AI-szolgáltató nem küldött folyamatos szöveget. Próbáld újra.")
                 }
