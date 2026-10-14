@@ -92,6 +92,13 @@ internal object VoiceNavigation {
         return if (target != null && personSuffix.containsMatchIn(raw)) "PERSON:$target" else target
     }
 
+    /** Maps can search an explicit name; this never verifies a private saved list. */
+    fun maySearchNamedPlace(destination: String): Boolean =
+        destination.startsWith("PERSON:") &&
+        destination.removePrefix("PERSON:").trim().let {
+            it.length in 2..80 && !it.contains('\n') && !it.contains('\r')
+        }
+
     fun homeAddress(context: Context): String =
         SecurePrefs(context).read("home_destination", "")
 
