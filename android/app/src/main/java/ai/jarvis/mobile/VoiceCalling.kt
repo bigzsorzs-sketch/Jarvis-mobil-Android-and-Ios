@@ -60,7 +60,8 @@ internal object VoiceCalling {
     private fun cleanCommand(text: String): String =
         text.trim()
             .replace(Regex("""(?iu)^(?:(?:hey|hej|szia|ok|okay)\s+)?jarvis\s*[,!:]?\s*"""), "")
-            .replace(Regex("""(?iu)^(?:k[eé]rlek|please|bitte|s'il vous plaît|por favor|per favore|proszę)\s+"""), "")
+            .replace(Regex("""(?iu)^(?:figyelj[,!]?\s+)?(?:k[eé]rlek|l[eé]gy\s+sz[ií]ves|please|bitte|s'il vous plaît|por favor|per favore|proszę)[,!\s]+"""), "")
+            .replace(Regex("""(?iu)^figyelj[,!]?\s+"""), "")
             .trim()
 
     internal fun isUnspecifiedTarget(raw: String): Boolean {
