@@ -201,7 +201,8 @@ internal fun JarvisHomeScreen(
             Spacer(Modifier.height(6.dp))
             val spokenStatus = when {
                 HandsFreeStatus.speaking -> "Jarvis beszél..."
-                handsFree -> "Figyelek rád..."
+                HandsFreeStatus.listening -> "Hallgatlak..."
+                handsFree -> "Kapcsolódás / feldolgozás..."
                 else -> "Készen állok"
             }
             Surface(
