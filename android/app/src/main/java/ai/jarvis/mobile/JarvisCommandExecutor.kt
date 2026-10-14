@@ -21,7 +21,7 @@ internal object JarvisCommandExecutor {
         }
         if (SpokenAlarmTime.isSetIntent(text) &&
             AlarmCommands.parseAlarmTime(text) == null) {
-            return "Nem értettem az egyszeri ébresztés idejét. Nem hoztam létre ébresztőt."
+            return JarvisAlarmText.invalid(context)
         }
         return when {
             ExternalTasks.parseMessage(text) != null ->
