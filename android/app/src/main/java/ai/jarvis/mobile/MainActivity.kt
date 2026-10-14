@@ -440,7 +440,8 @@ fun JarvisApp(context: Context, launcherRequest: String? = null) {
                 gmailDraft = GmailDraftConversation(
                     address, waiting.first, expiresAtMs = now + 180_000L)
                 gmailChoice = null
-                addHistory(command to "Rögzítettem a címzettet. Mi legyen az email tárgya?")
+                completeCommand(command, "Rögzítettem a címzettet. Mi legyen az email tárgya?")
+                conversation.add("Jarvis" to "Rögzítettem a címzettet. Mi legyen az email tárgya?")
                 return
             }
         }
@@ -473,7 +474,8 @@ fun JarvisApp(context: Context, launcherRequest: String? = null) {
                 gmailDraft = oldDraft.copy(recipient =
                     GmailDraftConversationFlow.recipientAddress(command)!!,
                     expiresAtMs = now + 180_000L)
-                addHistory(command to "Módosítottam az email címzettjét. Mi legyen a tárgy?")
+                completeCommand(command, "Módosítottam az email címzettjét. Mi legyen a tárgy?")
+                conversation.add("Jarvis" to "Módosítottam az email címzettjét. Mi legyen a tárgy?")
                 return
             } else when (val next = GmailDraftConversationFlow.advance(oldDraft, command)) {
                 GmailDraftNext.Cancelled -> {
@@ -784,7 +786,8 @@ fun JarvisApp(context: Context, launcherRequest: String? = null) {
         // An email address alone is not an instruction to open an empty composer
         // or disclose the address to the general AI model.
         GmailDraftConversationFlow.recipientAddress(command)?.let {
-            addHistory(command to "Emailcímet adtál meg. Ha levelet szeretnél írni, kérd: írj emailt erre a címre.")
+            completeCommand(command, "Emailcímet adtál meg. Levelet csak kifejezett kérésre készítek elő.")
+            conversation.add("Jarvis" to "Emailcímet adtál meg. Levelet csak kifejezett kérésre készítek elő.")
             return
         }
         // Route user-originated Gmail actions before generic narration or AI.
