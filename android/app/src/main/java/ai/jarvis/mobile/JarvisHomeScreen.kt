@@ -50,6 +50,7 @@ private val JarvisMuted: Color @Composable get() = JarvisPalette.subtleText
 @Composable
 internal fun JarvisHomeScreen(
     context: Context,
+    loadingConversation: Boolean = false,
     isDark: Boolean,
     onToggleTheme: () -> Unit,
     language: JarvisLanguage,
@@ -96,6 +97,7 @@ internal fun JarvisHomeScreen(
         }
     }
     fun submit(value: String) {
+        if (loadingConversation) return
         val selectedFiles = stagedAttachments.toList()
         val command = value.trim().ifBlank {
             if (selectedFiles.isNotEmpty()) "Elemezd a csatolt fájlokat." else ""
@@ -171,6 +173,8 @@ internal fun JarvisHomeScreen(
                 .padding(start = 16.dp, end = 16.dp, top = 12.dp),
             contentAlignment = Alignment.Center
         ) {
+            JarvisMenuButton({ keyboard?.hide(); onMenu() },
+                Modifier.align(Alignment.CenterStart).testTag("jarvis-home-drawer-trigger"))
             Row(
                 modifier = Modifier.align(Alignment.CenterEnd),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -193,9 +197,7 @@ internal fun JarvisHomeScreen(
             JarvisVoiceOrb(Modifier.height(orbHeight))
             Text("Jarvis", fontSize = 37.sp, fontWeight = FontWeight.Bold,
                 color = JarvisInk,
-                modifier = Modifier.testTag("jarvis-home-drawer-trigger").clickable(
-                    onClickLabel = "Menü megnyitása", role = Role.Button, onClick = onMenu
-                ).padding(horizontal = 12.dp, vertical = 4.dp))
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp))
             Spacer(Modifier.height(6.dp))
             val spokenStatus = when {
                 HandsFreeStatus.speaking -> "Jarvis beszél..."
@@ -217,6 +219,7 @@ internal fun JarvisHomeScreen(
                 }
             }
         }
+        if (loadingConversation) LinearProgressIndicator(Modifier.fillMaxWidth().testTag("jarvis-chat-loading"))
         if (issue.isNotEmpty()) {
             Spacer(Modifier.height(12.dp))
             Text(issue, color = Color(0xFFAA2732), fontSize = 12.sp,

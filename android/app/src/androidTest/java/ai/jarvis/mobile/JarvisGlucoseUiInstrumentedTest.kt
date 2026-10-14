@@ -26,8 +26,6 @@ class JarvisGlucoseUiInstrumentedTest {
             composeRule.onNodeWithText("Folytatás").performScrollTo().performClick()
         }
         composeRule.onNodeWithTag("jarvis-home-drawer-trigger").performClick()
-        composeRule.onNodeWithTag("jarvis-drawer-list").performScrollToIndex(
-            JarvisToolCatalog.all.indexOfFirst { it.route == "Vércukor" })
         composeRule.onNodeWithText("Vércukor").performClick()
         composeRule.onNodeWithTag("jarvis-subpage-header").assert(hasText("Vércukor"))
         // Click the actual tab controls, not localized child text. The dashboard

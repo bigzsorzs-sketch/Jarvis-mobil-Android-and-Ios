@@ -32,10 +32,7 @@ class JarvisLanguageSwitchInstrumentedTest {
                     JarvisTranslations.text("Kérdezd meg Jarvist", language)).assertExists()
                 assertEquals(language, JarvisLanguageSettings.load(composeRule.activity))
                 composeRule.onNodeWithTag("jarvis-home-drawer-trigger").performClick()
-                composeRule.onNodeWithTag("jarvis-drawer-list").performScrollToIndex(
-                    JarvisToolCatalog.all.indexOfFirst { it.route == "Beállítások" })
-                composeRule.onNodeWithText(
-                    JarvisTranslations.text("Beállítások", language)).performClick()
+                composeRule.onNodeWithTag("jarvis-drawer-settings").performClick()
                 composeRule.onNodeWithTag("jarvis-subpage-header").assert(
                     hasText(JarvisTranslations.text("Beállítások", language)))
                 composeRule.onNodeWithTag("jarvis-subpage-home-button").performClick()
@@ -57,10 +54,7 @@ class JarvisLanguageSwitchInstrumentedTest {
             composeRule.onNodeWithTag("jarvis-language-en-GB").performClick()
             composeRule.onNodeWithText("Ask Jarvis").assertExists()
             composeRule.onNodeWithTag("jarvis-home-drawer-trigger").performClick()
-            composeRule.onNodeWithTag("jarvis-drawer-list").performScrollToIndex(
-                JarvisToolCatalog.all.indexOfFirst { it.route == "Beállítások" }
-            )
-            composeRule.onNodeWithText("Settings").performClick()
+            composeRule.onNodeWithTag("jarvis-drawer-settings").performClick()
             composeRule.onNodeWithTag("jarvis-subpage-header").assert(hasText("Settings"))
             composeRule.onNodeWithText("General").assertExists()
             assertEquals("en-GB", JarvisLanguageSettings.load(composeRule.activity).tag)

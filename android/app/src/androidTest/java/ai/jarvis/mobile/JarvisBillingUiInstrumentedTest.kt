@@ -25,8 +25,6 @@ class JarvisBillingUiInstrumentedTest {
             composeRule.onNodeWithText("Folytatás").performScrollTo().performClick()
         }
         composeRule.onNodeWithTag("jarvis-home-drawer-trigger").performClick()
-        composeRule.onNodeWithTag("jarvis-drawer-list").performScrollToIndex(
-            JarvisToolCatalog.all.indexOfFirst { it.route == "Számlák" })
         val currentLocale = JarvisLanguageSettings.load(composeRule.activity)
         composeRule.onNodeWithText(JarvisTranslations.text("Számlázás", currentLocale)).performClick()
         composeRule.onNodeWithTag("billing-heading").assertExists()
