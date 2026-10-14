@@ -63,7 +63,7 @@ internal object JarvisBackgroundBrain {
             .mapNotNull { topic ->
                 val day = prefs.read(NOTE_DAY + "_" + topic, "").toLongOrNull()
                     ?: return@mapNotNull null
-                if (now - day !in 0..14) return@mapNotNull null
+                if (now - day !in 0L..14L) return@mapNotNull null
                 val note = prefs.read(NOTE + "_" + topic, "").take(1600)
                 if (note.length < 100) null else day to note
             }
