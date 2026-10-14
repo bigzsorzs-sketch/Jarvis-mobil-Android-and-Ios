@@ -53,7 +53,7 @@ internal class JarvisIncrementalPhrases {
             // Prefer a completed sentence; never split a word.
             val upper = minOf(waiting.length, 205)
             var cut = -1
-            for (i in 70 until upper) {
+            for (i in 55 until upper) {
                 if (waiting[i] in ".!?。！？\n" &&
                     (i + 1 == waiting.length || waiting[i + 1].isWhitespace())) {
                     cut = i + 1
