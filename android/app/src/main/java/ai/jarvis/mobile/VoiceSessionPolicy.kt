@@ -8,7 +8,7 @@ import android.speech.SpeechRecognizer
  * restarting only after results, the answer, or a recoverable provider error.
  */
 internal object VoiceSessionPolicy {
-    const val AFTER_REPLY_DELAY_MS = 350L
+    const val AFTER_REPLY_DELAY_MS = 250L
     const val REPLY_TIMEOUT_MS = 45_000L
     // A speech provider can never call onResults/onError after ending capture.
     // Bound its lifetime so a running UI never masks a dead microphone.

@@ -37,7 +37,7 @@ class JarvisBargeInGateTest {
             "A beszélgetés közben hanggenerálás zajlik, ezért minden karakter számít. ".repeat(35)
         val parts = JarvisSpeechChunks.splitForConversation(long)
         assertTrue(parts.size > 2)
-        assertTrue(parts.first().length <= 261)
+        assertTrue(parts.first().length <= 181)
         assertEquals(long, parts.joinToString(""))
         assertTrue(parts.all { it.length <= 850 })
     }
@@ -45,5 +45,15 @@ class JarvisBargeInGateTest {
     @Test fun shortAnswersAreNotFragmented() {
         assertEquals(listOf("Szia!"), JarvisSpeechChunks.splitForConversation("Szia!"))
         assertTrue(JarvisSpeechChunks.splitForConversation("").isEmpty())
+        val short = "A".repeat(210)
+        assertEquals(listOf(short), JarvisSpeechChunks.splitForConversation(short))
+    }
+
+    @Test fun longAnswersStartWithAnEarlyPhraseWithoutLosingText() {
+        val input = "Igen, értem a kérésed. " + "Ezt most megvizsgálom. ".repeat(16)
+        val chunks = JarvisSpeechChunks.splitForConversation(input)
+        assertTrue(chunks.size >= 2)
+        assertTrue(chunks.first().length in 60..181)
+        assertEquals(input, chunks.joinToString(""))
     }
 }
