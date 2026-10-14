@@ -744,6 +744,9 @@ fun JarvisApp(context: Context, launcherRequest: String? = null) {
                                         VoiceNavigation.LaunchResult.DIRECTIONS_OPENED ->
                                             AgentReceipt(step.index, AgentStatus.HANDOFF,
                                                 "Megnyílt az útvonalnézet; a Start még szükséges lehet.")
+                                        VoiceNavigation.LaunchResult.SAVED_NAME_SEARCH_OPENED ->
+                                            AgentReceipt(step.index, AgentStatus.HANDOFF,
+                                                "Megnyitottam a Google Maps névkeresését. Válaszd ki a helyes mentett helyet.")
                                         VoiceNavigation.LaunchResult.UNAVAILABLE ->
                                             AgentReceipt(step.index, AgentStatus.FAILED,
                                                 "Nem sikerült megnyitni a navigációt.")
@@ -882,7 +885,8 @@ fun JarvisApp(context: Context, launcherRequest: String? = null) {
         // The recognized city/address must be passed directly to Google's
         // turn-by-turn intent, never dropped in favour of an empty map view.
         VoiceNavigation.destinationFrom(command)?.let { destination ->
-            val result = if (VoiceNavigation.resolve(context, destination) == null)
+            val result = if (VoiceNavigation.resolve(context, destination) == null &&
+                !VoiceNavigation.maySearchNamedPlace(destination)
                 "Az úti célhoz nem találok mentett címet."
             else JarvisNavigationText.result(
                 language, VoiceNavigation.openDetailed(context, destination)
