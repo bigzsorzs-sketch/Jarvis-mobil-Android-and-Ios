@@ -420,11 +420,13 @@ internal object JarvisAiGateway {
                         }
                     }
                 }
-                if (!decoder.done) {
+                if (!decoder.done || decoder.failure != null) {
+                    val reason = decoder.failure
+                        ?: "A hálózati válasz idő előtt megszakadt."
                     return@withContext JarvisAiOutcome(
                         decoder.text.takeIf { it.isNotBlank() }?.plus(
-                            "\n(A hálózati válasz idő előtt megszakadt.)")
-                            ?: "Az AI-válasz idő előtt megszakadt. Próbáld újra.")
+                            "\n($reason)")
+                            ?: reason)
                 }
                 val last = phrases.finish()
                 if (last.isNotBlank()) withContext(Dispatchers.Main.immediate) {
