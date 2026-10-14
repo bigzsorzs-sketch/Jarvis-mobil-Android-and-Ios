@@ -56,12 +56,18 @@ internal object JarvisBackgroundBrain {
     /** Research is a non-authoritative note, not a system instruction or permission. */
     fun relevantNote(context: Context, question: String): String? {
         val prefs = SecurePrefs(context)
-        val topic = prefs.read(NOTE_TOPIC, "")
-        if (!matches(question, topic)) return null
-        val day = prefs.read(NOTE_DAY, "").toLongOrNull() ?: return null
-        val age = System.currentTimeMillis() / 86_400_000L - day
-        if (age !in 0..14) return null
-        return prefs.read(NOTE, "").take(1800).takeIf { it.length >= 100 }
+        val now = System.currentTimeMillis() / 86_400_000L
+        // Retain separate notes for each subject, not only the latest lesson.
+        return listOf("kotlin", "android", "compose", "swift", "ios")
+            .filter { matches(question, it) }
+            .mapNotNull { topic ->
+                val day = prefs.read(NOTE_DAY + "_" + topic, "").toLongOrNull()
+                    ?: return@mapNotNull null
+                if (now - day !in 0..14) return@mapNotNull null
+                val note = prefs.read(NOTE + "_" + topic, "").take(1600)
+                if (note.length < 100) null else day to note
+            }
+            .maxByOrNull { it.first }?.second
     }
 
     /** Idempotently register periodic work; no screen or extra start button. */
@@ -120,9 +126,8 @@ internal class JarvisLearningWorker(
                 note.contains(java.net.URI(lesson.officialSite).host, ignoreCase = true) &&
                 note.contains("https://")
             if (valid) {
-                prefs.write(JarvisBackgroundBrain.NOTE, note.take(1800))
-                prefs.write(JarvisBackgroundBrain.NOTE_TOPIC, lesson.id)
-                prefs.write(JarvisBackgroundBrain.NOTE_DAY, day.toString())
+                prefs.write(JarvisBackgroundBrain.NOTE + "_" + lesson.id, note.take(1600))
+                prefs.write(JarvisBackgroundBrain.NOTE_DAY + "_" + lesson.id, day.toString())
             }
             Result.success()
         } catch (_: Exception) {
