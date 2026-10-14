@@ -15,8 +15,8 @@ internal object JarvisGlucoseVoice {
         // "nézd meg hogy meg tudod-e oldani hogy megnézed a cukrom",
         // "hány a cukrom", "nézd meg a cukromat". Treat only personal
         // measurement requests as local reads; never ask the LLM to guess data.
-        Regex("""\b(nezd(?: meg)?|megnezned|megnezed|megnezni|lekered|lekerni|mennyi|hany|mutasd|ellenorizd|olvasd ki)[a-z0-9\s']{0,145}\b(cukromat?|vercukromat?|vercukorszintemet?|glukozomat?)\b"""),
-        Regex("""\b(cukromat?|vercukromat?|vercukorszintemet?|glukozomat?)\b[a-z0-9\s']{0,80}\b(mennyi|hany|most|nezd|mutasd|erteke|meresem)\b"""),
+        Regex("""\b(nezd(?: meg)?|megnezned|megnezed|megnezni|lekered|lekerni|mennyi|hany|mutasd|ellenorizd|olvasd ki)[a-z0-9\s']{0,145}\b(cukrom(?:at)?|vercukrom(?:at)?|vercukorszintem(?:et)?|glukozom(?:at)?)\b"""),
+        Regex("""\b(cukrom(?:at)?|vercukrom(?:at)?|vercukorszintem(?:et)?|glukozom(?:at)?)\b[a-z0-9\s']{0,80}\b(mennyi|hany|most|nezd|mutasd|erteke|meresem)\b"""),
         Regex("""\b(check|show|tell me|what is|what's)[a-z\s]{0,35}\b(my glucose|my blood sugar|my sugar level)\b"""),
         Regex("""\b(wie hoch|pruf|zeige)[a-z\s]{0,35}\b(mein blutzucker|meinen blutzucker|meine glukose)\b"""),
         Regex("""\b(verifie|montre|combien)[a-z\s]{0,35}\b(ma glycemie|mon taux de sucre)\b"""),
