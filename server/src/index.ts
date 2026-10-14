@@ -256,6 +256,13 @@ const server = http.createServer(async (req, res) => {
     });
     if (quota !== 0) return reply(res, 429, { error: "USAGE_LIMIT" });
     const toolsRequested = shouldOfferToolCalls(message);
+    // GPT-5.2 defaults to no reasoning; give complex user questions a larger,
+    // bounded reasoning/output budget. Never add reasoning requirements to
+    // native tool proposals or change local Android authorization.
+    const advancedQuestion = /kotlin|swift|android|ios|debug|stacktrace|gradle|k[oó]d|programoz|hibakeres|elemezz|r[eé]szletes|architect/i.test(message);
+    const reasoningEffort = toolsRequested ? "none" : advancedQuestion ? "medium" : "none";
+    const responseBudget = model === "openai/gpt-5.2" && !toolsRequested && advancedQuestion
+      ? 3200 : MAX_OUTPUT_TOKENS;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 25000);
     let modelReply: {
@@ -281,7 +288,10 @@ const server = http.createServer(async (req, res) => {
                   max_uses: 2, max_results: 4, max_total_results: 8
                 } }], tool_choice: "auto" }),
           stream: false,
-          max_tokens: MAX_OUTPUT_TOKENS
+          max_tokens: responseBudget,
+          ...(model === "openai/gpt-5.2" ? {
+            reasoning: { effort: reasoningEffort, exclude: true }
+          } : {})
         }),
         signal: controller.signal
       });
