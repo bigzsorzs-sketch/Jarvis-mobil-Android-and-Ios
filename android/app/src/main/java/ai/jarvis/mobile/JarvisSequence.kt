@@ -1,6 +1,7 @@
 package ai.jarvis.mobile
 
 import android.content.Context
+import java.util.Calendar
 
 /** Two explicitly requested steps, with no model-supplied payloads. */
 internal data class JarvisSequencePlan(
@@ -31,7 +32,17 @@ internal object JarvisSequence {
         return JarvisSequencePlan(original, first, second, matches.single(), time)
     }
 
-    /** Revalidate on confirmation and stop on any failure of the first step. */
+    /** Only the local alarm state can be verified. An external Android app
+     * handoff is never proof that a third-party task was actually completed.
+     */
+    fun alarmMatches(savedAtMs: Long, time: AlarmTime, nowMs: Long): Boolean {
+        if (savedAtMs <= nowMs || savedAtMs > nowMs + 25L * 60 * 60 * 1000) return false
+        val calendar = Calendar.getInstance().apply { timeInMillis = savedAtMs }
+        return calendar.get(Calendar.HOUR_OF_DAY) == time.hour &&
+            calendar.get(Calendar.MINUTE) == time.minute
+    }
+
+    /** Revalidate on confirmation, verify persistence, stop on failure. */
     fun execute(context: Context, requested: JarvisSequencePlan): String {
         val verified = plan(requested.original)
             ?: return "A műveletsor nem érvényes. Semmit nem hajtottam végre."
@@ -40,6 +51,11 @@ internal object JarvisSequence {
         }
         return when (val saved = JarvisAlarms.schedule(context, verified.alarm)) {
             is JarvisAlarms.Result.Created -> {
+                if (!alarmMatches(JarvisAlarms.current(context), verified.alarm,
+                        System.currentTimeMillis())) {
+                    return "Az ébresztő mentését nem sikerült visszaellenőrizni; " +
+                        "a következő lépést nem hajtottam végre."
+                }
                 val next = JarvisPhoneActions.execute(context, verified.app)
                 "1/2: Jarvis-ébresztő " + saved.time + " időpontra beállítva. 2/2: " + next
             }

@@ -105,6 +105,8 @@ class MainActivity : ComponentActivity() {
         // and pushes the orb behind the system status bar on some OEM phones).
         window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
         assistantRequested = JarvisAssistantLaunch.consume(intent)
+        // Quiet daily research scheduling; does not change speech or navigation.
+        runCatching { JarvisBackgroundBrain.schedule(applicationContext) }
         setContent { JarvisApp(this, launcherRequest) }
     }
 }
@@ -592,6 +594,124 @@ fun JarvisApp(context: Context, launcherRequest: String? = null) {
         pendingMessageUntilMs = 0L
         pendingSequence = null
         pendingSequenceUntilMs = 0L
+        // AI plans 2-3 explicitly named safe operations. Android executes each
+        // native action and returns a typed receipt before the next AI decision.
+        // Do not route a compound request through a single-step handler.
+        if (JarvisAgentActions.eligible(command) != null) {
+            val pending = command to "Az Android-műveleteket tervezem és ellenőrzöm…"
+            conversation.add(pending)
+            val pendingChatId = currentChat.id
+            val pendingIndex = conversation.lastIndex
+            drawerScope.launch {
+                val result = JarvisAgentActions.run(context, command, language.tag,
+                    isCurrent = {
+                        requestRevision == commandRevision &&
+                            currentChat.id == pendingChatId &&
+                            HandsFreeNavigation.appIsForeground
+                    },
+                    execute = { step ->
+                        try {
+                            when (step.kind) {
+                                AgentKind.THEME -> {
+                                    val change = JarvisLocalPreferences.parse(step.input)
+                                        as? JarvisLocalPreferences.Command.Theme
+                                    if (change == null ||
+                                        (if (change.dark) "dark" else "light") != step.target)
+                                        AgentReceipt(step.index, AgentStatus.FAILED,
+                                            "A kért megjelenés nem ellenőrizhető.")
+                                    else {
+                                        JarvisLocalPreferences.apply(context, change)
+                                        isDark = change.dark
+                                        val verified = securePrefs.read("ui_dark_mode", "") ==
+                                            change.dark.toString()
+                                        AgentReceipt(step.index,
+                                            if (verified) AgentStatus.VERIFIED else AgentStatus.FAILED,
+                                            if (verified) "Megjelenés ellenőrizve."
+                                            else "A megjelenés mentése nem igazolható.")
+                                    }
+                                }
+                                AgentKind.LANGUAGE -> {
+                                    val change = JarvisLocalPreferences.parse(step.input)
+                                        as? JarvisLocalPreferences.Command.Language
+                                    if (change == null || change.selected.tag != step.target)
+                                        AgentReceipt(step.index, AgentStatus.FAILED,
+                                            "A nyelvválasztás nem ellenőrizhető.")
+                                    else {
+                                        JarvisLocalPreferences.apply(context, change)
+                                        selectLanguage(change.selected)
+                                        val verified = JarvisLanguageSettings.load(context) ==
+                                            change.selected && language == change.selected
+                                        AgentReceipt(step.index,
+                                            if (verified) AgentStatus.VERIFIED else AgentStatus.FAILED,
+                                            if (verified) "A Jarvis nyelve ellenőrizve."
+                                            else "A nyelv mentése nem igazolható.")
+                                    }
+                                }
+                                AgentKind.PAGE -> {
+                                    val route = JarvisCapabilities.localPageToOpen(step.input)
+                                    if (route != step.target)
+                                        AgentReceipt(step.index, AgentStatus.FAILED,
+                                            "Az oldal nem egyezik a parancsoddal.")
+                                    else {
+                                        openTool(route, asPage = true)
+                                        AgentReceipt(step.index,
+                                            if (page == route) AgentStatus.VERIFIED
+                                            else AgentStatus.FAILED,
+                                            if (page == route) "A Jarvis oldal megnyílt: " + route
+                                            else "Nem sikerült igazolni az oldal megnyitását.")
+                                    }
+                                }
+                                AgentKind.PHONE_APP -> {
+                                    val requested = JarvisPhoneActions.requestedAction(step.input)
+                                    if (requested != step.target)
+                                        AgentReceipt(step.index, AgentStatus.FAILED,
+                                            "A telefonos alkalmazás neve nem egyezik.")
+                                    else {
+                                        val response = JarvisPhoneActions.execute(context, requested)
+                                        val passed = response.startsWith("Átadtam") ||
+                                            response.startsWith("Megnyitottam")
+                                        AgentReceipt(step.index,
+                                            if (passed) AgentStatus.HANDOFF else AgentStatus.FAILED,
+                                            response)
+                                    }
+                                }
+                                AgentKind.NAVIGATION -> {
+                                    val destination = VoiceNavigation.destinationFrom(step.input)
+                                    if (destination != step.target)
+                                        AgentReceipt(step.index, AgentStatus.FAILED,
+                                            "A navigációs cél eltér a parancsoddal.")
+                                    else when (VoiceNavigation.openDetailed(context, destination)) {
+                                        VoiceNavigation.LaunchResult.GUIDANCE_REQUESTED ->
+                                            AgentReceipt(step.index, AgentStatus.HANDOFF,
+                                                "A navigációt átadtam a Google Mapsnek; " +
+                                                    "az indulás nincs visszaigazolva.")
+                                        VoiceNavigation.LaunchResult.DIRECTIONS_OPENED ->
+                                            AgentReceipt(step.index, AgentStatus.HANDOFF,
+                                                "Megnyílt az útvonalnézet; a Start még szükséges lehet.")
+                                        VoiceNavigation.LaunchResult.UNAVAILABLE ->
+                                            AgentReceipt(step.index, AgentStatus.FAILED,
+                                                "Nem sikerült megnyitni a navigációt.")
+                                    }
+                                }
+                            }
+                        } catch (_: Exception) {
+                            AgentReceipt(step.index, AgentStatus.FAILED,
+                                "Android-műveleti hiba. A következő lépés nem indult.")
+                        }
+                    })
+                if (requestRevision == commandRevision && currentChat.id == pendingChatId) {
+                    val index = if (pendingIndex in conversation.indices &&
+                        conversation[pendingIndex].first == command) pendingIndex
+                    else JarvisPendingTurn.findIndex(conversation, pending)
+                    if (index >= 0) {
+                        conversation[index] = command to result
+                        saveChatTurn(command to result)
+                        completeCommand(command, result)
+                    }
+                }
+            }
+            return
+        }
         if (JarvisUpdateVoice.isRequest(command)) {
             JarvisUpdateNavigation.request(JarvisUpdateVoice.shouldInstall(command))
             val message = JarvisUpdateTexts.get(language,
@@ -807,6 +927,9 @@ fun JarvisApp(context: Context, launcherRequest: String? = null) {
             return
         }
         if (JarvisAiRouting.shouldAskAi(command)) {
+            // Deep technical requests get a bounded plan -> evidence -> review loop.
+            // All device commands retain the existing native execution path.
+            val researchAgent = JarvisAgentResearch.shouldHandle(command)
             val pending = command to "AI-válaszra várok…"
             conversation.add(pending)
             val pendingIndex = conversation.lastIndex
@@ -814,7 +937,8 @@ fun JarvisApp(context: Context, launcherRequest: String? = null) {
             val progressive = StringBuilder()
             var lastVisibleUpdateMs = 0L
             drawerScope.launch {
-                val spokenStream = JarvisAiGateway.canStreamText(context, command) &&
+                val spokenStream = !researchAgent &&
+                    JarvisAiGateway.canStreamText(context, command) &&
                     voiceReply?.first == command
                 val streamCancellation = JarvisStreamCancellation()
                 val aiJob = kotlinx.coroutines.currentCoroutineContext()[kotlinx.coroutines.Job]
@@ -839,7 +963,9 @@ fun JarvisApp(context: Context, launcherRequest: String? = null) {
                 if (abortTurn != null)
                     JarvisVoiceStreamBridge.interruptCurrent = abortTurn
                 try {
-                val outcome = if (JarvisAiGateway.canStreamText(context, command)) {
+                val outcome = if (researchAgent) {
+                    JarvisAgentResearch.answer(context, command, language.tag)
+                } else if (JarvisAiGateway.canStreamText(context, command)) {
                     JarvisAiGateway.askIncremental(context, command, language.tag,
                         cancellation = streamCancellation,
                         onDelta = { delta ->

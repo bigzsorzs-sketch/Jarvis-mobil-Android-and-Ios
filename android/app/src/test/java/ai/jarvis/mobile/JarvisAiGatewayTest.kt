@@ -14,6 +14,15 @@ class JarvisAiGatewayTest {
         assertEquals("hu-HU", invalid.getString("language"))
     }
 
+    @Test fun gatewayBackgroundNoteIsBoundedAndOptional() {
+        val ordinary = JarvisAiGateway.serverChatPayload("Szia", "hu-HU")
+        assertFalse(ordinary.has("developerNote"))
+        val note = "Official developer note: " + "a".repeat(2200)
+        val enriched = JarvisAiGateway.serverChatPayload("Kotlin hiba", "hu-HU", note)
+        assertEquals("Kotlin hiba", enriched.getString("message"))
+        assertEquals(1800, enriched.getString("developerNote").length)
+    }
+
     @Test fun fixedTextModelIsGPT52ButSpeechUsesActualTtsModel() {
         assertEquals("openai/gpt-5.2", JarvisAiGateway.TEST_MODEL)
         assertEquals("microsoft/mai-voice-2.1-flash", JarvisAiGateway.SPEECH_MODEL)
