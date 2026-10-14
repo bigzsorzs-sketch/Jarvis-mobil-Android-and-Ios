@@ -82,6 +82,8 @@ internal object SpokenAlarmTime {
                 } else {
                     // Avoid "one time" being mistaken for a clock hour.
                     val scrubbed = clean.replace(Regex("""\bone time\b"""), "")
+                        .let { if (Regex("""\b(?:a las|las|a la) once\b""").containsMatchIn(it))
+                            it else it.replace(Regex("""\bonce\b"""), "") }
                     val matches = scrubbed.split(' ').mapNotNull(hourWords::get).distinct()
                     if (matches.size != 1) return null
                     hour = matches.single()
@@ -112,7 +114,11 @@ internal object SpokenAlarmTime {
     fun isSetIntent(raw: String): Boolean {
         val n = normalize(raw).removePrefix("jarvis ").removePrefix("hey jarvis ")
         if (n.length !in 8..250 || '?' in raw) return false
-        return (alarmWords.containsMatchIn(n) && actionWords.containsMatchIn(n)) ||
+        val spokenTimeCue = Regex(
+            """\b(?:reggel|este|delutan|hajnal|fel|halb|morning|evening|afternoon|morgens|abends|matin|soir|manana|tarde|noche|mattina|sera|rano|uhr|heures?|horas?|ore|godzin[a-z]*|\d{1,2}(?::\d\d)?)\b"""
+        ).containsMatchIn(n)
+        return (alarmWords.containsMatchIn(n) &&
+            (actionWords.containsMatchIn(n) || spokenTimeCue)) ||
             Regex("""\b(?:ebressz|kelts|wake me|weck mich|reveille moi|despiertame|svegliami|obudz mnie|zbudz mnie)\b""")
                 .containsMatchIn(n)
     }
