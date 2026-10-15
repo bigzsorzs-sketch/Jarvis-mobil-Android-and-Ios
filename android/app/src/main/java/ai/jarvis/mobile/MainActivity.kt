@@ -519,12 +519,32 @@ fun JarvisApp(context: Context, launcherRequest: String? = null) {
                     conversation.add("Jarvis" to response)
                     return
                 }
+                is GmailDraftNext.Ready -> {
+                    // "Írj" prepares a draft, while a separate "küldd el"
+                    // authorizes the actual Gmail API operation.
+                    gmailDraft = next.draft.copy(expiresAtMs = now + 180_000L)
+                    val answer = "A levél kész, de még nincs elküldve. " +
+                        "Címzett: ${next.draft.recipient}; tárgy: ${next.draft.subject}. " +
+                        "Küldéshez mondd: küldd el. Megszakításhoz: mégse."
+                    completeCommand(command, answer)
+                    conversation.add("Jarvis" to answer)
+                    return
+                }
                 is GmailDraftNext.Complete -> {
                     gmailDraft = null
                     gmailAction(GmailRequest(command, next.send))
                     return
                 }
             }
+        }
+        // Never let generic AI pretend to send an email when no private,
+        // locally verified draft is awaiting explicit consent.
+        if (GmailDraftConversationFlow.isExplicitSend(command)) {
+            val answer = "Nincs elküldésre váró email-piszkozat. " +
+                "Kezdd így: írj emailt a címzettnek."
+            completeCommand(command, answer)
+            conversation.add("Jarvis" to answer)
+            return
         }
         JarvisControlCommand.parse(command)?.let { control ->
             val result = controls.execute(control, language)
@@ -895,6 +915,38 @@ fun JarvisApp(context: Context, launcherRequest: String? = null) {
         }
         JarvisScreenControl.parse(command)?.let { action ->
             addHistory(command to JarvisScreenControl.execute(context, action))
+            return
+        }
+        // First-party Smart Home: exactly matched, explicitly named entities.
+        // No arbitrary AI tools, remote appliance starts, or optimistic success.
+        val homeToggle = JarvisHomeCommands.parse(command)
+        val homeStatus = if (homeToggle == null) JarvisHomeCommands.statusTarget(command) else null
+        if (homeToggle != null || homeStatus != null) {
+            val config = runCatching { JarvisHomeConnect.load(context) }.getOrNull()
+            if (config == null) {
+                addHistory(command to "A Smart Home még nincs csatlakoztatva. " +
+                    "Nyisd meg a Smart Home oldalt és állítsd be a Home Assistant HTTPS kapcsolatot.")
+                return
+            }
+            val startedInChat = currentChat.id
+            drawerScope.launch {
+                val response = withContext(Dispatchers.IO) {
+                    runCatching {
+                        val devices = JarvisHomeConnect.discover(config)
+                        val device = JarvisHomeCommands.match(
+                            homeToggle ?: JarvisHomeCommands.Toggle(homeStatus.orEmpty(), true), devices)
+                        when {
+                            device == null -> "Nem találtam egyetlen egyértelműen egyező Smart Home eszközt."
+                            homeToggle == null -> "Home Assistant szerint: " +
+                                device.name + " – " + device.state + "."
+                            !device.canToggle -> "Ez az eszköz csak állapotlekérdezésre használható."
+                            else -> JarvisHomeConnect.toggle(config, device.id, homeToggle.on)
+                        }
+                    }.getOrElse { "Smart Home hiba: " + (it.message ?: "A vezérlés nem igazolt.") }
+                }
+                if (requestRevision == commandRevision && currentChat.id == startedInChat)
+                    addHistory(command to response)
+            }
             return
         }
         // Spoken commands are interpreted by GPT-5.2 first. The model can
@@ -1570,6 +1622,7 @@ fun JarvisApp(context: Context, launcherRequest: String? = null) {
                                     onVoice = { page = "Hangbeállítások" },
                                     onAi = { page = "AI-agy" },
                                     onMore = { page = "Továbbiak" },
+                                    onSmartHome = { page = "Smart Home" },
                                     language = language
                                 )
                                 "Hangbeállítások" -> HandsFreePanel(context)
@@ -1587,6 +1640,7 @@ fun JarvisApp(context: Context, launcherRequest: String? = null) {
                                 "Üzenetek" -> MessageInboxScreen(context, onPermissions = {
                                     page = "Engedélyek"
                                 })
+                                "Smart Home" -> JarvisSmartHomePanel(context, language)
                                 "Vércukor" -> JarvisGlucoseDashboard(context, readings) {
                                     securePrefs.write("readings", writeReadings(readings))
                                 }

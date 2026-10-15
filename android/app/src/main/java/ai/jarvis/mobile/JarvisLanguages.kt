@@ -75,6 +75,7 @@ internal object JarvisTranslations {
         "Alkalmazások" to "Apps",
         "Előzmények" to "History",
         "Vércukor" to "Blood glucose",
+        "Smart Home" to "Smart Home",
         "Számlázás" to "Invoicing",
         "Számlák" to "Invoices",
         "Email" to "Email",

@@ -37,8 +37,10 @@ class JarvisGmailAddressRegressionTest {
         assertTrue(next is GmailDraftNext.Updated)
         val ready = GmailDraftConversationFlow.advance(
             (next as GmailDraftNext.Updated).draft, "Holnap délután érkezünk.")
-        assertTrue(ready is GmailDraftNext.Complete)
-        assertFalse((ready as GmailDraftNext.Complete).send.actuallySend)
-        assertEquals("recipient@example.com", ready.send.recipient)
+        assertTrue(ready is GmailDraftNext.Ready)
+        assertEquals("recipient@example.com", (ready as GmailDraftNext.Ready).draft.recipient)
+        assertEquals("Holnap délután érkezünk.", ready.draft.body)
+        assertTrue(GmailDraftConversationFlow.advance(ready.draft, "küldd el")
+            is GmailDraftNext.Complete)
     }
 }

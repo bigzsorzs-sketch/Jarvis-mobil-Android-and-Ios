@@ -883,6 +883,13 @@ class HandsFreeService : Service(), RecognitionListener {
             speak("Gmail-művelethez nyisd meg Jarvist a feloldott telefonon, és ismételd meg a parancsot.")
             return
         }
+        // Smart Home requires the Activity-owned, encrypted account configuration
+        // and verified device read-back. A background service never fabricates success.
+        if (JarvisHomeCommands.parse(command) != null ||
+            JarvisHomeCommands.statusTarget(command) != null) {
+            speak("Smart Home művelethez hozd előtérbe Jarvist a feloldott telefonon.")
+            return
+        }
         // Existing authorized notification/glucose/billing readers take priority.
         val readAloud = if (JarvisGlucoseVoice.isQuery(command) ||
             BillingVoice.isCandidate(command) || VoiceIntentParser.isReadMessage(command))

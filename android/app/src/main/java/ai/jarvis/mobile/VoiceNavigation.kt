@@ -111,13 +111,15 @@ internal object VoiceNavigation {
      * name must NEVER go to Google Maps as if it were a routable address.
      */
     private fun knownPersonAddress(context: Context, spoken: String): String? {
-        val stored = PeopleDirectory.find(context, spoken)
-        if (stored != null) return stored.address.trim().takeIf { it.isNotEmpty() }
+        // User-saved addresses take precedence over a nickname/phone entry,
+        // which may exist without any postal address at all.
         val places = JarvisSavedPlaces.list(context).filter {
             PeopleDirectory.matchingName(spoken, it.name)
         }
         if (places.size == 1) return places.single().destination
         if (places.size > 1) return null
+        PeopleDirectory.find(context, spoken)?.address?.trim()
+            ?.takeIf { it.isNotEmpty() }?.let { return it }
         return JarvisContactAddresses.find(context, spoken)
     }
 

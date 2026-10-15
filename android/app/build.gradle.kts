@@ -20,8 +20,8 @@ android {
         applicationId = "ai.jarvis.mobile"
         minSdk = 26
         targetSdk = 36
-        versionCode = 50
-        versionName = "0.2.39"
+        versionCode = 51
+        versionName = "0.2.40"
         buildConfigField("String", "JARVIS_GATEWAY_ORIGIN", "\"$jarvisGatewayOrigin\"")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -66,6 +66,7 @@ dependencies {
     implementation("androidx.work:work-runtime-ktx:2.12.0")
     // Google Identity AuthorizationClient: no account passwords or client secrets in APK.
     implementation("com.google.android.gms:play-services-auth:22.0.0")
+    implementation("com.google.android.gms:play-services-location:21.3.0")
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.foundation:foundation")
     implementation("androidx.compose.material3:material3")
