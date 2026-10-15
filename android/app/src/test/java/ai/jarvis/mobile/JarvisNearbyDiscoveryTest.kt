@@ -8,7 +8,8 @@ class JarvisNearbyDiscoveryTest {
         val protocols = JarvisNearbyProtocols.wifiServices
         assertEquals("Google Cast", protocols["_googlecast._tcp."])
         assertEquals("AirPlay", protocols["_airplay._tcp."])
-        assertEquals("Matter", protocols["_matter._tcp."])
+        assertEquals("Matter (operational)", protocols["_matter._tcp."])
+        assertEquals("Matter (commissionable)", protocols["_matterc._udp."])
         assertEquals("ESPHome", protocols["_esphomelib._tcp."])
         assertEquals("HomeKit (HAP)", protocols["_hap._tcp."])
         assertNull(JarvisNearbyProtocols.wifiTypeLabel("_unknown._tcp."))
