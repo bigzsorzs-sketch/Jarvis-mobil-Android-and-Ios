@@ -66,6 +66,7 @@ dependencies {
     implementation("androidx.work:work-runtime-ktx:2.12.0")
     // Google Identity AuthorizationClient: no account passwords or client secrets in APK.
     implementation("com.google.android.gms:play-services-auth:22.0.0")
+    implementation("com.google.android.gms:play-services-location:21.4.0")
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.foundation:foundation")
     implementation("androidx.compose.material3:material3")
