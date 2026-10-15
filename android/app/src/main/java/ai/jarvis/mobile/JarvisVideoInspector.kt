@@ -21,7 +21,8 @@ internal object JarvisVideoInspector {
     private const val FRAME_EDGE = 640
 
     /** Invoke from Dispatchers.IO – decoding frames can be slow on some phones. */
-    fun inspect(context: Context, attachment: JarvisAttachment): Result<JarvisVideoInspection> =
+    fun inspect(context: Context, attachment: JarvisAttachment,
+                maxFrames: Int = JarvisVideoSampling.MAX_FRAMES): Result<JarvisVideoInspection> =
         runCatching {
             require(attachment.mimeType.startsWith("video/")) {
                 "A kiválasztott fájl nem videó."
@@ -59,7 +60,7 @@ internal object JarvisVideoInspector {
                 val previewWidth = (width * scale).toInt().coerceAtLeast(1)
                 val previewHeight = (height * scale).toInt().coerceAtLeast(1)
 
-                JarvisVideoSampling.timestampsMs(duration).forEachIndexed { idx, timestampMs ->
+                JarvisVideoSampling.timestampsMs(duration, maxFrames).forEachIndexed { idx, timestampMs ->
                     val timestampUs = timestampMs * 1_000L
                     val bitmap = try {
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
