@@ -42,6 +42,9 @@ internal fun JarvisSmartHomePanel(context: Context, language: JarvisLanguage) {
         "Pierwsze połączenie: Home Assistant. Światła/TV z weryfikacją; AGD: tylko stan."
     ), color = JarvisPalette.subtleText, style = MaterialTheme.typography.bodySmall)
 
+    JarvisNearbyPanel(context, language)
+    Spacer(Modifier.height(12.dp))
+    HorizontalDivider()
     Spacer(Modifier.height(12.dp))
     OutlinedTextField(value = origin, onValueChange = { origin = it },
         label = { Text(tr("Home Assistant HTTPS cím", "Home Assistant HTTPS URL",
