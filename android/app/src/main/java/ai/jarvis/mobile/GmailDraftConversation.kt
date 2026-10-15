@@ -11,6 +11,7 @@ internal data class GmailDraftConversation(
     val recipient: String,
     val actuallySend: Boolean,
     val subject: String = "",
+    val body: String = "",
     val expiresAtMs: Long
 )
 
@@ -23,6 +24,7 @@ internal data class GmailRecipientChoice(
 internal sealed interface GmailDraftNext {
     data class Updated(val draft: GmailDraftConversation) : GmailDraftNext
     data class Complete(val send: GmailOperation.Send) : GmailDraftNext
+    data class Ready(val draft: GmailDraftConversation) : GmailDraftNext
     data object Cancelled : GmailDraftNext
     data object NotRelated : GmailDraftNext
 }
@@ -44,6 +46,16 @@ internal object GmailDraftConversationFlow {
         normalized(raw).trimEnd('.', '!', '?', ',') in
             setOf("jarvis", "hey jarvis", "hej jarvis", "szia jarvis", "ok jarvis")
 
+    /** Exact follow-up only; never interpret a casual mention of sending as consent. */
+    fun isExplicitSend(raw: String): Boolean =
+        normalized(raw).trimEnd('.', '!', '?', ',') in setOf(
+            "kuld el", "kuldd el", "kuldd", "kuldjed el",
+            "kuldd el a levelet", "kuldd el az emailt",
+            "send it", "send the email", "send the message",
+            "sende die email", "envoie le mail", "envia el correo",
+            "invia la email", "wyslij email"
+        )
+
     fun isCancel(raw: String): Boolean =
         normalized(raw).trimEnd('.', '!') in
             setOf("megse", "torold", "megszakitas", "cancel", "stop", "ne kuldd", "nem")
@@ -64,6 +76,12 @@ internal object GmailDraftConversationFlow {
     fun advance(draft: GmailDraftConversation, input: String): GmailDraftNext {
         val raw = input.trim()
         if (isCancel(raw)) return GmailDraftNext.Cancelled
+        if (draft.body.isNotBlank()) {
+            return if (isExplicitSend(raw)) GmailDraftNext.Complete(GmailOperation.Send(
+                draft.recipient, draft.subject, draft.body, actuallySend = true
+            )) else GmailDraftNext.NotRelated
+        }
+        if (isExplicitSend(raw)) return GmailDraftNext.NotRelated
         if (isWakeWord(raw) || recipientAddress(raw) != null) return GmailDraftNext.NotRelated
         if (raw.length !in 2..4000 || raw.contains('\n') && raw.length > 3500)
             return GmailDraftNext.NotRelated
@@ -82,9 +100,9 @@ internal object GmailDraftConversationFlow {
         }
         val value = raw.replace(Regex("""(?iu)^(?:sz[oö]veg|[uü]zenet|message|body)\s*[:=-]?\s*"""), "").trim()
         if (value.isEmpty() || value.length > 4000) return GmailDraftNext.NotRelated
-        return GmailDraftNext.Complete(GmailOperation.Send(
+        return if (draft.actuallySend) GmailDraftNext.Complete(GmailOperation.Send(
             recipient = draft.recipient, subject = draft.subject,
-            body = value, actuallySend = draft.actuallySend
-        ))
+            body = value, actuallySend = true
+        )) else GmailDraftNext.Ready(draft.copy(body = value))
     }
 }
