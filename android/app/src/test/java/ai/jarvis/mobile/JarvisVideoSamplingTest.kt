@@ -19,6 +19,22 @@ class JarvisVideoSamplingTest {
         assertTrue(ts.all { it in 0 until duration })
     }
 
+    @Test fun cloudVisualFramesSampleEntireVideoWithinLimit() {
+        val duration = 2L * 60 * 60 * 1000
+        val frames = JarvisVideoSampling.timestampsMs(duration, 4)
+        assertEquals(4, frames.size)
+        assertTrue(frames.all { it in 0 until duration })
+        assertTrue(frames.zipWithNext().all { (a, b) -> b > a })
+        assertTrue(frames.last() > duration * 3 / 4)
+        assertEquals(1, JarvisVideoSampling.timestampsMs(1_000, 4).size)
+        assertThrows(IllegalArgumentException::class.java) {
+            JarvisVideoSampling.timestampsMs(10_000, 0)
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            JarvisVideoSampling.timestampsMs(10_000, 13)
+        }
+    }
+
     @Test fun shortVideoSpacedAndReadableDuration() {
         val ts = JarvisVideoSampling.timestampsMs(30_000)
         assertEquals(4, ts.size)
