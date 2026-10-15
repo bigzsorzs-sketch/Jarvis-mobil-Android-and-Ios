@@ -17,7 +17,7 @@ internal object VoiceIntentParser {
         val normal = normalize(raw)
         // ASR may insert punctuation between the greeting and the name.
         // Bare "Jarvis" is accepted only at the start, never a passing mention.
-        val match = Regex("""\b(?:hey|hej|he|szia|ok|okay)[,\s]+jarvis\b|^jarvis\b""")
+        val match = Regex("""^(?:\b(?:hey|hej|he|szia|ok|okay)[,\s]+jarvis\b|jarvis\b)""")
             .find(normal) ?: return null
         return raw.substring((match.range.last + 1).coerceAtMost(raw.length))
             .trim().trimStart(',', '.', '!', ':', ' ')
