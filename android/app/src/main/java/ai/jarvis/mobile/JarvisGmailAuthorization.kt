@@ -28,12 +28,13 @@ internal fun rememberJarvisGmail(
     val scope = rememberCoroutineScope()
     val currentCallback by rememberUpdatedState(onCompleted)
     var pending by remember { mutableStateOf<GmailRequest?>(null) }
-    val requestedScopes = remember {
-        listOf(
-            Scope("https://www.googleapis.com/auth/gmail.readonly"),
-            Scope("https://www.googleapis.com/auth/gmail.send")
-        )
+    val revocableScopes = remember {
+        JarvisGmailScopePolicy.ALL.map(::Scope)
     }
+    fun scopesFor(operation: GmailOperation): List<Scope> =
+        JarvisGmailScopePolicy.required(operation).map(::Scope)
+    fun currentRequiredScopes(): Set<String> =
+        pending?.operation?.let(JarvisGmailScopePolicy::required) ?: emptySet()
 
     fun finish(result: GmailResult) {
         val item = pending ?: return
@@ -72,8 +73,8 @@ internal fun rememberJarvisGmail(
         } else {
             runCatching { client.getAuthorizationResultFromIntent(result.data!!) }
                 .onSuccess { auth ->
-                    if (!auth.grantedScopes.containsAll(requestedScopes.map { it.scopeUri })) {
-                        finish(GmailResult("A Gmail olvasásához és küldéséhez szükséges jogosultságokat nem kaptam meg."))
+                    if (!JarvisGmailScopePolicy.granted(currentRequiredScopes(), auth.grantedScopes)) {
+                        finish(GmailResult("A kért Gmail-művelethez szükséges Google-jogosultság hiányzik. Nem történt művelet."))
                     } else executeWithToken(auth.accessToken)
                 }.onFailure { finish(GmailResult("A Google-engedélyezés sikertelen. Nem történt Gmail-művelet.")) }
         }
@@ -89,7 +90,7 @@ internal fun rememberJarvisGmail(
             pending = requested
             if (requested.operation == GmailOperation.Disconnect) {
                 client.revokeAccess(
-                    RevokeAccessRequest.builder().setScopes(requestedScopes).build()
+                    RevokeAccessRequest.builder().setScopes(revocableScopes).build()
                 ).addOnSuccessListener {
                     finish(GmailResult("A Gmail-hozzáférés visszavonva."))
                 }.addOnFailureListener {
@@ -97,7 +98,7 @@ internal fun rememberJarvisGmail(
                 }
             } else {
                 val authRequest = AuthorizationRequest.builder()
-                    .setRequestedScopes(requestedScopes).build()
+                    .setRequestedScopes(scopesFor(requested.operation)).build()
                 client.authorize(authRequest)
                     .addOnSuccessListener { auth ->
                         if (auth.hasResolution()) {
@@ -106,7 +107,7 @@ internal fun rememberJarvisGmail(
                             else runCatching {
                                 launcher.launch(IntentSenderRequest.Builder(intent.intentSender).build())
                             }.onFailure { finish(GmailResult("A Google-fiók engedélykérése nem indult el.")) }
-                        } else if (!auth.grantedScopes.containsAll(requestedScopes.map { it.scopeUri })) {
+                        } else if (!JarvisGmailScopePolicy.granted(currentRequiredScopes(), auth.grantedScopes)) {
                             finish(GmailResult("Hiányzó Gmail-jogosultság. Nem történt művelet."))
                         } else executeWithToken(auth.accessToken)
                     }.addOnFailureListener {
