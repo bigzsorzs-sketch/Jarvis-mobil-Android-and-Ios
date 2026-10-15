@@ -167,6 +167,10 @@ fun JarvisApp(context: Context, launcherRequest: String? = null) {
     var lastCommandReply by remember { mutableStateOf("") }
     // One active response sink for both synchronous and asynchronous execution.
     var voiceReply by remember { mutableStateOf<Pair<String, (String) -> Unit>?>(null) }
+    // A repeated transcript is a new request even when its text is identical.
+    // Keep the pending model request scoped to exactly its own microphone turn.
+    val voiceTurnGeneration = remember { VoiceTurnGeneration() }
+    var voicePreflightJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
     fun completeCommand(request: String, answer: String) {
         lastCommandReply = answer
         val reply = voiceReply
@@ -1195,7 +1199,10 @@ fun JarvisApp(context: Context, launcherRequest: String? = null) {
     // The microphone transcript reaches GPT-5.2 BEFORE the action router.
     // Confirmation answers remain local so an "igen" cannot be reinvented by AI.
     val latestVoiceHandler = rememberUpdatedState<(String, (String) -> Unit) -> Unit> { command, respond ->
-        voiceReply = command to respond
+        voicePreflightJob?.cancel()
+        val requestId = voiceTurnGeneration.next()
+        val responseSlot = command to respond
+        voiceReply = responseSlot
         val approval = VoiceCalling.callConfirmationYes(command) ||
             VoiceIntentParser.isNo(command) || VoiceIntentParser.isPlaybackStop(command)
         val cloudConfigured = JarvisAiGateway.configured(context)
@@ -1214,11 +1221,22 @@ fun JarvisApp(context: Context, launcherRequest: String? = null) {
             val chatAtStart = currentChat.id
             val transcriptHistory = currentChat.aiTurns.toList()
             val selectedLanguageTag = language.tag
-            drawerScope.launch {
-                val proposal = JarvisAiGateway.askStructured(
-                    context, command, selectedLanguageTag, history = transcriptHistory)
-                if (voiceReply?.first == command && currentChat.id == chatAtStart)
-                    executeHome(command, proposal)
+            voicePreflightJob = drawerScope.launch {
+                try {
+                    val proposal = JarvisAiGateway.askStructured(
+                        context, command, selectedLanguageTag, history = transcriptHistory)
+                    // Checking only the transcript string is NOT sufficient:
+                    // the user may say exactly the same request again while a
+                    // prior network response is still pending.
+                    if (voiceTurnGeneration.accepts(requestId) &&
+                        voiceReply === responseSlot &&
+                        HandsFreeStatus.running &&
+                        currentChat.id == chatAtStart)
+                        executeHome(command, proposal)
+                } finally {
+                    if (voiceTurnGeneration.accepts(requestId))
+                        voicePreflightJob = null
+                }
             }
         }
     }
@@ -1229,15 +1247,24 @@ fun JarvisApp(context: Context, launcherRequest: String? = null) {
         JarvisForegroundCommands.handler = handler
         onDispose {
             if (JarvisForegroundCommands.handler === handler) JarvisForegroundCommands.handler = null
+            voiceTurnGeneration.next()
+            voicePreflightJob?.cancel()
+            voicePreflightJob = null
             voiceReply = null
         }
     }
     fun executeTyped(command: String) {
+        voiceTurnGeneration.next()
+        voicePreflightJob?.cancel()
+        voicePreflightJob = null
         voiceReply = null
         JarvisForegroundCommands.interruptSpeech?.invoke()
         executeHome(command)
     }
     fun selectConversation(id: String? = null) {
+        voiceTurnGeneration.next()
+        voicePreflightJob?.cancel()
+        voicePreflightJob = null
         commandRevision += 1
         voiceReply?.second?.invoke(JarvisTranslations.text("Új beszélgetés", language))
         voiceReply = null
