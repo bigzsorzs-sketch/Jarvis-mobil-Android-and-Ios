@@ -95,7 +95,7 @@ internal object JarvisAiGateway {
     }
 
     fun canTranscribe(context: Context): Boolean =
-        transcriptionConsent(context) && configured(context) && mode(context) == DIRECT_TEST
+        transcriptionConsent(context) && configured(context)
 
     fun setCloudConsent(context: Context, approved: Boolean) {
         SecurePrefs(context).write(KEY_CONSENT, approved.toString())
@@ -247,22 +247,28 @@ internal object JarvisAiGateway {
                 lastTranscriptionError = "A mikrofon felvétele érvénytelen vagy túl hosszú."
                 return@withContext null
             }
-            val key = SecurePrefs(context).read(KEY_DIRECT, "")
-            if (!isValidOpenRouterKey(key)) {
-                lastTranscriptionError = "Az OpenRouter-hozzáférés hiányzik."
+            val direct = mode(context) == DIRECT_TEST
+            val credential = SecurePrefs(context).read(
+                if (direct) KEY_DIRECT else KEY_TOKEN, "")
+            val endpoint = if (direct)
+                "https://openrouter.ai/api/v1/audio/transcriptions"
+            else normalizedBaseUrl(baseUrl(context))?.plus("/v1/transcribe")
+            if (endpoint == null || if (direct) !isValidOpenRouterKey(credential)
+                else !isValidTesterToken(credential)) {
+                lastTranscriptionError = "A beszédfelismerő kapcsolata nincs beállítva."
                 return@withContext null
             }
             var conn: HttpURLConnection? = null
             try {
                 if (!canTranscribe(context)) return@withContext null
-                conn = URL("https://openrouter.ai/api/v1/audio/transcriptions")
+                conn = URL(endpoint)
                     .openConnection() as HttpURLConnection
                 conn.requestMethod = "POST"
                 conn.instanceFollowRedirects = false
                 conn.connectTimeout = 12_000
                 conn.readTimeout = 58_000
                 conn.doOutput = true
-                conn.setRequestProperty("Authorization", "Bearer $key")
+                conn.setRequestProperty("Authorization", "Bearer $credential")
                 conn.setRequestProperty("Content-Type", "application/json; charset=utf-8")
                 conn.setRequestProperty("Accept", "application/json")
                 val payload = JSONObject()
@@ -274,7 +280,7 @@ internal object JarvisAiGateway {
                 conn.outputStream.use { it.write(payload.toString().toByteArray(Charsets.UTF_8)) }
                 if (conn.responseCode != 200) {
                     lastTranscriptionError = when (conn.responseCode) {
-                        401 -> "Az OpenRouter-kulcs érvénytelen."
+                        401 -> "A hangfelismerő hozzáférése érvénytelen."
                         402 -> "Az OpenRouter-egyenleg elfogyott."
                         404 -> "A beszédfelismerő modell/végpont nem elérhető."
                         429 -> "A hangfelismerés használati korlátot ért el."
