@@ -80,6 +80,14 @@ class JarvisConversationContextTest {
             "Spiega la fattura", "Wyjaśnij fakturę").forEach { assertFalse(it, BillingVoice.isCandidate(it)) }
     }
 
+    @Test fun openingApplicationPagesNeverBecomesAnUpdateCheck() {
+        (JarvisToolCatalog.all + JarvisToolCatalog.subpages).forEach { tool ->
+            val command = "Jarvis, nyisd meg a ${tool.name} oldalt"
+            assertFalse(command, JarvisUpdateVoice.isRequest(command))
+        }
+        assertTrue(JarvisUpdateVoice.isRequest("Nyisd meg a frissítéseket"))
+    }
+
     @Test fun longAnswerSurvivesBeyondOldStreamingLimit() {
         val decoder = JarvisSseDecoder()
         val part = "x".repeat(12000)
