@@ -219,13 +219,13 @@ internal fun JarvisAiSettings(context: Context) {
     }
     androidx.compose.material3.Text(
         listOf(
-            "Ha bekapcsolod, a főoldali mikrofon által rögzített rövid hangminták az OpenRouterhez kerülnek szövegfelismerésre. A GPT-5.2 a felismert szöveget kapja. A hang nem kerül a Jarvis tárhelyére. Kikapcsolva az Android beszédfelismerése marad. Egyelőre a közvetlen OpenRouter mód támogatott.",
-            "When enabled, short audio clips from the Home microphone are sent to OpenRouter for transcription. GPT-5.2 receives the text. Audio is not saved by Jarvis. Disabled: Android recognition remains. Direct OpenRouter mode only.",
-            "Kurze Mikrofonaufnahmen werden zur Transkription an OpenRouter gesendet. GPT-5.2 erhält den Text. Keine lokale Speicherung. Nur direkter OpenRouter-Modus.",
-            "Les courts enregistrements sont transmis à OpenRouter pour transcription, puis le texte à GPT-5.2. Sans stockage local. Mode OpenRouter direct seulement.",
-            "Se envían clips breves a OpenRouter para transcripción y el texto a GPT-5.2. Sin almacenamiento local. Solo OpenRouter directo.",
-            "Brevi clip audio vanno a OpenRouter per la trascrizione e il testo a GPT-5.2. Nessun salvataggio locale. Solo OpenRouter diretto.",
-            "Krótkie nagrania są wysyłane do OpenRouter w celu transkrypcji, a tekst do GPT-5.2. Bez zapisu lokalnego. Tylko bezpośredni OpenRouter."
+            "Ha bekapcsolod, a főoldali mikrofon által rögzített rövid hangminták az OpenRouterhez kerülnek szövegfelismerésre. A GPT-5.2 a felismert szöveget kapja. A hang nem kerül a Jarvis tárhelyére. Kikapcsolva az Android beszédfelismerése marad. Közvetlen OpenRouterrel és saját Jarvis-szerverrel is használható.",
+            "When enabled, short audio clips from the Home microphone are sent to OpenRouter for transcription. GPT-5.2 receives the text. Audio is not saved by Jarvis. Disabled: Android recognition remains. Direct OpenRouter or a configured private Jarvis server.",
+            "Kurze Mikrofonaufnahmen werden zur Transkription an OpenRouter gesendet. GPT-5.2 erhält den Text. Keine lokale Speicherung. Direkter OpenRouter- oder privater Jarvis-Servermodus.",
+            "Les courts enregistrements sont transmis à OpenRouter pour transcription, puis le texte à GPT-5.2. Sans stockage local. OpenRouter direct ou serveur Jarvis privé.",
+            "Se envían clips breves a OpenRouter para transcripción y el texto a GPT-5.2. Sin almacenamiento local. OpenRouter directo o servidor privado Jarvis.",
+            "Brevi clip audio vanno a OpenRouter per la trascrizione e il testo a GPT-5.2. Nessun salvataggio locale. OpenRouter diretto o server Jarvis privato.",
+            "Krótkie nagrania są wysyłane do OpenRouter w celu transkrypcji, a tekst do GPT-5.2. Bez zapisu lokalnego. Bezpośredni OpenRouter lub prywatny serwer Jarvis."
         )[selectedLanguage.ordinal], style = MaterialTheme.typography.bodySmall
     )
     Spacer(Modifier.height(12.dp))
