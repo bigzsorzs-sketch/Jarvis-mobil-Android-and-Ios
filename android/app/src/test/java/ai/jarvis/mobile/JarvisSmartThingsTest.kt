@@ -50,6 +50,23 @@ class JarvisSmartThingsTest {
         assertTrue(JarvisSmartThingsPolicy.MAX_DEVICES <= 100)
     }
 
+    @Test fun applianceStatusIsReadOnlyAndUsesOnlyKnownCapabilities() {
+        val washer = JSONObject().put("components", JSONObject()
+            .put("main", JSONObject().put("washerOperatingState", JSONObject()
+                .put("machineState", JSONObject().put("value", "running")))))
+        assertEquals("washerOperatingState: running",
+            JarvisSmartThingsPolicy.statusSummary(washer))
+        val tv = JSONObject().put("components", JSONObject()
+            .put("main", JSONObject().put("mediaPlayback", JSONObject()
+                .put("playbackStatus", JSONObject().put("value", "paused")))))
+        assertEquals("mediaPlayback: paused",
+            JarvisSmartThingsPolicy.statusSummary(tv))
+        val unsafe = JSONObject().put("components", JSONObject()
+            .put("main", JSONObject().put("ovenOperatingState", JSONObject()
+                .put("ovenOperatingState", JSONObject().put("value", "heat")))))
+        assertEquals("unknown", JarvisSmartThingsPolicy.statusSummary(unsafe))
+    }
+
     @Test fun statusMustBeExplicitlyReportedNotInferredFromCommandReceipt() {
         val status = JSONObject().put("components", JSONObject()
             .put("main", JSONObject().put("switch", JSONObject()
