@@ -26,25 +26,29 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 2
-      - name: Verify publisher-only commit and approved exact source
+          fetch-depth: 0
+      - name: Verify publisher-only changes and approved exact source
         shell: bash
         run: |
           set -euo pipefail
           test "$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')" = "$GITHUB_SHA"
           gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA" |
-            jq -e --arg source "$SOURCE_SHA" '
-              (.parents | length) == 1 and .parents[0].sha == $source and
+            jq -e '
+              (.parents | length) == 1 and
               (.files | length) == 1 and
               .files[0].filename == ".github/workflows/publish-android-039-signed-test.yml" and
-              .files[0].status == "added"
+              (.files[0].status == "added" or .files[0].status == "modified")
             ' >/dev/null
-          git diff --quiet "$SOURCE_SHA" HEAD -- android/ server/
+          git merge-base --is-ancestor "$SOURCE_SHA" HEAD
+          test "$(git diff --name-only "$SOURCE_SHA" HEAD)" = ".github/workflows/publish-android-039-signed-test.yml"
           grep -F 'versionCode = 50' android/app/build.gradle.kts
           grep -F 'versionName = "0.2.39"' android/app/build.gradle.kts
-          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            echo "::error::Release already exists; no overwrite"; exit 1
-          fi
+          gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100" |
+            jq -e --arg tag "$RELEASE_TAG" --arg source "$SOURCE_SHA" '
+              [.[] | select(.tag_name == $tag)] |
+              length == 0 or (length == 1 and .[0].draft == true and
+                .[0].prerelease == true and .[0].target_commitish == $source)
+            ' >/dev/null
       - name: Require successful CI and signed QA build for the exact source
         shell: bash
         run: |
@@ -134,29 +138,45 @@ jobs:
 
           Még telefonon tesztelendő: a 0.2.38 → 0.2.39 frissítés és a helyi adatok megmaradása, folyamatos hangos beszélgetés, háttérmikrofon, hívások, navigáció és külső szolgáltatások. A zöld automatizált tesztek nem bizonyítják ezek teljes működését. A közvetlen Libre NFC-olvasás, élő privát Google Maps-listák, tetszőleges külső appvezérlés és iOS-funkcióazonosság nem igazolt szolgáltatásai ennek a kiadásnak.
           EOF
-          gh release create "$RELEASE_TAG" \
-            dist/Jarvis-Android-0.2.39-signed-test.apk dist/SHA256SUMS.txt dist/SIGNING-CERTIFICATE.txt \
-            --repo "$GITHUB_REPOSITORY" --target "$SOURCE_SHA" \
-            --title "Jarvis Android 0.2.39 — aláírt tesztfrissítés" \
-            --notes-file "$RUNNER_TEMP/notes.md" --draft --prerelease --latest=false
+          release_id="$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100" |
+            jq -r --arg tag "$RELEASE_TAG" '[.[] | select(.tag_name == $tag)][0].id // empty')"
+          if test -z "$release_id"; then
+            gh release create "$RELEASE_TAG" \
+              dist/Jarvis-Android-0.2.39-signed-test.apk dist/SHA256SUMS.txt dist/SIGNING-CERTIFICATE.txt \
+              --repo "$GITHUB_REPOSITORY" --target "$SOURCE_SHA" \
+              --title "Jarvis Android 0.2.39 — aláírt tesztfrissítés" \
+              --notes-file "$RUNNER_TEMP/notes.md" --draft --prerelease --latest=false
+          fi
       - name: Verify updater-compatible metadata then publish prerelease
         shell: bash
         run: |
           set -euo pipefail
           digest="$(sha256sum dist/Jarvis-Android-0.2.39-signed-test.apk | awk '{print $1}')"
           size="$(stat --printf=%s dist/Jarvis-Android-0.2.39-signed-test.apk)"
+          sums_digest="$(sha256sum dist/SHA256SUMS.txt | awk '{print $1}')"
+          cert_digest="$(sha256sum dist/SIGNING-CERTIFICATE.txt | awk '{print $1}')"
           release_url="https://github.com/$GITHUB_REPOSITORY/releases/download/$RELEASE_TAG/Jarvis-Android-0.2.39-signed-test.apk"
-          gh api "repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_TAG" |
-            jq -e --arg tag "$RELEASE_TAG" --arg digest "sha256:$digest" --arg url "$release_url" --argjson size "$size" '
-              .tag_name == $tag and .draft == true and .prerelease == true and
+          release_id="$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100" |
+            jq -r --arg tag "$RELEASE_TAG" '[.[] | select(.tag_name == $tag)][0].id // empty')"
+          test -n "$release_id"
+          # Drafts use a temporary untagged URL. Verify by numeric ID first;
+          # the final tag URL is checked only after publication.
+          gh api "repos/$GITHUB_REPOSITORY/releases/$release_id" |
+            jq -e --arg tag "$RELEASE_TAG" --arg source "$SOURCE_SHA" --arg digest "sha256:$digest" \
+              --arg sums "sha256:$sums_digest" --arg cert "sha256:$cert_digest" --argjson size "$size" '
+              .tag_name == $tag and .target_commitish == $source and .draft == true and .prerelease == true and
               (.assets | length) == 3 and
               any(.assets[]; .name == "Jarvis-Android-0.2.39-signed-test.apk" and
-                .state == "uploaded" and .size == $size and .digest == $digest and .browser_download_url == $url)
+                .state == "uploaded" and .size == $size and .digest == $digest) and
+              any(.assets[]; .name == "SHA256SUMS.txt" and .state == "uploaded" and .digest == $sums) and
+              any(.assets[]; .name == "SIGNING-CERTIFICATE.txt" and .state == "uploaded" and .digest == $cert)
             ' >/dev/null
           test "$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')" = "$GITHUB_SHA"
-          gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --draft=false --prerelease --latest=false
+          gh api --method PATCH "repos/$GITHUB_REPOSITORY/releases/$release_id" \
+            -F draft=false -F prerelease=true -f make_latest=false >/dev/null
           gh api "repos/$GITHUB_REPOSITORY/releases?per_page=25" |
-            jq -e --arg tag "$RELEASE_TAG" --arg digest "sha256:$digest" '
+            jq -e --arg tag "$RELEASE_TAG" --arg digest "sha256:$digest" --arg url "$release_url" '
               any(.[]; .tag_name == $tag and .draft == false and .prerelease == true and
-                any(.assets[]; .name == "Jarvis-Android-0.2.39-signed-test.apk" and .digest == $digest))
+                any(.assets[]; .name == "Jarvis-Android-0.2.39-signed-test.apk" and .digest == $digest and
+                  .browser_download_url == $url))
             ' >/dev/null
