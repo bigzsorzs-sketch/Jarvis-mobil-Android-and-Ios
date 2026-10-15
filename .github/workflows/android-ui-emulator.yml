@@ -9,6 +9,13 @@ on:
     paths:
       - "android/**"
       - ".github/workflows/android-ui-emulator.yml"
+# An earlier commit in the same PR should not keep running costly emulator
+# jobs while newer, different code is already awaiting validation. Main
+# builds and manual release workflows are never cancelled by this rule.
+concurrency:
+  group: jarvis-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 permissions:
   contents: read
 jobs:
