@@ -48,7 +48,7 @@ internal object VoiceIntentParser {
     fun isStop(raw: String): Boolean {
         val spoken = afterWakeWord(raw) ?: raw
         val normalized = normalize(spoken).trim().trimEnd('.', '!', '?', ',')
-            .replace(Regex("""^(?:kerlek|legy szives|figyelj|please|bitte|por favor|per favore|prosze)[,\\s]+"""), "")
+            .replace(Regex("""^(?:kerlek|legy szives|figyelj|please|bitte|por favor|per favore|prosze)[,\s]+"""), "")
             .trim()
         return normalized in setOf(
             "allj le", "leallas", "hagyd abba", "kapcsold ki a figyelest",
