@@ -34,6 +34,24 @@ class JarvisGmailCommandsTest {
             is GmailOperation.ResolveRecipient)
     }
 
+    @Test fun naturalHungarianTestEmailKeepsOnlyIntendedRecipient() {
+        val utterances = listOf(
+            "Írj Várnai Ferencnek egy próba e-mailt",
+            "Írj egy próba e-mailt Várnai Ferencnek",
+            "Írj egy emailt a Várnai Ferencnek",
+            "Írj emailt Várnai Ferencnek"
+        )
+        for (utterance in utterances) {
+            val request = JarvisGmailCommands.parse(utterance)
+            assertNotNull(utterance, request)
+            val op = request!!.operation as GmailOperation.ResolveRecipient
+            assertEquals(utterance, "Várnai Ferenc", op.name)
+            assertFalse(utterance, op.actuallySend)
+        }
+        assertEquals("", GmailRecipientPhrase.extract("írj egy próba e-mailt"))
+        assertEquals("", GmailRecipientPhrase.extract("írj Eszternek a kollégáknak emailt"))
+    }
+
     @Test fun canAskUnreadAndReadAloud() {
         assertEquals(GmailOperation.Check,
             JarvisGmailCommands.parse("Van új emailem?")!!.operation)
