@@ -37,6 +37,36 @@ internal object JarvisSavedPlaces {
         }
     }.getOrDefault(emptyList())
 
+    /** User-confirmed local nickname -> concrete address mapping.
+     * No private Google Maps API access or guessed address is involved.
+     */
+    internal fun validManualPlace(name: String, destination: String): Boolean {
+        val label = name.trim()
+        val target = destination.trim()
+        if (label.length !in 2..80 || target.length !in 6..180 ||
+            (label + target).any { it == '\n' || it == '\r' }) return false
+        // A free-form person's name is not a safe routable destination.
+        val coordinate = Regex("""^-?\d{1,2}(?:\.\d+)?,\s*-?\d{1,3}(?:\.\d+)?$""")
+            .matches(target)
+        return coordinate || (target.any { it.isDigit() } && target.any { it.isLetter() })
+    }
+
+    fun saveManual(context: Context, name: String, destination: String) {
+        require(validManualPlace(name, destination)) {
+            "Adj meg egy nevet és valódi címet házszámmal vagy irányítószámmal."
+        }
+        val label = name.trim()
+        val address = destination.trim()
+        val entries = list(context).filterNot { normalized(it.name) == normalized(label) } +
+            JarvisSavedPlace(label, address)
+        require(entries.size <= MAX_PLACES) { "A mentett helyek listája megtelt." }
+        val json = JSONArray()
+        entries.forEach {
+            json.put(JSONObject().put("name", it.name).put("destination", it.destination))
+        }
+        SecurePrefs(context).write(FIELD, json.toString())
+    }
+
     fun isListRequest(command: String): Boolean {
         val s = normalized(command)
         if (s.isEmpty() || listOf("ne ", "nem ", "dont ", "do not ").any { s.startsWith(it) })

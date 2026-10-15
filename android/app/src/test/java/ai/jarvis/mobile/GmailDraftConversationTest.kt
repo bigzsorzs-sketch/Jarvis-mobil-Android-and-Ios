@@ -47,9 +47,22 @@ class GmailDraftConversationTest {
 
     @Test fun writingRequestCannotAutoSend() {
         val draft = GmailDraftConversation("ferenc@example.com", false,
-            "Holnapi találkozó", 9000L)
-        val result = GmailDraftConversationFlow.advance(draft,
-            "Szöveg: Köszönöm a leveled.") as GmailDraftNext.Complete
-        assertFalse(result.send.actuallySend)
+            subject = "Holnapi találkozó", expiresAtMs = 9000L)
+        val ready = GmailDraftConversationFlow.advance(draft,
+            "Szöveg: Köszönöm a leveled.") as GmailDraftNext.Ready
+        assertEquals("Köszönöm a leveled.", ready.draft.body)
+        assertEquals(GmailDraftNext.NotRelated,
+            GmailDraftConversationFlow.advance(ready.draft, "Hány óra van?"))
+        val result = GmailDraftConversationFlow.advance(ready.draft,
+            "küld el") as GmailDraftNext.Complete
+        assertTrue(result.send.actuallySend)
+        assertEquals("ferenc@example.com", result.send.recipient)
+        assertEquals("Holnapi találkozó", result.send.subject)
+        assertEquals("Köszönöm a leveled.", result.send.body)
+        assertEquals(GmailDraftNext.Cancelled,
+            GmailDraftConversationFlow.advance(ready.draft, "mégse"))
+        assertFalse(GmailDraftConversationFlow.isExplicitSend("ne küldd el"))
+        assertFalse(GmailDraftConversationFlow.isExplicitSend("küldd el a többit"))
+        assertTrue(GmailDraftConversationFlow.isExplicitSend("Send it"))
     }
 }

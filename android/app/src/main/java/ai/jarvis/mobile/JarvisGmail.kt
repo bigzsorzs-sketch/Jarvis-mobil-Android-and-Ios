@@ -41,6 +41,33 @@ internal data class GmailResult(
     val recipientCandidates: List<String> = emptyList()
 )
 
+/** Parse either "írj emailt Eszternek" or "írj Eszternek egy próba e-mailt".
+ * A failed or ambiguous parse must never guess the recipient.
+ */
+internal object GmailRecipientPhrase {
+    private val action = Regex("""(?iu)^(?:k[uü]ldj|k[uü]ldd|k[uü]ld|[ií]rj|k[eé]sz[ií]ts|send|write|compose)\s+(?:el\s+)?""")
+    private val mail = Regex("""(?iu)\b(?:e-?mailt?|levelet|an?\s+email|mail)\b""")
+    private val filler = Regex("""(?iu)^(?:(?:egy|a|az|an?|the|to)\s*)?(?:(?:pr[oó]ba|test)\s*)?$""")
+    private val nameWithEnding = Regex("""(?iu)^(.+?(?:nak|nek))(?:\s+(?:(?:egy|a|az)\s*)?(?:(?:pr[oó]ba|test)\s*)?)?$""")
+
+    fun extract(head: String): String {
+        val phrase = head.replace(action, "").trim()
+        val marker = mail.find(phrase) ?: return phrase
+            .removeSuffix("nek").removeSuffix("nak").trim()
+        val before = phrase.substring(0, marker.range.first).trim()
+        val after = phrase.substring(marker.range.last + 1)
+            .trim().replace(Regex("""(?iu)^(?:a|az|to)\s+"""), "").trim()
+        val named = when {
+            after.isNotBlank() && filler.matches(before) -> after
+            after.isBlank() -> nameWithEnding.matchEntire(before)?.groupValues?.get(1)
+                ?.takeIf { Regex("""(?iu)\b[\p{L}]+(?:nak|nek)\b""")
+                    .findAll(it).count() == 1 }.orEmpty()
+            else -> ""
+        }
+        return named.removeSuffix("nek").removeSuffix("nak").trim()
+    }
+}
+
 internal object JarvisGmailCommands {
     private fun normal(s: String): String = Normalizer.normalize(
         s.lowercase(Locale.ROOT), Normalizer.Form.NFD)
@@ -99,9 +126,7 @@ internal object JarvisGmailCommands {
                     .find(command)?.groupValues?.get(1)?.trim().orEmpty()
                 val head = Regex("""(?iu)\b(?:t[aá]rgy|subject|[uü]zenet|sz[oö]veg|message|body)\b""")
                     .find(command)?.range?.first?.let { command.substring(0, it) } ?: command
-                val recipient = head.replace(Regex("""(?iu)^(?:k[uü]ldj|k[uü]ldd|k[uü]ld|[ií]rj|k[eé]sz[ií]ts|send|write|compose)\s+(?:el\s+)?"""), "")
-                    .replace(Regex("""(?iu)^(?:egy\s+)?(?:e-?mailt?|levelet|mail|an?\s+email)\s*(?:a\s+|az\s+|to\s+)?"""), "")
-                    .trim().removeSuffix("nek").removeSuffix("nak").trim()
+                val recipient = GmailRecipientPhrase.extract(head)
                 when {
                     recipient.isBlank() -> GmailOperation.Incomplete(
                         "Mondd meg a címzett nevét vagy emailcímét.")
