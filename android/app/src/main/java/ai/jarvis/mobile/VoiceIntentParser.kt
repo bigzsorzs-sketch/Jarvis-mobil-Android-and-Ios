@@ -39,10 +39,26 @@ internal object VoiceIntentParser {
         )
     }
 
+    /**
+     * Stop the user-started microphone session ONLY on an explicit utterance.
+     * A substring check would treat "Ne állj le" / "Don't stop listening"
+     * and quoted instructions as permission to shut down the session.
+     * Keep voice session stop distinct from stopping just the read-aloud player.
+     */
     fun isStop(raw: String): Boolean {
-        val n = normalize(raw)
-        return listOf("allj le", "leallas", "hagyd abba", "kapcsold ki a figyelest", "stop listening")
-            .any { n.contains(it) }
+        val spoken = afterWakeWord(raw) ?: raw
+        val normalized = normalize(spoken).trim().trimEnd('.', '!', '?', ',')
+            .replace(Regex("""^(?:kerlek|legy szives|figyelj|please|bitte|por favor|per favore|prosze)[,\\s]+"""), "")
+            .trim()
+        return normalized in setOf(
+            "allj le", "leallas", "hagyd abba", "kapcsold ki a figyelest",
+            "stop listening", "stop the microphone",
+            "hor auf zuzuhoren", "hor auf mit dem zuhoren",
+            "arrete d'ecouter", "arretez d'ecouter",
+            "deja de escuchar", "deten la escucha",
+            "smetti di ascoltare", "interrompi l'ascolto",
+            "przestan sluchac", "wylacz nasluchiwanie"
+        )
     }
 
     fun isYes(raw: String): Boolean {
