@@ -4,6 +4,21 @@ package ai.jarvis.mobile
  * AI can only propose validated, allowlisted operations; text never executes as a command. */
 internal object JarvisAiRouting {
     /**
+     * Direct OpenRouter plain conversation can go straight into the already
+     * existing incremental SSE + speech queue. No initial non-streaming
+     * GPT call is needed. Explicit native commands and deep research keep
+     * their guarded, separate routing.
+     */
+    fun mayStreamVoiceTurn(
+        text: String,
+        incrementalAvailable: Boolean,
+        cloudConversation: Boolean = true
+    ): Boolean =
+        incrementalAvailable && cloudConversation &&
+            shouldAskAi(text, cloudConversation) &&
+            !JarvisAgentResearch.shouldHandle(text)
+
+    /**
      * A hands-free turn already sent to GPT-5.2 must not submit the exact same
      * ordinary question to the provider AGAIN after a plain answer arrived.
      * Existing local actions and the specialized research pipeline still run
