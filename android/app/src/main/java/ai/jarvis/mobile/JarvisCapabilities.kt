@@ -125,6 +125,8 @@ internal object JarvisCapabilities {
             matches.remove("Beállítások")
         }
         if ("Továbbiak" in matches) matches.remove("Ébresztő")
+        // The generic English "Home" must not hijack "Smart Home".
+        if ("Smart Home" in matches) matches.remove("Főoldal")
         val route = matches.singleOrNull() ?: return null
         val explicitPage = Regex("""\b(oldal[a-z]*|menu[a-z]*|kepernyo[a-z]*|page|screen|seite|pagina|ecran|strone)\b""")
             .containsMatchIn(n)
