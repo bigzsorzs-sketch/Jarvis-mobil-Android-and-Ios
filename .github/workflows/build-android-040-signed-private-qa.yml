@@ -1,0 +1,142 @@
+name: Build Jarvis Android 0.2.40 signed PRIVATE QA APK
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: "Enter BUILD_SIGNED_PRIVATE_QA_ONLY. This NEVER publishes a release."
+        type: string
+        required: true
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: jarvis-android-040-private-signing
+  cancel-in-progress: false
+
+jobs:
+  private-signed-qa:
+    if: >-
+      ${{ github.repository == 'bigzsorzs-sketch/Jarvis-mobil-Android-and-Ios' &&
+          github.ref == 'refs/heads/main' &&
+          inputs.confirmation == 'BUILD_SIGNED_PRIVATE_QA_ONLY' }}
+    environment: production
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    env:
+      SOURCE_SHA: f3ef053eb5c270e57bd03fc15e1bb4df360d4cae
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Prove main contains ONLY the reviewed 0.2.40 commit plus this QA workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')" = "$GITHUB_SHA"
+          git merge-base --is-ancestor "$SOURCE_SHA" HEAD
+          test "$(git diff --name-only "$SOURCE_SHA" HEAD)" = ".github/workflows/build-android-040-signed-private-qa.yml"
+          test "$(git show "$SOURCE_SHA:android/app/build.gradle.kts" | grep -Fc 'versionCode = 51')" -eq 1
+          test "$(git show "$SOURCE_SHA:android/app/build.gradle.kts" | grep -Fc 'versionName = "0.2.40"')" -eq 1
+          grep -F 'applicationId = "ai.jarvis.mobile"' android/app/build.gradle.kts
+          grep -F 'versionCode = 51' android/app/build.gradle.kts
+          grep -F 'versionName = "0.2.40"' android/app/build.gradle.kts
+
+      - name: Require both green Android test workflows on the exact merged code
+        shell: bash
+        run: |
+          set -euo pipefail
+          for workflow in android-debug.yml android-ui-emulator.yml; do
+            gh api "repos/$GITHUB_REPOSITORY/actions/workflows/$workflow/runs?head_sha=$SOURCE_SHA&event=push&per_page=20" |
+              jq -e --arg sha "$SOURCE_SHA" --arg repo "$GITHUB_REPOSITORY" '
+                [.workflow_runs[] | select(.head_sha == $sha and .head_branch == "main" and
+                  .head_repository.full_name == $repo and .event == "push")][0] |
+                  .status == "completed" and .conclusion == "success"
+              ' >/dev/null
+          done
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.11.1"
+      - name: Install Android SDK 36
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -1)"
+          test -n "$sdkmanager"
+          "$sdkmanager" "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Recover EXISTING Jarvis signing identity from protected secrets
+        shell: bash
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_UPLOAD_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          umask 077
+          test -n "$KEYSTORE_BASE64"
+          test -n "$STORE_PASSWORD"
+          test -n "$KEY_ALIAS"
+          test -n "$KEY_PASSWORD"
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/jarvis-upload.jks"
+          test -s "$RUNNER_TEMP/jarvis-upload.jks"
+          chmod 600 "$RUNNER_TEMP/jarvis-upload.jks"
+
+      - name: Run unit tests, lint, and build signed release QA APK and AAB
+        shell: bash
+        env:
+          ANDROID_SIGNING_STORE_FILE: ${{ runner.temp }}/jarvis-upload.jks
+          ANDROID_SIGNING_STORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_STORE_PASSWORD }}
+          ANDROID_SIGNING_KEY_ALIAS: ${{ secrets.ANDROID_UPLOAD_KEY_ALIAS }}
+          ANDROID_SIGNING_KEY_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
+          JARVIS_GATEWAY_ORIGIN: ${{ vars.JARVIS_GATEWAY_ORIGIN }}
+        run: |
+          set -euo pipefail
+          test -s "$ANDROID_SIGNING_STORE_FILE"
+          gradle -p android :app:testDebugUnitTest :app:testReleaseUnitTest :app:lintRelease :app:assembleRelease :app:bundleRelease
+
+      - name: Verify installability, version, original signing certificate and SHA256
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk=android/app/build/outputs/apk/release/app-release.apk
+          aab=android/app/build/outputs/bundle/release/app-release.aab
+          test -s "$apk"
+          test -s "$aab"
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$apk" > "$RUNNER_TEMP/signature.txt"
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$apk" > "$RUNNER_TEMP/package.txt"
+          grep -F "package: name='ai.jarvis.mobile' versionCode='51' versionName='0.2.40'" "$RUNNER_TEMP/package.txt"
+          grep -F "targetSdkVersion:'36'" "$RUNNER_TEMP/package.txt"
+          unzip -t "$apk" >/dev/null
+          jarsigner -verify -strict "$aab" >/dev/null
+          expected="955338795da61366091ed256b0f6b2a948b9aaf9d7771b022a65b88a94b2d86a"
+          actual="$(grep -iE 'Signer #1 certificate SHA-256 digest: [0-9a-f]{64}' "$RUNNER_TEMP/signature.txt" | awk '{print $NF}' | tr A-F a-f)"
+          test "$actual" = "$expected" || { echo "::error::Jarvis signing certificate changed"; exit 1; }
+          mkdir -p dist
+          cp "$apk" dist/Jarvis-Android-0.2.40-SIGNED-PRIVATE-QA.apk
+          cp "$aab" dist/Jarvis-Android-0.2.40-SIGNED-PRIVATE-QA.aab
+          cp "$RUNNER_TEMP/signature.txt" dist/SIGNING-CERTIFICATE.txt
+          (cd dist && sha256sum *.apk *.aab > SHA256SUMS.txt)
+
+      - name: Upload PRIVATE QA files only (no public release or update feed)
+        uses: actions/upload-artifact@v4
+        with:
+          name: Jarvis-Android-0.2.40-Signed-Private-QA
+          path: dist/
+          retention-days: 7
+          if-no-files-found: error
+
+      - name: Remove keystore from runner
+        if: always()
+        shell: bash
+        run: rm -f "$RUNNER_TEMP/jarvis-upload.jks"
