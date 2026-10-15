@@ -316,8 +316,9 @@ private fun CheckboxRowCloudConsent(checked: Boolean, onChange: (Boolean) -> Uni
     Row(verticalAlignment = Alignment.CenterVertically) {
         RegisterJarvisControl("AI-kérdések felhőbe küldése", click = { onChange(!checked) })
         Checkbox(checked = checked, onCheckedChange = onChange)
-        Text("Hozzájárulok ahhoz, hogy a saját AI-kérdéseim szövegét " +
-            "a kiválasztott külső AI-szolgáltató feldolgozza.",
+        Text("Hozzájárulok ahhoz, hogy a saját AI-kérdéseimet és az adott beszélgetés " +
+            "korábbi AI-üzeneteit a kiválasztott külső AI-szolgáltató feldolgozza. " +
+            "A helyi telefonműveletek és a régi, csak helyben tárolt napló nem kerülnek bele.",
             style = MaterialTheme.typography.bodySmall)
     }
 }

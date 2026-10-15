@@ -5,7 +5,9 @@ import java.io.InputStream
 
 /** Enforces an upper response-body limit on all supported Android API levels. */
 internal object JarvisNetworkSafety {
-    const val MAX_AI_RESPONSE_BYTES = 256 * 1024
+    // Enough transport room for the 128k-token conversational output budget.
+    const val MAX_AI_RESPONSE_BYTES = 8 * 1024 * 1024
+    const val MAX_AI_TEXT_CHARACTERS = 2 * 1024 * 1024
 
     fun readUtf8Limited(stream: InputStream, maxBytes: Int = MAX_AI_RESPONSE_BYTES): String {
         require(maxBytes in 1..MAX_AI_RESPONSE_BYTES)

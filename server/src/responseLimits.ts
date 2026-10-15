@@ -2,7 +2,7 @@
  * Bounded OpenRouter response parsing. A model provider is external input:
  * do not let a valid HTTPS response exhaust server memory or hang indefinitely.
  */
-export const MAX_PROVIDER_RESPONSE_BYTES = 256 * 1024;
+export const MAX_PROVIDER_RESPONSE_BYTES = 8 * 1024 * 1024;
 
 export async function readLimitedProviderJson(
   response: Response, maxBytes = MAX_PROVIDER_RESPONSE_BYTES

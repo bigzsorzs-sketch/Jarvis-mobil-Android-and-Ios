@@ -13,7 +13,8 @@ import javax.crypto.spec.GCMParameterSpec
 
 internal data class JarvisChatEntry(
     val createdAtMs: Long, val request: String, val answer: String,
-    val id: Long = 0L, val conversationId: String = "legacy"
+    val id: Long = 0L, val conversationId: String = "legacy",
+    val aiContext: Boolean = false
 )
 
 internal data class JarvisChatSummary(val id: String, val title: String, val updatedAtMs: Long)
@@ -25,12 +26,12 @@ internal data class JarvisChatSummary(val id: String, val title: String, val upd
  * user-encrypted export and recovery passphrase, not the Android Keystore key.
  */
 internal class JarvisChatStore(context: Context, databaseName: String = "jarvis_conversation_v1.db") : SQLiteOpenHelper(
-    context.applicationContext, databaseName, null, 2
+    context.applicationContext, databaseName, null, 3
 ) {
     private val alias = "jarvis_mobile_conversation_aes_v1"
 
     override fun onCreate(db: SQLiteDatabase) {
-        db.execSQL("CREATE TABLE chat (id INTEGER PRIMARY KEY AUTOINCREMENT, created_at INTEGER NOT NULL, request BLOB NOT NULL, response BLOB NOT NULL, conversation_id TEXT NOT NULL DEFAULT 'legacy')")
+        db.execSQL("CREATE TABLE chat (id INTEGER PRIMARY KEY AUTOINCREMENT, created_at INTEGER NOT NULL, request BLOB NOT NULL, response BLOB NOT NULL, conversation_id TEXT NOT NULL DEFAULT 'legacy', ai_context INTEGER NOT NULL DEFAULT 0)")
         db.execSQL("CREATE INDEX idx_chat_when ON chat(created_at)")
         db.execSQL("CREATE INDEX idx_chat_conversation ON chat(conversation_id, id)")
     }
@@ -41,6 +42,10 @@ internal class JarvisChatStore(context: Context, databaseName: String = "jarvis_
             // Preserve every ciphertext and expose that timeline as one older chat.
             db.execSQL("ALTER TABLE chat ADD COLUMN conversation_id TEXT NOT NULL DEFAULT 'legacy'")
             db.execSQL("CREATE INDEX idx_chat_conversation ON chat(conversation_id, id)")
+        }
+        if (oldVersion < 3) {
+            // Legacy rows may contain device-private results. They are NOT AI context.
+            db.execSQL("ALTER TABLE chat ADD COLUMN ai_context INTEGER NOT NULL DEFAULT 0")
         }
     }
 
@@ -71,16 +76,17 @@ internal class JarvisChatStore(context: Context, databaseName: String = "jarvis_
         return cipher.doFinal(bytes.copyOfRange(12, bytes.size)).toString(Charsets.UTF_8)
     }
 
-    @Synchronized fun append(request: String, answer: String, conversationId: String = "legacy") {
-        require(request.isNotBlank() && request.length <= 8000 && answer.length <= 100_000)
+    @Synchronized fun append(request: String, answer: String, conversationId: String = "legacy", aiContext: Boolean = false) {
+        require(request.isNotBlank() && request.length <= 8000 && answer.length <= JarvisNetworkSafety.MAX_AI_TEXT_CHARACTERS)
         require(conversationId.isNotBlank() && conversationId.length <= 64)
         val stmt = writableDatabase.compileStatement(
-            "INSERT INTO chat(created_at, request, response, conversation_id) VALUES(?, ?, ?, ?)")
+            "INSERT INTO chat(created_at, request, response, conversation_id, ai_context) VALUES(?, ?, ?, ?, ?)")
         stmt.use {
             it.bindLong(1, System.currentTimeMillis())
             it.bindBlob(2, encrypt(request))
             it.bindBlob(3, encrypt(answer))
             it.bindString(4, conversationId)
+            it.bindLong(5, if (aiContext) 1L else 0L)
             it.executeInsert()
         }
     }
@@ -89,14 +95,14 @@ internal class JarvisChatStore(context: Context, databaseName: String = "jarvis_
         require(limit in 1..200)
         val result = ArrayList<JarvisChatEntry>()
         readableDatabase.rawQuery(
-            "SELECT id, created_at, request, response, conversation_id FROM chat " +
+            "SELECT id, created_at, request, response, conversation_id, ai_context FROM chat " +
                 (if (conversationId == null) "" else "WHERE conversation_id = ? ") +
                 "ORDER BY id DESC LIMIT ?",
             if (conversationId == null) arrayOf(limit.toString()) else arrayOf(conversationId, limit.toString())
         ).use { c ->
             while (c.moveToNext()) {
                 result.add(JarvisChatEntry(c.getLong(1),
-                    decrypt(c.getBlob(2)), decrypt(c.getBlob(3)), c.getLong(0), c.getString(4)))
+                    decrypt(c.getBlob(2)), decrypt(c.getBlob(3)), c.getLong(0), c.getString(4), c.getInt(5) == 1))
             }
         }
         return result.asReversed()
@@ -110,7 +116,7 @@ internal class JarvisChatStore(context: Context, databaseName: String = "jarvis_
         require(idExclusive > 0L && limit in 1..200)
         val result = ArrayList<JarvisChatEntry>()
         readableDatabase.rawQuery(
-            "SELECT id, created_at, request, response, conversation_id FROM chat " +
+            "SELECT id, created_at, request, response, conversation_id, ai_context FROM chat " +
                 "WHERE id < ? " + (if (conversationId == null) "" else "AND conversation_id = ? ") +
                 "ORDER BY id DESC LIMIT ?",
             if (conversationId == null) arrayOf(idExclusive.toString(), limit.toString())
@@ -118,7 +124,7 @@ internal class JarvisChatStore(context: Context, databaseName: String = "jarvis_
         ).use { cursor ->
             while (cursor.moveToNext()) result.add(JarvisChatEntry(
                 cursor.getLong(1), decrypt(cursor.getBlob(2)),
-                decrypt(cursor.getBlob(3)), cursor.getLong(0), cursor.getString(4)
+                decrypt(cursor.getBlob(3)), cursor.getLong(0), cursor.getString(4), cursor.getInt(5) == 1
             ))
         }
         return result.asReversed()
@@ -131,14 +137,14 @@ internal class JarvisChatStore(context: Context, databaseName: String = "jarvis_
         if (needle.isEmpty()) return recent(limit).asReversed()
         val result = ArrayList<JarvisChatEntry>()
         readableDatabase.rawQuery(
-            "SELECT created_at, request, response, id, conversation_id FROM chat ORDER BY id DESC", null
+            "SELECT created_at, request, response, id, conversation_id, ai_context FROM chat ORDER BY id DESC", null
         ).use { c ->
             while (c.moveToNext() && result.size < limit) {
                 val question = decrypt(c.getBlob(1))
                 val answer = decrypt(c.getBlob(2))
                 if (question.contains(needle, ignoreCase = true) ||
                     answer.contains(needle, ignoreCase = true)) {
-                    result.add(JarvisChatEntry(c.getLong(0), question, answer, c.getLong(3), c.getString(4)))
+                    result.add(JarvisChatEntry(c.getLong(0), question, answer, c.getLong(3), c.getString(4), c.getInt(5) == 1))
                 }
             }
         }

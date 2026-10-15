@@ -12,6 +12,7 @@ import java.util.UUID
 /** A new Activity launch gets a blank chat. Configuration changes keep its ViewModel. */
 internal class JarvisConversation(val id: String = UUID.randomUUID().toString()) {
     val turns = mutableStateListOf<Pair<String, String>>()
+    val aiTurns = mutableListOf<Pair<String, String>>()
     var oldestId by mutableLongStateOf(0L)
     var hasOlder by mutableStateOf(false)
     var loadingOlder by mutableStateOf(false)
@@ -56,6 +57,7 @@ internal class JarvisChatSession(application: Application) : AndroidViewModel(ap
             try {
                 val entries = withContext(Dispatchers.IO) { store.recent(50, id) }
                 target.turns.addAll(entries.map { it.request to it.answer })
+                target.aiTurns.addAll(entries.filter { it.aiContext }.map { it.request to it.answer })
                 target.oldestId = entries.firstOrNull()?.id ?: 0L
                 target.hasOlder = entries.size == 50
             } catch (_: Exception) {
@@ -65,10 +67,15 @@ internal class JarvisChatSession(application: Application) : AndroidViewModel(ap
         }
     }
 
-    fun save(target: JarvisConversation, turn: Pair<String, String>) {
+    fun save(target: JarvisConversation, turn: Pair<String, String>, aiContext: Boolean = false) {
+        if (aiContext) {
+            val bounded = JarvisConversationContext.bounded(target.aiTurns + turn)
+            target.aiTurns.clear()
+            target.aiTurns.addAll(bounded)
+        }
         viewModelScope.launch {
             try {
-                withContext(Dispatchers.IO) { store.append(turn.first, turn.second, target.id) }
+                withContext(Dispatchers.IO) { store.append(turn.first, turn.second, target.id, aiContext) }
                 refresh()
             } catch (_: Exception) {
                 warning = "Hiba: egy beszélgetési bejegyzést nem sikerült titkosítva menteni."

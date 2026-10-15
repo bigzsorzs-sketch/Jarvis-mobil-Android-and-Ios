@@ -3,10 +3,12 @@ package ai.jarvis.mobile
 /** Route ordinary questions to AI while preserving deterministic device actions.
  * AI can only propose validated, allowlisted operations; text never executes as a command. */
 internal object JarvisAiRouting {
-    fun shouldAskAi(text: String): Boolean {
+    fun shouldAskAi(text: String, cloudConversation: Boolean = true): Boolean {
         val command = text.trim()
-        if (command.isEmpty() || LocalConversation.reply(command) != null ||
-            JarvisCapabilities.replyIfAsked(command) != null ||
+        if (command.isEmpty()) return false
+        if (LocalConversation.reply(command) != null ||
+            JarvisCapabilities.isDiscoveryRequest(command)) return cloudConversation
+        if (JarvisUpdateVoice.isRequest(command) ||
             JarvisCapabilities.localPageToOpen(command) != null) return false
         // Exact explicit drafts are always handled locally with recipient/body
         // verification and review; they must not depend on model tools.

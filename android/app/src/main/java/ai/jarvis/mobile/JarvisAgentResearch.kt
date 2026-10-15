@@ -73,9 +73,10 @@ internal object JarvisAgentResearch {
      * Maximum four model requests: plan, 1-2 evidence searches, review.
      * No silent retry, no account modifications, no native tool dispatch.
      */
-    suspend fun answer(context: Context, question: String, language: String): JarvisAiOutcome {
+    suspend fun answer(context: Context, question: String, language: String,
+        history: List<Pair<String, String>> = emptyList()): JarvisAiOutcome {
         if (!shouldHandle(question) || !JarvisAiGateway.configured(context))
-            return JarvisAiGateway.askStructured(context, question, language)
+            return JarvisAiGateway.askStructured(context, question, language, history = history)
         val planPrompt = """
             A következő TECHNIKAI kutatáshoz készíts 1 vagy 2 részkérdést.
             Csak JSON-t adj: {"steps":["első kérdés","második kérdés"]}.
@@ -83,7 +84,7 @@ internal object JarvisAgentResearch {
             Eredeti kutatási kérdés: ${question.take(1400)}
         """.trimIndent()
         currentCoroutineContext().ensureActive()
-        val planned = JarvisAiGateway.askStructured(context, planPrompt, language)
+        val planned = JarvisAiGateway.askStructured(context, planPrompt, language, history = history)
         if (!isText(planned)) return JarvisAiOutcome(
             "A kutatási terv nem érkezett meg. Nem történt eszközművelet. " +
                 planned.message.take(180))
@@ -122,7 +123,7 @@ internal object JarvisAgentResearch {
             Kutatási adatok:
             ${findings.joinToString("\n\n").take(4500)}
         """.trimIndent()
-        val reviewed = JarvisAiGateway.askStructured(context, reviewPrompt, language)
+        val reviewed = JarvisAiGateway.askStructured(context, reviewPrompt, language, history = history)
         return if (isText(reviewed)) reviewed else JarvisAiOutcome(
             "A kutatási jegyzetek elkészültek, de az utolsó ellenőrzés nem " +
                 "sikerült. Nem állítok kész javítást. " + reviewed.message.take(180))

@@ -252,7 +252,7 @@ internal object JarvisAiGateway {
                     connection.requestMethod = "POST"
                     connection.instanceFollowRedirects = false
                     connection.connectTimeout = 10000
-                    connection.readTimeout = 30000
+                    connection.readTimeout = 90000
                     connection.doOutput = true
                     connection.setRequestProperty("Authorization", "Bearer $token")
                     connection.setRequestProperty("Content-Type", "application/json; charset=utf-8")
@@ -323,10 +323,13 @@ internal object JarvisAiGateway {
     /** Server and direct-provider modes must use the same selected response language.
      * Only one of the seven supported language tags is passed, never model-produced text.
      */
-    internal fun serverChatPayload(question: String, selectedLanguage: String, developerNote: String? = null): JSONObject {
+    internal fun serverChatPayload(question: String, selectedLanguage: String, developerNote: String? = null,
+        history: List<Pair<String, String>> = emptyList()): JSONObject {
         val supported = setOf("hu-HU", "en-GB", "de-DE", "fr-FR", "es-ES", "it-IT", "pl-PL")
         val tag = selectedLanguage.takeIf { it in supported } ?: "hu-HU"
         val payload = JSONObject().put("message", question).put("language", tag)
+        if (JarvisAiToolPolicy.selectedTools(question).length() == 0 && history.isNotEmpty())
+            payload.put("history", JarvisConversationContext.messages(history))
         developerNote?.take(1800)?.takeIf { it.length >= 100 }?.let {
             payload.put("developerNote", it)
         }
@@ -352,11 +355,12 @@ internal object JarvisAiGateway {
         responseLanguageTag: String? = null,
         cancellation: JarvisStreamCancellation = JarvisStreamCancellation(),
         onDelta: (String) -> Unit,
-        onPhrase: (String) -> Unit
+        onPhrase: (String) -> Unit,
+        history: List<Pair<String, String>> = emptyList()
     ): JarvisAiOutcome {
         if (!canStreamText(context, message) ||
             !cloudConsent(context) || !hasSavedConnection(context)) {
-            return askStructured(context, message, responseLanguageTag)
+            return askStructured(context, message, responseLanguageTag, history = history)
         }
         return withContext(Dispatchers.IO) {
             val credential = SecurePrefs(context.applicationContext).read(KEY_DIRECT, "")
@@ -367,9 +371,9 @@ internal object JarvisAiGateway {
                 ?.let { JarvisLanguage.fromSpeechTag(it)?.tag }
                 ?: JarvisLanguageSettings.load(context.applicationContext).tag
             val payload = JarvisAiToolPolicy.providerPayload(message.trim(), languageTag,
-                JarvisBackgroundBrain.relevantNote(context.applicationContext, message))
+                JarvisBackgroundBrain.relevantNote(context.applicationContext, message), history)
             if (payload.has("tools")) {
-                return@withContext askStructured(context, message, languageTag)
+                return@withContext askStructured(context, message, languageTag, history = history)
             }
             payload.put("stream", true)
             var connection: HttpURLConnection? = null
@@ -384,7 +388,7 @@ internal object JarvisAiGateway {
                 connection.requestMethod = "POST"
                 connection.instanceFollowRedirects = false
                 connection.connectTimeout = 10000
-                connection.readTimeout = 30000
+                connection.readTimeout = 90000
                 connection.doOutput = true
                 connection.setRequestProperty("Content-Type", "application/json; charset=utf-8")
                 connection.setRequestProperty("Accept", "text/event-stream")
@@ -414,7 +418,7 @@ internal object JarvisAiGateway {
                             JarvisNetworkSafety.readUtf8Limited(it)
                         }
                         val parsed = JarvisAiTools.fromProvider(JSONObject(fullBody), message)
-                        return@withContext JarvisAiOutcome(parsed.message)
+                        return@withContext JarvisAiOutcome(parsed.message, conversationReply = parsed.conversationReply)
                     }
                     return@withContext JarvisAiOutcome(
                         "Az AI-szolgáltató nem küldött folyamatos szöveget. Próbáld újra.")
@@ -442,7 +446,8 @@ internal object JarvisAiGateway {
                 if (last.isNotBlank()) withContext(Dispatchers.Main.immediate) {
                     onPhrase(last)
                 }
-                JarvisAiOutcome(decoder.text.ifBlank { "Az AI nem adott szöveges választ." })
+                JarvisAiOutcome(decoder.text.ifBlank { "Az AI nem adott szöveges választ." },
+                    conversationReply = decoder.text.isNotBlank())
             } catch (cancel: kotlinx.coroutines.CancellationException) {
                 throw cancel
             } catch (_: Exception) {
@@ -464,7 +469,8 @@ internal object JarvisAiGateway {
         context: Context,
         message: String,
         responseLanguageTag: String? = null,
-        attachments: List<JarvisAttachment> = emptyList()
+        attachments: List<JarvisAttachment> = emptyList(),
+        history: List<Pair<String, String>> = emptyList()
     ): JarvisAiOutcome =
         withContext(Dispatchers.IO) {
         val question = message.trim()
@@ -499,7 +505,7 @@ internal object JarvisAiGateway {
             connection.requestMethod = "POST"
             connection.instanceFollowRedirects = false
             connection.connectTimeout = 10000
-            connection.readTimeout = 30000
+            connection.readTimeout = 2_700_000
             connection.doOutput = true
             connection.setRequestProperty("Content-Type", "application/json; charset=utf-8")
             connection.setRequestProperty("Accept", "application/json")
@@ -510,11 +516,11 @@ internal object JarvisAiGateway {
             val payload = if (direct) JarvisAiToolPolicy.providerPayload(
                 question, responseLanguageTag?.let { JarvisLanguage.fromSpeechTag(it)?.tag }
                     ?: JarvisLanguageSettings.load(context.applicationContext).tag,
-                JarvisBackgroundBrain.relevantNote(context.applicationContext, question))
+                JarvisBackgroundBrain.relevantNote(context.applicationContext, question), history)
                 else serverChatPayload(question,
                     responseLanguageTag?.let { JarvisLanguage.fromSpeechTag(it)?.tag }
                         ?: JarvisLanguageSettings.load(context.applicationContext).tag,
-                    JarvisBackgroundBrain.relevantNote(context.applicationContext, question))
+                    JarvisBackgroundBrain.relevantNote(context.applicationContext, question), history)
             if (attachments.isNotEmpty()) {
                 val parts = try {
                     JarvisAiAttachments.buildParts(context.applicationContext, question, attachments)
@@ -522,7 +528,9 @@ internal object JarvisAiGateway {
                     return@withContext JarvisAiOutcome(
                         e.message?.take(250) ?: "A csatolmányokat nem sikerült biztonságosan előkészíteni.")
                 }
-                payload.getJSONArray("messages").getJSONObject(1).put("content", parts)
+                payload.getJSONArray("messages").let { messages ->
+                    messages.getJSONObject(messages.length() - 1).put("content", parts)
+                }
                 // Attachments are untrusted content, NEVER a device-control request.
                 payload.remove("tools")
                 payload.remove("tool_choice")
