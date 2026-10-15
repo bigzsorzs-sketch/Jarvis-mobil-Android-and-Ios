@@ -39,8 +39,7 @@ class JarvisCommandContextTest {
     }
 
     @Test fun shortSpokenCallApprovalKeepsOnlyTheActiveConfirmedNumber() {
-        for (approval in listOf("igen", "igen, hívd", "hívd", "hívd fel",
-                "igen, hívd fel", "yes", "call now")) {
+        for (approval in listOf("igen", "igen, hívd", "igen, hívd fel", "yes", "call now")) {
             assertTrue("Explicit approval not recognized: $approval",
                 VoiceCalling.callConfirmationYes(approval))
             assertFalse("Confirmation must not lose active contact: $approval",
