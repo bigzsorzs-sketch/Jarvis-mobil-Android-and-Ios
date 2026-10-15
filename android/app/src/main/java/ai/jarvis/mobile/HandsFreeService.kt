@@ -661,7 +661,8 @@ class HandsFreeService : Service(), RecognitionListener {
                     // An asynchronous Gmail/API response must not create
                     // repeated microphone cycles while still pending.
                     if (foregroundReplyPending)
-                        handler.postDelayed(foregroundReplyTimeout, VoiceSessionPolicy.REPLY_TIMEOUT_MS)
+                        handler.postDelayed(foregroundReplyTimeout,
+                            JarvisResponseDeadline.foregroundVoiceMs(sharedCommand))
                     return
                 }
                 foregroundReplyPending = false
