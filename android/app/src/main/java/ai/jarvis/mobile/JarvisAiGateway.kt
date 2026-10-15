@@ -1,6 +1,7 @@
 package ai.jarvis.mobile
 
 import android.content.Context
+import android.util.Base64
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.isActive
@@ -25,6 +26,10 @@ internal object JarvisAiGateway {
     private const val KEY_TOKEN = "ai_gateway_access_token"
     private const val KEY_CONSENT = "ai_cloud_text_consent_v1"
     private const val KEY_SPEECH_CONSENT = "ai_cloud_voice_consent_v1"
+    private const val KEY_TRANSCRIPTION_CONSENT = "ai_cloud_audio_upload_consent_v1"
+    internal const val TRANSCRIPTION_MODEL = "openai/gpt-transcribe"
+    @Volatile var lastTranscriptionError: String = ""
+        private set
     internal const val SPEECH_MODEL = JarvisSpeechVoiceConfig.MODEL
     // No credentials or provider body are ever written to this diagnostic.
     @Volatile internal var lastSpeechError: String = ""
@@ -80,6 +85,17 @@ internal object JarvisAiGateway {
     fun setVoiceConsent(context: Context, approved: Boolean) {
         SecurePrefs(context).write(KEY_SPEECH_CONSENT, approved.toString())
     }
+
+    /** Raw microphone audio leaves the phone ONLY after this explicit, separate opt-in. */
+    fun transcriptionConsent(context: Context): Boolean =
+        SecurePrefs(context).read(KEY_TRANSCRIPTION_CONSENT, "false") == "true"
+
+    fun setTranscriptionConsent(context: Context, approved: Boolean) {
+        SecurePrefs(context).write(KEY_TRANSCRIPTION_CONSENT, approved.toString())
+    }
+
+    fun canTranscribe(context: Context): Boolean =
+        transcriptionConsent(context) && configured(context) && mode(context) == DIRECT_TEST
 
     fun setCloudConsent(context: Context, approved: Boolean) {
         SecurePrefs(context).write(KEY_CONSENT, approved.toString())
@@ -215,7 +231,73 @@ internal object JarvisAiGateway {
         prefs.write(KEY_MODE, DIRECT_TEST)
         prefs.write(KEY_CONSENT, "false")
         prefs.write(KEY_SPEECH_CONSENT, "false")
+        prefs.write(KEY_TRANSCRIPTION_CONSENT, "false")
     }
+
+    /** OpenRouter's dedicated STT endpoint; recorded WAV is never stored or logged. */
+    suspend fun transcribe(context: Context, wav: ByteArray, language: JarvisLanguage): String? =
+        withContext(Dispatchers.IO) {
+            lastTranscriptionError = ""
+            if (!canTranscribe(context)) {
+                lastTranscriptionError = "A hangfelismeréshez engedélyezd a felhős hangfeltöltést az AI-agy beállításainál."
+                return@withContext null
+            }
+            if (wav.size !in 44..550_000 ||
+                !wav.copyOfRange(0, 4).contentEquals("RIFF".toByteArray(Charsets.US_ASCII))) {
+                lastTranscriptionError = "A mikrofon felvétele érvénytelen vagy túl hosszú."
+                return@withContext null
+            }
+            val key = SecurePrefs(context).read(KEY_DIRECT, "")
+            if (!isValidOpenRouterKey(key)) {
+                lastTranscriptionError = "Az OpenRouter-hozzáférés hiányzik."
+                return@withContext null
+            }
+            var conn: HttpURLConnection? = null
+            try {
+                if (!canTranscribe(context)) return@withContext null
+                conn = URL("https://openrouter.ai/api/v1/audio/transcriptions")
+                    .openConnection() as HttpURLConnection
+                conn.requestMethod = "POST"
+                conn.instanceFollowRedirects = false
+                conn.connectTimeout = 12_000
+                conn.readTimeout = 58_000
+                conn.doOutput = true
+                conn.setRequestProperty("Authorization", "Bearer $key")
+                conn.setRequestProperty("Content-Type", "application/json; charset=utf-8")
+                conn.setRequestProperty("Accept", "application/json")
+                val payload = JSONObject()
+                    .put("model", TRANSCRIPTION_MODEL)
+                    .put("input_audio", JSONObject()
+                        .put("format", "wav")
+                        .put("data", Base64.encodeToString(wav, Base64.NO_WRAP)))
+                    .put("language", language.tag.substringBefore('-').lowercase(java.util.Locale.ROOT))
+                conn.outputStream.use { it.write(payload.toString().toByteArray(Charsets.UTF_8)) }
+                if (conn.responseCode != 200) {
+                    lastTranscriptionError = when (conn.responseCode) {
+                        401 -> "Az OpenRouter-kulcs érvénytelen."
+                        402 -> "Az OpenRouter-egyenleg elfogyott."
+                        404 -> "A beszédfelismerő modell/végpont nem elérhető."
+                        429 -> "A hangfelismerés használati korlátot ért el."
+                        else -> "A felhős beszédfelismerés HTTP " + conn.responseCode + " hibát adott."
+                    }
+                    return@withContext null
+                }
+                val text = conn.inputStream.use { JarvisNetworkSafety.readUtf8Limited(it) }
+                JSONObject(text).optString("text").trim()
+                    .takeIf { it.isNotBlank() && it.length <= 1500 }
+                    ?: run {
+                        lastTranscriptionError = "A felismerő üres vagy túl hosszú szöveget adott."
+                        null
+                    }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                lastTranscriptionError = "A felhős beszédfelismerés nem érhető el. Ellenőrizd az internetet."
+                null
+            } finally {
+                conn?.disconnect()
+            }
+        }
 
     /**
      * Generate real cloud audio, not Android TTS. Each byte goes directly from
