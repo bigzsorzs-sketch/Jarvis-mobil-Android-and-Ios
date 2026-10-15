@@ -11,7 +11,10 @@ import java.util.Locale
 internal object VoiceIntentParser {
     private fun normalize(value: String): String =
         Normalizer.normalize(value.lowercase(Locale.ROOT), Normalizer.Form.NFD)
-            .replace(Regex("\\p{M}+"), "").trim()
+            .replace(Regex("\\p{M}+"), "")
+            // Polish ł is a distinct letter and is NOT decomposed by NFD.
+            // Normalize it for safe Polish voice-command comparison.
+            .replace('ł', 'l').trim()
 
     fun afterWakeWord(raw: String): String? {
         val normal = normalize(raw)
