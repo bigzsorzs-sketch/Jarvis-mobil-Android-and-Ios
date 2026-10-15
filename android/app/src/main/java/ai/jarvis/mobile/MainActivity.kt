@@ -1053,6 +1053,20 @@ fun JarvisApp(context: Context, launcherRequest: String? = null) {
             
             return
         }
+        // Hands-free commands already received a structured GPT-5.2 reply in
+        // latestVoiceHandler. Reusing a plain conversation answer avoids a
+        // second, sequential provider request (and a second API charge).
+        // Only conversational text qualifies; original Android-native action
+        // parsing above and tool proposals retain their existing validation.
+        if (aiProposal != null &&
+            JarvisAiRouting.mayReuseVoiceResponse(
+                command, aiProposal, JarvisAiGateway.configured(context))) {
+            val answer = aiProposal.message
+            completeCommand(command, answer)
+            conversation.add(command to answer)
+            saveChatTurn(command to answer, aiProposal.conversationReply)
+            return
+        }
         if (JarvisAiRouting.shouldAskAi(command, JarvisAiGateway.configured(context))) {
             // Deep technical requests get a bounded plan -> evidence -> review loop.
             // All device commands retain the existing native execution path.
