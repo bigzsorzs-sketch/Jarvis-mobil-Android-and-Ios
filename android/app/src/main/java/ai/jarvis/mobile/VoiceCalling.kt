@@ -128,7 +128,7 @@ internal object VoiceCalling {
         val normalized = normalize(cleanCommand(text))
         return VoiceIntentParser.isCallYes(text) ||
             normalized in setOf("igen hivd", "igen hivd fel", "igen hivhatod",
-                "igen telefonalj", "igen inditsd a hivast", "hivd", "yes call",
+                "igen telefonalj", "igen inditsd a hivast", "yes call",
                 "yes call now", "ok hivd fel", "rendben hivd fel")
     }
 
