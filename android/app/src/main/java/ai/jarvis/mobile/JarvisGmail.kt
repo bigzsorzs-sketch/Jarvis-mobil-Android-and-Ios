@@ -59,7 +59,9 @@ internal object GmailRecipientPhrase {
             .trim().replace(Regex("""(?iu)^(?:a|az|to)\s+"""), "").trim()
         val named = when {
             after.isNotBlank() && filler.matches(before) -> after
-            after.isBlank() -> nameWithEnding.matchEntire(before)?.groupValues?.get(1).orEmpty()
+            after.isBlank() -> nameWithEnding.matchEntire(before)?.groupValues?.get(1)
+                ?.takeIf { Regex("""(?iu)\\b[\\p{L}]+(?:nak|nek)\\b""")
+                    .findAll(it).count() == 1 }.orEmpty()
             else -> ""
         }
         return named.removeSuffix("nek").removeSuffix("nak").trim()
