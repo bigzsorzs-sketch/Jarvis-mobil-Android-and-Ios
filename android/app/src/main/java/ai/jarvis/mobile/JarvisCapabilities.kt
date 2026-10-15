@@ -101,6 +101,7 @@ internal object JarvisCapabilities {
             "Alkalmazások" to listOf("appok", "installed apps"),
             "Előzmények" to listOf("chat history", "beszelgetesnaplo"),
             "Vércukor" to listOf("vercukornaplo", "glucose"),
+            "Smart Home" to listOf("okosotthon", "okos otthon", "smart home", "connected home"),
             "Számlák" to listOf("szamlazas", "invoice"),
             "Üzenetek" to listOf("messages"),
             "Beállítások" to listOf("settings"),
