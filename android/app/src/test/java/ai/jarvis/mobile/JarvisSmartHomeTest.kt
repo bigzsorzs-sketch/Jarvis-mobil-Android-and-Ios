@@ -68,6 +68,13 @@ class JarvisSmartHomeTest {
         assertNull(JarvisHomeCommands.parse("Kapcsold be az összes lámpát"))
         assertNull(JarvisHomeCommands.parse("Kapcsold ki a mikrofont"))
         assertNull(JarvisHomeCommands.parse("miért nincs bekapcsolva a lámpa?"))
+        assertEquals("mosogep", JarvisHomeCommands.statusTarget(
+            "Milyen állapotban van a mosógép?"))
+        assertEquals("mikro", JarvisHomeCommands.statusTarget(
+            "Mi a mikró állapota?"))
+        assertEquals("living tv", JarvisHomeCommands.statusTarget(
+            "What is the status of Living TV?"))
+        assertNull(JarvisHomeCommands.statusTarget("Kapcsold be a mikrót"))
         val dupe = devices + devices.first().copy(id = "light.nappali_lampa_2")
         assertNull(JarvisHomeCommands.match(hu, dupe))
     }
