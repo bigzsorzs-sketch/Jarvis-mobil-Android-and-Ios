@@ -101,6 +101,7 @@ internal object JarvisMoreTranslations {
         "Alkalmazások" to listOf("Apps", "Applications", "Aplicaciones", "App", "Aplikacje"),
         "Előzmények" to listOf("Verlauf", "Historique", "Historial", "Cronologia", "Historia"),
         "Vércukor" to listOf("Blutzucker", "Glycémie", "Glucosa", "Glicemia", "Glukoza"),
+        "Smart Home" to listOf("Smart Home", "Maison connectée", "Casa inteligente", "Casa intelligente", "Inteligentny dom"),
         "Számlázás" to listOf("Rechnungsstellung", "Facturation", "Facturación", "Fatturazione", "Fakturowanie"),
         "Számlák" to listOf("Rechnungen", "Factures", "Facturas", "Fatture", "Faktury"),
         "Email" to listOf("E-Mail", "E-mail", "Correo", "Email", "E-mail"),
