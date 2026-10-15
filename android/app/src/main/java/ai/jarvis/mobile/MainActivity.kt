@@ -580,7 +580,13 @@ fun JarvisApp(context: Context, launcherRequest: String? = null) {
                 addHistory(command to "Rendben, nem indítok hívást.")
                 return
             }
-            if (VoiceCalling.extractRequest(command) == null && !VoiceCalling.needsTarget(command)) {
+            if (VoiceCalling.needsTarget(command)) {
+                // A one-word partial transcript is NOT an explicit yes.
+                // Keep the resolved number while we ask the user to confirm.
+                addHistory(command to "A számot megtartottam, de ez nem egyértelmű jóváhagyás. Mondd: igen, hívd – vagy: nem.")
+                return
+            }
+            if (VoiceCalling.extractRequest(command) == null) {
                 addHistory(command to "A hívás indításához válaszolj: igen, hívd – vagy: nem. Ha másik személyt hívnál, mondd a teljes hívási parancsot.")
                 return
             }
