@@ -60,7 +60,7 @@ internal object GmailRecipientPhrase {
         val named = when {
             after.isNotBlank() && filler.matches(before) -> after
             after.isBlank() -> nameWithEnding.matchEntire(before)?.groupValues?.get(1)
-                ?.takeIf { Regex("""(?iu)\\b[\\p{L}]+(?:nak|nek)\\b""")
+                ?.takeIf { Regex("""(?iu)\b[\p{L}]+(?:nak|nek)\b""")
                     .findAll(it).count() == 1 }.orEmpty()
             else -> ""
         }
