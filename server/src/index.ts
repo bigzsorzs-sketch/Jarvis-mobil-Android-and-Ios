@@ -1,4 +1,5 @@
 import { CONVERSATION_PROMPT, conversationHistory, responseBudget, needsLiveWeb } from "./conversation.js";
+import { responseDeadlineMs } from "./responseDeadline.js";
 import http, { type IncomingMessage, type ServerResponse } from "node:http";
 import { createHash, timingSafeEqual } from "node:crypto";
 import { createRemoteJWKSet, jwtVerify } from "jose";
@@ -316,7 +317,8 @@ const server = http.createServer(async (req, res) => {
         ? rawDeveloperNote : "";
     const budget = responseBudget(message, toolsRequested);
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 2_640_000);
+    const timer = setTimeout(() => controller.abort(),
+      responseDeadlineMs(budget.effort, toolsRequested));
     let modelReply: {
       choices?: Array<{ message?: { content?: unknown; tool_calls?: unknown } }>;
       usage?: { total_tokens?: number };
