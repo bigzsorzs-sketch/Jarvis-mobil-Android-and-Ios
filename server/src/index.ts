@@ -317,6 +317,13 @@ const server = http.createServer(async (req, res) => {
         ? rawDeveloperNote : "";
     const budget = responseBudget(message, toolsRequested);
     const controller = new AbortController();
+    // If the Android user presses STOP or starts another voice turn, the
+    // disconnected HTTP client must not leave a costly GPT request running
+    // on the server for the rest of its (bounded) deep-answer deadline.
+    const onClientDisconnect = () => {
+      if (!res.writableEnded) controller.abort();
+    };
+    res.on("close", onClientDisconnect);
     const timer = setTimeout(() => controller.abort(),
       responseDeadlineMs(budget.effort, toolsRequested));
     let modelReply: {
@@ -358,7 +365,8 @@ const server = http.createServer(async (req, res) => {
       }
       modelReply = await readLimitedProviderJson(upstream) as typeof modelReply;
     } finally {
-      // Keep the same deadline for streaming the response body, not just headers.
+      // Release the disconnect listener after the provider request has ended.
+      res.off("close", onClientDisconnect);
       clearTimeout(timer);
     }
     const messageData = modelReply.choices?.[0]?.message;
