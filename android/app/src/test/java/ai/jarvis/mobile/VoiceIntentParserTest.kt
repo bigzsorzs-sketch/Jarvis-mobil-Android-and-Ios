@@ -12,6 +12,8 @@ class VoiceIntentParserTest {
         assertEquals("nyisd meg a térképet", VoiceIntentParser.afterWakeWord("Hé, Jarvis! nyisd meg a térképet"))
         assertEquals("", VoiceIntentParser.afterWakeWord("Jarvis"))
         assertNull(VoiceIntentParser.afterWakeWord("Beszéljünk a Jarvis alkalmazásról"))
+        assertNull(VoiceIntentParser.afterWakeWord("Azt mondtam neki, hogy hey Jarvis állj le"))
+        assertFalse(VoiceIntentParser.isStop("Azt mondtam neki, hogy hey Jarvis állj le"))
         assertNull(VoiceIntentParser.afterWakeWord("Hey Jarvisnak mondtam"))
     }
 
