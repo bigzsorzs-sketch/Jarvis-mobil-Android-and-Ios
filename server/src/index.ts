@@ -8,6 +8,7 @@ import { shouldOfferToolCalls } from "./toolRouting.js";
 import { selectedLanguageInstruction } from "./responseLanguage.js";
 import { readLimitedProviderJson } from "./responseLimits.js";
 import { betaSessionSubject, redeemInvite } from "./betaInvite.js";
+import { MAX_TRANSCRIPTION_JSON_BYTES, validatedTranscriptionAudio } from "./transcription.js";
 
 function required(name: string): string {
   const v = process.env[name]?.trim();
@@ -110,13 +111,13 @@ function reply(res: ServerResponse, status: number, data: Record<string, unknown
   });
   res.end(JSON.stringify(data));
 }
-async function readInput(req: IncomingMessage): Promise<unknown> {
+async function readInput(req: IncomingMessage, limit = BODY_LIMIT): Promise<unknown> {
   const parts: Buffer[] = [];
   let size = 0;
   for await (const p of req) {
     const bytes = Buffer.isBuffer(p) ? p : Buffer.from(p);
     size += bytes.length;
-    if (size > BODY_LIMIT) throw new Error("TOO_LARGE");
+    if (size > limit) throw new Error("TOO_LARGE");
     parts.push(bytes);
   }
   return JSON.parse(Buffer.concat(parts).toString("utf8"));
@@ -140,7 +141,7 @@ const server = http.createServer(async (req, res) => {
       return reply(res, 400, { error: "ACTIVATION_UNAVAILABLE" });
     }
   }
-  if (req.method !== "POST" || !["/v1/chat", "/v1/speech"].includes(req.url ?? "")) {
+  if (req.method !== "POST" || !["/v1/chat", "/v1/speech", "/v1/transcribe"].includes(req.url ?? "")) {
     reply(res, 404, { error: "NOT_FOUND" });
     return;
   }
@@ -168,6 +169,51 @@ const server = http.createServer(async (req, res) => {
     if (!tester && await redis.get("subscription:" + subject) !== "active") {
       return reply(res, 403, { error: "SUBSCRIPTION_REQUIRED" });
     }
+    if (req.url === "/v1/transcribe") {
+      // Separate explicit audio consent is enforced on-device. Server verifies
+      // auth/subscription, quota and bounded single WAV before any upstream call.
+      let request: unknown;
+      try { request = await readInput(req, MAX_TRANSCRIPTION_JSON_BYTES); }
+      catch { return reply(res, 400, { error: "INVALID_AUDIO_BODY" }); }
+      const input = validatedTranscriptionAudio(request);
+      if (!input) return reply(res, 400, { error: "INVALID_TRANSCRIPTION_AUDIO" });
+      const minute = Math.floor(Date.now() / 60000);
+      const month = new Date().toISOString().slice(0, 7);
+      const quota = await redis.eval(QUOTA_SCRIPT, {
+        keys: ["transcribe:rate:" + subject + ":" + minute,
+          "transcribe:monthly:" + subject + ":" + month],
+        arguments: ["6", "400", "180", String(40 * 86400)]
+      });
+      if (quota !== 0) return reply(res, 429, { error: "TRANSCRIPTION_LIMIT" });
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 58_000);
+      try {
+        const upstream = await fetch("https://openrouter.ai/api/v1/audio/transcriptions", {
+          method: "POST",
+          headers: {
+            "Authorization": "Bearer " + secret,
+            "Content-Type": "application/json",
+            "Accept": "application/json"
+          },
+          body: JSON.stringify({
+            model: "openai/gpt-transcribe",
+            input_audio: { format: input.format, data: input.data },
+            language: input.language
+          }),
+          signal: controller.signal
+        });
+        if (!upstream.ok) return reply(res, 502, { error: "TRANSCRIPTION_PROVIDER_ERROR" });
+        const body = await readLimitedProviderJson(upstream, 12_000) as unknown;
+        const text = body && typeof body === "object" && !Array.isArray(body)
+          ? (body as Record<string, unknown>).text : undefined;
+        if (typeof text !== "string" || !text.trim() || text.length > 1500)
+          return reply(res, 502, { error: "INVALID_TRANSCRIPTION_RESPONSE" });
+        return reply(res, 200, { text: text.trim() });
+      } finally {
+        clearTimeout(timeout);
+      }
+    }
+
     if (req.url === "/v1/speech") {
       // Voice has independent quotas. Never expose provider credentials
       // or accept arbitrary upstream URLs/models from the device.
