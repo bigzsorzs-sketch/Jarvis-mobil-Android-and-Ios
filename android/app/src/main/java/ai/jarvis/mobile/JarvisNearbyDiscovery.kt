@@ -29,7 +29,8 @@ internal object JarvisNearbyProtocols {
         "_airplay._tcp." to "AirPlay",
         "_hap._tcp." to "HomeKit (HAP)",
         "_esphomelib._tcp." to "ESPHome",
-        "_matter._tcp." to "Matter"
+        "_matter._tcp." to "Matter (operational)",
+        "_matterc._udp." to "Matter (commissionable)"
     )
     const val WIFI_DURATION_MS = 12_000L
     const val BLE_DURATION_MS = 10_000L
@@ -110,6 +111,7 @@ internal class JarvisNearbyScanner(private val context: Context) {
                     .onFailure { listeners.remove(listener) }
             }
             if (listeners.isEmpty()) {
+                wifiFinish = null
                 stopWifi()
                 onEnd("A hálózati felderítés nem indult el.")
                 return
@@ -118,6 +120,7 @@ internal class JarvisNearbyScanner(private val context: Context) {
             wifiTimeout = timeout
             handler.postDelayed(timeout, JarvisNearbyProtocols.WIFI_DURATION_MS)
         } catch (_: Exception) {
+            wifiFinish = null
             stopWifi()
             onEnd("A Wi-Fi felderítés nem elérhető ezen a hálózaton.")
         }
@@ -159,9 +162,13 @@ internal class JarvisNearbyScanner(private val context: Context) {
                 if (!seen.add(id) || seen.size > JarvisNearbyProtocols.MAX_RESULTS) return
                 val advertised = result.scanRecord?.deviceName
                 val name = JarvisNearbyProtocols.label(advertised, "Ismeretlen BLE eszköz")
-                onFound(JarvisNearbyDevice("ble:" + id, name, "Bluetooth LE", "BLE / GATT"))
+                handler.post {
+                    if (bleCallback === this)
+                        onFound(JarvisNearbyDevice("ble:" + id, name, "Bluetooth LE", "BLE / GATT"))
+                }
             }
             override fun onScanFailed(errorCode: Int) {
+                bleFinish = null
                 stopBle()
                 onEnd("A Bluetooth-felderítés nem indult el.")
             }
@@ -175,6 +182,7 @@ internal class JarvisNearbyScanner(private val context: Context) {
             scanner.startScan(callback)
             handler.postDelayed(timeout, JarvisNearbyProtocols.BLE_DURATION_MS)
         } catch (_: Exception) {
+            bleFinish = null
             stopBle()
             onEnd("A Bluetooth-felderítés nem indult el.")
         }
