@@ -1,0 +1,162 @@
+name: Publish verified Jarvis Android 0.2.39 signed test update
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/publish-android-039-signed-test.yml"]
+permissions:
+  contents: write
+  actions: read
+concurrency:
+  group: jarvis-android-039-signed-test
+  cancel-in-progress: false
+jobs:
+  publish-verified-qa:
+    if: github.repository == 'bigzsorzs-sketch/Jarvis-mobil-Android-and-Ios' && github.ref == 'refs/heads/main'
+    environment: production
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      SOURCE_SHA: 0517cd949fff490abb54335ffa31619ebb70a9de
+      QA_RUN_ID: '38768514855'
+      QA_ARTIFACT_ID: '11989259870'
+      QA_ARCHIVE_SHA256: d1dc2b605791c17b83485ec2a26288dcad623a537ef08d658f6154d045c4138c
+      EXPECTED_SIGNER: 955338795da61366091ed256b0f6b2a948b9aaf9d7771b022a65b88a94b2d86a
+      RELEASE_TAG: v0.2.39-signed-test.1
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: Verify publisher-only commit and approved exact source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')" = "$GITHUB_SHA"
+          gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA" |
+            jq -e --arg source "$SOURCE_SHA" '
+              (.parents | length) == 1 and .parents[0].sha == $source and
+              (.files | length) == 1 and
+              .files[0].filename == ".github/workflows/publish-android-039-signed-test.yml" and
+              .files[0].status == "added"
+            ' >/dev/null
+          git diff --quiet "$SOURCE_SHA" HEAD -- android/ server/
+          grep -F 'versionCode = 50' android/app/build.gradle.kts
+          grep -F 'versionName = "0.2.39"' android/app/build.gradle.kts
+          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "::error::Release already exists; no overwrite"; exit 1
+          fi
+      - name: Require successful CI and signed QA build for the exact source
+        shell: bash
+        run: |
+          set -euo pipefail
+          for workflow in android-debug.yml android-ui-emulator.yml gateway-typecheck.yml; do
+            gh api "repos/$GITHUB_REPOSITORY/actions/workflows/$workflow/runs?head_sha=$SOURCE_SHA&event=push&per_page=20" |
+              jq -e --arg sha "$SOURCE_SHA" --arg repo "$GITHUB_REPOSITORY" '
+                [.workflow_runs[] | select(.head_sha == $sha and .head_branch == "main" and
+                  .head_repository.full_name == $repo and .event == "push")][0] |
+                .status == "completed" and .conclusion == "success"
+              ' >/dev/null
+          done
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$QA_RUN_ID" |
+            jq -e --arg sha "$SOURCE_SHA" --arg repo "$GITHUB_REPOSITORY" '
+              .head_sha == $sha and .head_branch == "main" and
+              .head_repository.full_name == $repo and .event == "workflow_dispatch" and
+              .path == ".github/workflows/build-android-039-signed-qa.yml" and
+              .status == "completed" and .conclusion == "success"
+            ' >/dev/null
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$QA_ARTIFACT_ID" |
+            jq -e --arg sha "$SOURCE_SHA" --arg digest "sha256:$QA_ARCHIVE_SHA256" --argjson run "$QA_RUN_ID" '
+              .name == "Jarvis-Android-0.2.39-Signed-Private-QA" and .expired == false and
+              .workflow_run.id == $run and .workflow_run.head_sha == $sha and .digest == $digest
+            ' >/dev/null
+      - name: Download and verify the already-built QA archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$QA_ARTIFACT_ID/zip" > "$RUNNER_TEMP/qa.zip"
+          printf '%s  %s\n' "$QA_ARCHIVE_SHA256" "$RUNNER_TEMP/qa.zip" | sha256sum --check --strict
+          mkdir -p qa dist
+          unzip -q "$RUNNER_TEMP/qa.zip" -d qa
+          test "$(find qa -type f | wc -l)" -eq 3
+          test -s qa/Jarvis-Android-0.2.39-SIGNED-PRIVATE-QA.apk
+          test -s qa/SIGNING-CERTIFICATE.txt
+          test -s qa/SHA256SUMS.txt
+          (cd qa && sha256sum --check --strict SHA256SUMS.txt)
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Install Android verification tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -1)"
+          test -n "$sdkmanager"
+          "$sdkmanager" "build-tools;36.0.0"
+      - name: Reverify signature package version and historical signing continuity
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk=qa/Jarvis-Android-0.2.39-SIGNED-PRIVATE-QA.apk
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$apk" > dist/SIGNING-CERTIFICATE.txt
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$apk" > "$RUNNER_TEMP/package.txt"
+          grep -F "package: name='ai.jarvis.mobile' versionCode='50' versionName='0.2.39'" "$RUNNER_TEMP/package.txt"
+          grep -F "targetSdkVersion:'36'" "$RUNNER_TEMP/package.txt"
+          unzip -t "$apk" >/dev/null
+          signer="$(grep -iE 'Signer #1 certificate SHA-256 digest: [0-9a-f]{64}' dist/SIGNING-CERTIFICATE.txt | awk '{print $NF}' | tr 'A-F' 'a-f')"
+          test "$signer" = "$EXPECTED_SIGNER"
+          mkdir -p "$RUNNER_TEMP/previous"
+          gh release download v0.2.38-signed-test.1 --repo "$GITHUB_REPOSITORY" \
+            --pattern SIGNING-CERTIFICATE.txt --dir "$RUNNER_TEMP/previous"
+          previous="$(grep -iE 'Signer #1 certificate SHA-256 digest: [0-9a-f]{64}' "$RUNNER_TEMP/previous/SIGNING-CERTIFICATE.txt" | awk '{print $NF}' | tr 'A-F' 'a-f')"
+          test "$previous" = "$EXPECTED_SIGNER"
+          cp "$apk" dist/Jarvis-Android-0.2.39-signed-test.apk
+          cmp "$apk" dist/Jarvis-Android-0.2.39-signed-test.apk
+          (cd dist && sha256sum Jarvis-Android-0.2.39-signed-test.apk > SHA256SUMS.txt)
+      - name: Create draft with all verified release assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')" = "$GITHUB_SHA"
+          cat > "$RUNNER_TEMP/notes.md" <<'EOF'
+          # Jarvis Android 0.2.39 — aláírt tesztfrissítés
+
+          Verzió: 0.2.39; versionCode: 50; csomag: ai.jarvis.mobile.
+          Forrás: 0517cd949fff490abb54335ffa31619ebb70a9de.
+
+          A 2026. október 15-én elkészült, ellenőrzött teszt-APK változatlan tartalommal kerül közzétételre, a tulajdonos jóváhagyásával. Ez tesztkiadás, nem teljes körűen igazolt késztermék és nem Google Play-kiadás.
+
+          Frissítés: Jarvis → Beállítások → Frissítés keresése. Az APK az eredeti Jarvis-kulccsal van aláírva; a csomagnév, verzió és tanúsítvány ellenőrzése sikeres. Ne töröld a jelenlegi alkalmazást. Az Android telepítési jóváhagyása továbbra is szükséges.
+
+          A változások között mikrofon-helyreállítás, megszakítható és időkorlátos AI-kérések, többnyelvű parancsjavítások, Gmail-hozzájárulás és számlaküldési védelem szerepel. A vércukor-lekérés várakozása és a videóképkockák elemzése korlátozott.
+
+          Ellenőrzött: azonos forrásverzió Android-fordítása és egységtesztjei, lint, Android 15/16 emulátoros tesztjei, szerverellenőrzései; az aláírt APK integritása, verziója és a 0.2.38-cal egyező aláírása.
+
+          Még telefonon tesztelendő: a 0.2.38 → 0.2.39 frissítés és a helyi adatok megmaradása, folyamatos hangos beszélgetés, háttérmikrofon, hívások, navigáció és külső szolgáltatások. A zöld automatizált tesztek nem bizonyítják ezek teljes működését. A közvetlen Libre NFC-olvasás, élő privát Google Maps-listák, tetszőleges külső appvezérlés és iOS-funkcióazonosság nem igazolt szolgáltatásai ennek a kiadásnak.
+          EOF
+          gh release create "$RELEASE_TAG" \
+            dist/Jarvis-Android-0.2.39-signed-test.apk dist/SHA256SUMS.txt dist/SIGNING-CERTIFICATE.txt \
+            --repo "$GITHUB_REPOSITORY" --target "$SOURCE_SHA" \
+            --title "Jarvis Android 0.2.39 — aláírt tesztfrissítés" \
+            --notes-file "$RUNNER_TEMP/notes.md" --draft --prerelease --latest=false
+      - name: Verify updater-compatible metadata then publish prerelease
+        shell: bash
+        run: |
+          set -euo pipefail
+          digest="$(sha256sum dist/Jarvis-Android-0.2.39-signed-test.apk | awk '{print $1}')"
+          size="$(stat --printf=%s dist/Jarvis-Android-0.2.39-signed-test.apk)"
+          release_url="https://github.com/$GITHUB_REPOSITORY/releases/download/$RELEASE_TAG/Jarvis-Android-0.2.39-signed-test.apk"
+          gh api "repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_TAG" |
+            jq -e --arg tag "$RELEASE_TAG" --arg digest "sha256:$digest" --arg url "$release_url" --argjson size "$size" '
+              .tag_name == $tag and .draft == true and .prerelease == true and
+              (.assets | length) == 3 and
+              any(.assets[]; .name == "Jarvis-Android-0.2.39-signed-test.apk" and
+                .state == "uploaded" and .size == $size and .digest == $digest and .browser_download_url == $url)
+            ' >/dev/null
+          test "$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')" = "$GITHUB_SHA"
+          gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --draft=false --prerelease --latest=false
+          gh api "repos/$GITHUB_REPOSITORY/releases?per_page=25" |
+            jq -e --arg tag "$RELEASE_TAG" --arg digest "sha256:$digest" '
+              any(.[]; .tag_name == $tag and .draft == false and .prerelease == true and
+                any(.assets[]; .name == "Jarvis-Android-0.2.39-signed-test.apk" and .digest == $digest))
+            ' >/dev/null
