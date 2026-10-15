@@ -35,14 +35,18 @@ internal object BillingVoice {
     private val negatedSend = Regex(
         """\\b(?:ne\\s+(?:kuldd|kuldj|kuld)|nem\\s+(?:kuldd|kuldj|kuld)|don't\\s+send|dont\\s+send|do\\s+not\\s+send|never\\s+send|nicht\\s+senden|ne\\s+pas\\s+envoyer|n'envoie\\s+pas|no\\s+envia(?:r|s)?|non\\s+inviare|nie\\s+(?:wyslij|wysylaj))\\b"""
     )
-    private fun sending(v: String) = !negatedSend.containsMatchIn(v) &&
+    internal fun sending(v: String) = !negatedSend.containsMatchIn(v) &&
         sendVerbs.containsMatchIn(v)
     private fun creating(v: String) = listOf("keszits", "kesziten", "create", "make",
         "erstell", "creer", "cree", "crear", "crea", "tworz", "utworz", "prepara",
         "przygotuj").any { it in v }
-    private fun markingPaid(v: String) = listOf("fizetettnek", "mark paid",
-        "mark as paid", "als bezahlt", "marquer payee", "marcar pagada",
-        "segna pagata", "oznacz oplacona", "oznacz jako oplacona").any { it in v }
+    private val negatedPaid = Regex(
+        """\\b(?:don't|dont|do not|never|ne|nem|nicht|no|non|nie)\\s+(?:mark|jelold|marquer|marcar|segna|oznacz)\\b"""
+    )
+    private fun markingPaid(v: String) = !negatedPaid.containsMatchIn(v) &&
+        listOf("fizetettnek", "mark paid", "mark as paid", "als bezahlt",
+            "marquer payee", "marcar pagada", "segna pagata",
+            "oznacz oplacona", "oznacz jako oplacona").any { it in v }
     private fun opening(v: String) = listOf("nyisd", "mutasd", "open", "show",
         "offne", "ouvrir", "abre", "apri", "otworz").any { it in v }
     fun isOpen(raw: String) = isCandidate(raw) && opening(normalize(raw)) &&
@@ -67,7 +71,7 @@ internal object BillingVoice {
         if (pos < 0) return null
         val remaining = raw.substring(pos + name.length)
             .replace(Regex("(?iu)^\\s*(?:részére|reszere|for|pour|für|fur|para|per|dla)[,:\\s]*"), "")
-            .replace(Regex("(?iu)[,\\s]*(?:és|es|and|und|et|y|e|i)\\s+(?:küldd|kuldd|send|envoi|envia|invia|wyslij|sende).*"), "")
+            .replace(Regex("(?iu)[,\\s]*(?:és|es|and|und|et|y|e|i)\\s+(?:(?:don't|dont|do not|never|ne|nem|nicht|no|non|nie)\\s+)?(?:küldd|kuldd|send|envoi|envia|invia|wyslij|sende).*"), "")
             .trim(' ', ',', '.')
         if (remaining.isEmpty() || remaining.length > 120 ||
             listOf("and send", "és küldd", "kuldd", "send", "senden").any {
