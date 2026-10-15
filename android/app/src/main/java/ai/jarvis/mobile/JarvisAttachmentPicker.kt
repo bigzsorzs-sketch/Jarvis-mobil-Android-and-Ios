@@ -57,7 +57,7 @@ internal fun JarvisAttachmentPicker(
             busy = false
             onStatus(
                 (if (accepted > 0) "Helyben előkészítve: " + accepted + " csatolmány. " +
-                    "A fájlok helyben megnyithatók. Az AI-nak kép, PDF és szöveg (5 MB/fájl, 20 MB összesen) vagy 1 videó (legfeljebb 128 MB, csak 4 képkocka, hang nélkül) küldhető; külön Küldés gombbal." else "") +
+                    JarvisMediaUploadCopy.staged(JarvisLanguageSettings.load(context)) else "") +
                     (if (errors.isNotBlank()) " " + errors else "")
             )
         }
@@ -112,9 +112,7 @@ internal fun JarvisAttachmentPicker(
                             JarvisVideoSampling.MAX_FRAMES
                     )
                     Text(
-                        "Ez a helyi előnézet. Az AI-agynak a Küldés gombbal legfeljebb 4 " +
-                            "képkockát elemeztethetsz közvetlen OpenRouter-módban. " +
-                            "Az eredeti videót és hangját nem küldi el; nincs beszédátirat.",
+                        JarvisMediaUploadCopy.preview(JarvisLanguageSettings.load(context)),
                         style = MaterialTheme.typography.bodySmall
                     )
                     Spacer(Modifier.height(12.dp))
