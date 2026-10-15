@@ -44,9 +44,9 @@ internal object JarvisSavedPlaces {
         val label = name.trim()
         val target = destination.trim()
         if (label.length !in 2..80 || target.length !in 6..180 ||
-            (label + target).any { it == '\\n' || it == '\\r' }) return false
+            (label + target).any { it == '\n' || it == '\r' }) return false
         // A free-form person's name is not a safe routable destination.
-        val coordinate = Regex("""^-?\\d{1,2}(?:\\.\\d+)?,\\s*-?\\d{1,3}(?:\\.\\d+)?$""")
+        val coordinate = Regex("""^-?\d{1,2}(?:\.\d+)?,\s*-?\d{1,3}(?:\.\d+)?$""")
             .matches(target)
         return coordinate || (target.any { it.isDigit() } && target.any { it.isLetter() })
     }
