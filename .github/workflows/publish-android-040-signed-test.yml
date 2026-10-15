@@ -107,7 +107,11 @@ jobs:
           grep -F "package: name='ai.jarvis.mobile' versionCode='51' versionName='0.2.40'" "$RUNNER_TEMP/package.txt"
           grep -F "targetSdkVersion:'36'" "$RUNNER_TEMP/package.txt"
           unzip -t "$apk" >/dev/null
-          jarsigner -verify -strict "$aab" >/dev/null
+          # Jarvis uses its own established signing certificate; jarsigner -strict
+          # returns status 4 for expected self-signed trust-chain warnings.
+          # Verify the signed JAR cryptographically and require affirmative success.
+          jarsigner -verify "$aab" > "$RUNNER_TEMP/aab-verification.txt"
+          grep -Fq "jar verified." "$RUNNER_TEMP/aab-verification.txt"
           signer="$(grep -iE 'Signer #1 certificate SHA-256 digest: [0-9a-f]{64}' "$RUNNER_TEMP/signature.txt" | awk '{print $NF}' | tr A-F a-f)"
           test "$signer" = "$EXPECTED_SIGNER" || { echo "::error::Jarvis signer mismatch"; exit 1; }
           mkdir -p "$RUNNER_TEMP/previous"
