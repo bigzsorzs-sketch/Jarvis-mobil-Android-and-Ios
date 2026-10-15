@@ -36,7 +36,7 @@ jobs:
             .github/workflows/build-android-040-signed-private-qa.yml \
             .github/workflows/publish-android-040-signed-test.yml > "$RUNNER_TEMP/expected-paths"
           diff -u "$RUNNER_TEMP/expected-paths" "$RUNNER_TEMP/changed-paths"
-          grep -Fx 'applicationId = "ai.jarvis.mobile"' android/app/build.gradle.kts
+          grep -F 'applicationId = "ai.jarvis.mobile"' android/app/build.gradle.kts
           grep -Fx '        versionCode = 51' android/app/build.gradle.kts
           grep -Fx '        versionName = "0.2.40"' android/app/build.gradle.kts
           test -z "$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100" |
