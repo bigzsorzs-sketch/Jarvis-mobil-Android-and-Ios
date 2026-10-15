@@ -58,7 +58,9 @@ internal object JarvisGlucoseVoice {
 
     /** Always refresh the authorized source; never report stale data as current. */
     suspend fun reply(context: Context, language: JarvisLanguage = JarvisLanguageSettings.load(context)): String {
-        val synced = JarvisHealthGlucose.latest(context)
+        val synced = JarvisHealthReadTimeout.fetch {
+            JarvisHealthGlucose.latest(context)
+        }
         val cached = local(context)
         val latest = listOfNotNull(synced, cached).maxByOrNull { it.timestamp }
         val template = when (language) {
