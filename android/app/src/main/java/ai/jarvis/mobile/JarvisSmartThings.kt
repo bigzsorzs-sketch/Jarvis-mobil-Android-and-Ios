@@ -58,6 +58,34 @@ internal object JarvisSmartThingsPolicy {
         json.optJSONObject("components")?.optJSONObject("main")
             ?.optJSONObject("switch")?.optJSONObject("switch")
             ?.optString("value")?.takeIf { it == "on" || it == "off" }
+    /** A restricted set of read-only public capability values, never control fields.
+     * Some Samsung appliance models expose other vendor-specific status keys:
+     * if unsupported, show unknown rather than inferring a running cycle.
+     */
+    fun statusSummary(json: JSONObject): String {
+        val main = json.optJSONObject("components")?.optJSONObject("main") ?: return "unknown"
+        val permitted = listOf(
+            "washerOperatingState" to "machineState",
+            "dishwasherOperatingState" to "machineState",
+            "dryerOperatingState" to "machineState",
+            "mediaPlayback" to "playbackStatus",
+            "tvChannel" to "tvChannel",
+            "temperatureMeasurement" to "temperature",
+            "contactSensor" to "contact",
+            "battery" to "battery",
+            "switch" to "switch"
+        )
+        for ((capability, attribute) in permitted) {
+            val value = main.optJSONObject(capability)?.optJSONObject(attribute)
+                ?.opt("value") ?: continue
+            if (value is String || value is Number || value is Boolean) {
+                val trimmed = value.toString().trim().take(60)
+                if (trimmed.isNotBlank() && trimmed != "null")
+                    return capability + ": " + trimmed
+            }
+        }
+        return "unknown"
+    }
     fun command(device: JarvisSmartThingsDevice, on: Boolean): JSONObject {
         require(device.canSwitchLight && device.category == "light" &&
             validId(device.id)) { "Only a verified Light category may be switched." }
@@ -153,6 +181,12 @@ internal object JarvisSmartThings {
         val response = api(access, "/devices/" + device.id + "/status")
         return JarvisSmartThingsPolicy.switchValue(response) ?: "unknown"
     }
+    fun readStatus(access: JarvisSmartThingsAccess, device: JarvisSmartThingsDevice): String {
+        require(JarvisSmartThingsPolicy.validId(device.id))
+        return JarvisSmartThingsPolicy.statusSummary(
+            api(access, "/devices/" + device.id + "/status"))
+    }
+
     /** POST 200 means accepted, NOT executed; follow with actual status. */
     fun switchLight(access: JarvisSmartThingsAccess, device: JarvisSmartThingsDevice,
                     on: Boolean): String {
