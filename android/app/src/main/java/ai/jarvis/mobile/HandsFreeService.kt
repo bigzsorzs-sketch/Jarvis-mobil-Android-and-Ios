@@ -537,7 +537,12 @@ class HandsFreeService : Service(), RecognitionListener {
                         JarvisVoiceStreamBridge.receiver = null
                         handler.removeCallbacks(foregroundReplyTimeout)
                         val queued = foregroundStream
-                        if (queued != null) {
+                        if (answer.isBlank()) {
+                            // Successful native action: no spoken acknowledgement.
+                            // Silence is not a text-to-speech failure.
+                            queued?.cancel()
+                            finishSpokenReply()
+                        } else if (queued != null) {
                             HandsFreeStatus.answer = answer
                             queued.finish()
                         } else {
