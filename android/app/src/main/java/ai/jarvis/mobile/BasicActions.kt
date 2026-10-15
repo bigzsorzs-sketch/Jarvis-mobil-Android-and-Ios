@@ -39,7 +39,10 @@ internal object BasicCommandRouter {
             "glucose", "billing", "invoices", "email", "maps", "calendar", "alarms",
             "notes", "permissions", "settings", "home")
         // Mentioning a feature in a conversation is not a request to open it.
-        if (!JarvisAiTools.userAskedToOpen(raw) && shortcut !in bareShortcuts)
+        val actionRequest = raw.trim().replace(Regex(
+            "^(?:jó reggelt|jo reggelt|szia|helló|hello|good morning|good evening|hi)[,!:;\\s]+",
+            RegexOption.IGNORE_CASE), "")
+        if (!JarvisAiTools.userAskedToOpen(actionRequest) && shortcut !in bareShortcuts)
             return BasicAction.UNKNOWN
         return when {
             listOf("vércukor", "vercukor", "cukornapl", "glucose", "blood sugar").any { it in input } -> BasicAction.OPEN_GLUCOSE
