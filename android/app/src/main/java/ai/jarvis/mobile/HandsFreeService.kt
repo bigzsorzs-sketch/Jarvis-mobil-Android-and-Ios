@@ -1132,9 +1132,9 @@ class HandsFreeService : Service(), RecognitionListener {
             }
             return
         }
-        // Structured AI draft requests must not be intercepted by legacy local parsing.
-        val outgoing = if (localAiDraft != null) null
-            else ExternalTasks.parseMessage(command)
+        // A recognized local draft has already returned above. Avoid a dead
+        // conditional here; unsupported/legacy formats use the fallback parser.
+        val outgoing = ExternalTasks.parseMessage(command)
         if (outgoing != null) {
             if (!privateVoiceAllowed()) {
                 speak("A telefon lezárva. A privát üzenetekhez előbb oldd fel.")
