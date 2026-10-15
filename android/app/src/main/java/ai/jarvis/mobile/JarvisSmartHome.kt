@@ -186,6 +186,18 @@ internal object JarvisHomeCommands {
                 "every device", "whole house").any { target.startsWith(it) }) return null
         return Toggle(target, prefix.second)
     }
+    /** Read-only status queries also work for washers and microwaves. */
+    fun statusTarget(raw: String): String? {
+        val input = normalize(raw).removePrefix("jarvis ").trim()
+        val starts = listOf("mi a ", "hogy all a ", "hogy all az ",
+            "milyen allapotban van a ", "milyen allapotban van az ",
+            "what is the status of ", "show status of ", "status of ",
+            "status von ", "etat de ", "estado de ", "stato di ", "stan ")
+        val start = starts.firstOrNull { input.startsWith(it) } ?: return null
+        val target = input.removePrefix(start).replace(
+            Regex("""(?: allapota| statusza| status| allapot)$"""), "").trim()
+        return target.takeIf { it.length in 2..90 }
+    }
     fun match(action: Toggle, devices: List<JarvisHomeEntity>): JarvisHomeEntity? {
         val matched = devices.filter {
             val label = normalize(it.name)
