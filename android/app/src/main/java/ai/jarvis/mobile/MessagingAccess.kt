@@ -153,6 +153,7 @@ class JarvisNotificationListener : NotificationListenerService() {
 
 @Composable
 internal fun MessageInboxScreen(context: Context, onPermissions: () -> Unit) {
+    val language = LocalJarvisLanguage.current
     val notices = MessageBuffer.notices
     val speaker = remember(context) { TextToSpeech(context) { } }
     DisposableEffect(speaker) { onDispose { speaker.stop(); speaker.shutdown() } }
@@ -194,7 +195,15 @@ internal fun MessageInboxScreen(context: Context, onPermissions: () -> Unit) {
                         color = JarvisPalette.accent, fontWeight = FontWeight.Bold)
                     Text(notice.body, color = JarvisPalette.mainText)
                     ControlledOutlinedButton(onClick = {
-                        speaker.speak(notice.sender + ": " + notice.body, TextToSpeech.QUEUE_FLUSH, null, notice.key)
+                        val supported = speaker.setLanguage(
+                            JarvisMessageVoiceLocale.ttsLocale(language))
+                        if (supported == TextToSpeech.LANG_MISSING_DATA ||
+                            supported == TextToSpeech.LANG_NOT_SUPPORTED) {
+                            info = "A kiválasztott nyelvhez nincs telepített Android-felolvasó hang."
+                        } else {
+                            speaker.speak(notice.sender + ": " + notice.body,
+                                TextToSpeech.QUEUE_FLUSH, null, notice.key)
+                        }
                     }, commandLabel = "🔊 Felolvasás") { Text("🔊 Felolvasás") }
                     if (notice.canReply) {
                         ControlledOutlinedTextField(drafts[notice.key].orEmpty(),
@@ -205,8 +214,10 @@ internal fun MessageInboxScreen(context: Context, onPermissions: () -> Unit) {
                             try {
                                 dictateReply.launch(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                                     putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                                    putExtra(RecognizerIntent.EXTRA_LANGUAGE, "hu-HU")
-                                    putExtra(RecognizerIntent.EXTRA_PROMPT, "Diktáld a választ – küldés előtt ellenőrizheted")
+                                    putExtra(RecognizerIntent.EXTRA_LANGUAGE,
+                                        JarvisMessageVoiceLocale.speechTag(language))
+                                    putExtra(RecognizerIntent.EXTRA_PROMPT,
+                                        JarvisMessageVoiceLocale.dictationPrompt(language))
                                 })
                             } catch (_: Exception) { info = "Nincs telepített beszédfelismerő." }
                         }, commandLabel = "🎤 Válasz diktálása") { Text("🎤 Válasz diktálása") }
