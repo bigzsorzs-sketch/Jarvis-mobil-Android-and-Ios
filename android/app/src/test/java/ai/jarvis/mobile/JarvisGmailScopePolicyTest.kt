@@ -19,8 +19,10 @@ class JarvisGmailScopePolicyTest {
         }
     }
 
-    @Test fun explicitSendRequiresOnlySendButReplyAlsoNeedsRead() {
-        assertEquals(setOf(JarvisGmailScopePolicy.SEND),
+    @Test fun actualSendAndReplyNeedProfileReadPlusSendPermissions() {
+        // Gmail users.getProfile does not accept gmail.send alone; Jarvis
+        // reads the authenticated sender address before constructing RFC822.
+        assertEquals(JarvisGmailScopePolicy.ALL,
             JarvisGmailScopePolicy.required(
                 GmailOperation.Send("someone@example.org", "Subject", "Body", true)))
         assertEquals(JarvisGmailScopePolicy.ALL,
