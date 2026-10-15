@@ -172,7 +172,8 @@ fun JarvisApp(context: Context, launcherRequest: String? = null) {
         val reply = voiceReply
         if (reply?.first == request) {
             voiceReply = null
-            reply.second(answer)
+            // Completed local actions are intentionally silent to the microphone session.
+            reply.second(if (JarvisQuietActions.hideSuccessfulTurn(request, answer)) "" else answer)
         }
     }
     val chatSession = remember(context) {

@@ -46,7 +46,7 @@ internal class JarvisCloudVoicePlayer(context: Context) {
             return false
         }
         if (lastFailure.isNotBlank()) return false
-        val chunks = JarvisSpeechChunks.splitForConversation(text)
+        val chunks = JarvisSpeechChunks.splitForConversation(JarvisSpokenText.clean(text))
         if (chunks.isEmpty()) return false
         stop()
         lastFailure = ""
@@ -151,7 +151,7 @@ internal class JarvisCloudVoicePlayer(context: Context) {
             val producer = launch {
                 try {
                     for (phrase in phrases) {
-                        for (chunk in JarvisSpeechChunks.splitForConversation(phrase)) {
+                        for (chunk in JarvisSpeechChunks.splitForConversation(JarvisSpokenText.clean(phrase))) {
                             chunks.send(chunk)
                         }
                     }

@@ -202,6 +202,7 @@ class HandsFreeService : Service(), RecognitionListener {
             finishSpokenReply()
         }
         HandsFreeStatus.running = true
+        HandsFreeStatus.heard = ""
         HandsFreeStatus.audioError = ""
         cloudVoice = JarvisCloudVoicePlayer(applicationContext)
         bargeInMonitor = JarvisBargeInMonitor(applicationContext) { onBargeIn() }
@@ -280,7 +281,8 @@ class HandsFreeService : Service(), RecognitionListener {
         try {
             recognizedUtteranceLanguage = null
             speechObservedThisTurn = false
-            HandsFreeStatus.heard = ""
+            // Preserve the latest recognized transcript between capture cycles.
+            // Otherwise a 250 ms restart hides whether "igen" was heard at all.
             HandsFreeStatus.listening = false
             HandsFreeStatus.status = when {
                 proposed != null -> "Megerősítést várok: igen vagy nem"
@@ -322,7 +324,7 @@ class HandsFreeService : Service(), RecognitionListener {
         speaking = false
         HandsFreeStatus.speaking = false
         HandsFreeStatus.outputLevel = 0f
-        HandsFreeStatus.status = "Közbeszóltál. Figyelek a kérésedre…"
+        HandsFreeStatus.status = "Megszakítottad a felolvasást. Mondd újra a kérést, hogy biztosan rögzítsem."
         if (tapActivated) awaitingCommand = true
         again(110L)
     }
@@ -537,7 +539,12 @@ class HandsFreeService : Service(), RecognitionListener {
                         JarvisVoiceStreamBridge.receiver = null
                         handler.removeCallbacks(foregroundReplyTimeout)
                         val queued = foregroundStream
-                        if (queued != null) {
+                        if (answer.isBlank()) {
+                            // Successful native action: no spoken acknowledgement.
+                            // Silence is not a text-to-speech failure.
+                            queued?.cancel()
+                            finishSpokenReply()
+                        } else if (queued != null) {
                             HandsFreeStatus.answer = answer
                             queued.finish()
                         } else {
@@ -1385,6 +1392,7 @@ class HandsFreeService : Service(), RecognitionListener {
         running = false
         JarvisForegroundCommands.interruptSpeech = null
         HandsFreeStatus.running = false
+        HandsFreeStatus.heard = ""
         HandsFreeStatus.speaking = false
         HandsFreeStatus.userSpeaking = false
         HandsFreeStatus.micLevel = 0f

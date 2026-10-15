@@ -33,6 +33,13 @@ internal object JarvisQuietActions {
             r.startsWith("a gmail elfogadta az emailt") ||
                 r.startsWith("a gmail elfogadta a valaszt") -> true
             r.startsWith("a hivaskerest atadtam az androidnak") -> true
+            // Native app/page openings must not narrate a separate status message.
+            // Unverified Maps person searches and directions requiring Start stay visible.
+            r.startsWith("megnyitottam ") &&
+                !r.contains("kereseset") &&
+                !r.contains("utvonalat") &&
+                !r.contains("meg kell") &&
+                !r.contains("valaszd") -> true
             // A successful map handoff was already done in Android. Do not
             // modify the route/destination or misreport a launch as navigation.
             (q.contains("navigalj") || q.contains("vigyel") || q.contains("navigacio")) &&
