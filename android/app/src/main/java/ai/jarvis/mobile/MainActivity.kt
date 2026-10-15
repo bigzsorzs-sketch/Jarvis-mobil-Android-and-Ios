@@ -899,7 +899,9 @@ fun JarvisApp(context: Context, launcherRequest: String? = null) {
         }
         // First-party Smart Home: exactly matched, explicitly named entities.
         // No arbitrary AI tools, remote appliance starts, or optimistic success.
-        JarvisHomeCommands.parse(command)?.let { action ->
+        val homeToggle = JarvisHomeCommands.parse(command)
+        val homeStatus = if (homeToggle == null) JarvisHomeCommands.statusTarget(command) else null
+        if (homeToggle != null || homeStatus != null) {
             val config = runCatching { JarvisHomeConnect.load(context) }.getOrNull()
             if (config == null) {
                 addHistory(command to "A Smart Home még nincs csatlakoztatva. " +
@@ -911,11 +913,14 @@ fun JarvisApp(context: Context, launcherRequest: String? = null) {
                 val response = withContext(Dispatchers.IO) {
                     runCatching {
                         val devices = JarvisHomeConnect.discover(config)
-                        val device = JarvisHomeCommands.match(action, devices)
+                        val device = JarvisHomeCommands.match(
+                            homeToggle ?: JarvisHomeCommands.Toggle(homeStatus.orEmpty(), true), devices)
                         when {
                             device == null -> "Nem találtam egyetlen egyértelműen egyező Smart Home eszközt."
+                            homeToggle == null -> "Home Assistant szerint: " +
+                                device.name + " – " + device.state + "."
                             !device.canToggle -> "Ez az eszköz csak állapotlekérdezésre használható."
-                            else -> JarvisHomeConnect.toggle(config, device.id, action.on)
+                            else -> JarvisHomeConnect.toggle(config, device.id, homeToggle.on)
                         }
                     }.getOrElse { "Smart Home hiba: " + (it.message ?: "A vezérlés nem igazolt.") }
                 }
