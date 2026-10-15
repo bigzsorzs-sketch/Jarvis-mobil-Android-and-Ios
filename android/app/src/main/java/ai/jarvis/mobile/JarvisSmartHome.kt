@@ -180,9 +180,10 @@ internal object JarvisHomeCommands {
         val target = input.removePrefix(prefix.first)
             .replace(Regex("""^(?:a|az|the|le|la|el|il|lo|die|das)\s+"""), "")
             .trim()
-        if (target.length !in 2..90 || target in setOf("mikrofon", "telefon", "bluetooth",
-                "wifi", "kepernyo", "hang", "minden", "osszes", "all",
-                "everything", "every device", "whole house", "all lights")) return null
+        if (target.length !in 2..90 ||
+            listOf("mikrofon", "telefon", "bluetooth", "wifi", "kepernyo",
+                "hangero", "minden ", "osszes ", "all ", "everything",
+                "every device", "whole house").any { target.startsWith(it) }) return null
         return Toggle(target, prefix.second)
     }
     fun match(action: Toggle, devices: List<JarvisHomeEntity>): JarvisHomeEntity? {
