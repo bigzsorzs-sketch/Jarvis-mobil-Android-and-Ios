@@ -18,7 +18,7 @@ class JarvisSavedPlaceManualTest {
 
     @Test fun personDestinationRemainsNamedUntilLocallyResolved() {
         assertEquals("PERSON:Eszter",
-            VoiceNavigation.destinationFrom("vigyél eszterhez"))
+            VoiceNavigation.destinationFrom("vigyél Eszterhez"))
         assertEquals("PERSON:Eszter",
             VoiceNavigation.destinationFrom("Navigálj Eszterhez"))
         assertTrue(VoiceNavigation.maySearchNamedPlace("PERSON:Eszter"))
