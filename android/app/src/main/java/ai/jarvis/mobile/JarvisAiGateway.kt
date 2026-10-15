@@ -593,7 +593,7 @@ internal object JarvisAiGateway {
             connection.requestMethod = "POST"
             connection.instanceFollowRedirects = false
             connection.connectTimeout = 10000
-            connection.readTimeout = 2_700_000
+            connection.readTimeout = JarvisResponseDeadline.socketReadMs(question)
             connection.doOutput = true
             connection.setRequestProperty("Content-Type", "application/json; charset=utf-8")
             connection.setRequestProperty("Accept", "application/json")
