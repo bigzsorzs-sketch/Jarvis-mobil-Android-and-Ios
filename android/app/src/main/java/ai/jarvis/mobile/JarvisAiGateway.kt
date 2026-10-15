@@ -577,7 +577,7 @@ internal object JarvisAiGateway {
         val direct = mode(context) == DIRECT_TEST
         if (attachments.isNotEmpty() && !direct) {
             return@withContext JarvisAiOutcome(
-                "A képek és PDF-ek AI-elemzése jelenleg a közvetlen OpenRouter-kapcsolattal használható. Nem küldtem fájlt.")
+                "Fájlok, képek és videó-képkockák AI-elemzése jelenleg közvetlen OpenRouter-kapcsolattal használható. Nem küldtem fájlt.")
         }
         val credential = if (direct) prefs.read(KEY_DIRECT, "") else prefs.read(KEY_TOKEN, "")
         val base = if (direct) null else normalizedBaseUrl(baseUrl(context))
