@@ -33,7 +33,9 @@ internal object JarvisCommandContext {
         if (VoiceCalling.extractRequest(raw) != null || VoiceCalling.needsTarget(raw) ||
             JarvisScreenControl.parse(raw) != null ||
             JarvisControlCommand.parse(raw) != null ||
-            JarvisLocalPreferences.parse(raw) != null) return true
+            JarvisLocalPreferences.parse(raw) != null ||
+            JarvisHomeCommands.parse(raw) != null ||
+            JarvisHomeCommands.statusTarget(raw) != null) return true
         if (JarvisInstalledApps.requestedLabel(raw) != null ||
             JarvisCapabilities.localPageToOpen(raw) != null ||
             JarvisCapabilities.isDiscoveryRequest(raw) ||
