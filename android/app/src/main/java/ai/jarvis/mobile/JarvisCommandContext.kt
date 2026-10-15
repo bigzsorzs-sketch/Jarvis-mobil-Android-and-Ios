@@ -25,7 +25,7 @@ internal object JarvisCommandContext {
      */
     fun shouldPreemptCallConfirmation(raw: String, activePendingCall: Boolean): Boolean =
         independentRequest(raw) &&
-            !(activePendingCall && VoiceCalling.callConfirmationYes(raw))
+            !(activePendingCall && (VoiceCalling.callConfirmationYes(raw) || VoiceCalling.needsTarget(raw)))
 
     fun independentRequest(raw: String): Boolean {
         val s = normalize(raw)
