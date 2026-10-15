@@ -38,6 +38,25 @@ class JarvisCommandContextTest {
         assertNull(JarvisCommandContext.possibleContactReply("akkor milyen funkciókat tudsz használni?"))
     }
 
+    @Test fun shortSpokenCallApprovalKeepsOnlyTheActiveConfirmedNumber() {
+        for (approval in listOf("igen", "igen, hívd", "igen, hívd fel", "yes", "call now")) {
+            assertTrue("Explicit approval not recognized: $approval",
+                VoiceCalling.callConfirmationYes(approval))
+            assertFalse("Confirmation must not lose active contact: $approval",
+                JarvisCommandContext.shouldPreemptCallConfirmation(approval, true))
+        }
+        // No pending contact = a bare call command must request a recipient.
+        assertTrue(JarvisCommandContext.shouldPreemptCallConfirmation("hívd", false))
+        assertTrue(JarvisCommandContext.shouldPreemptCallConfirmation("hívd fel", false))
+        // A new named recipient or a different action invalidates stale approval.
+        assertTrue(JarvisCommandContext.shouldPreemptCallConfirmation("Hívd fel Vivit", true))
+        assertTrue(JarvisCommandContext.shouldPreemptCallConfirmation("navigálj Leedsbe", true))
+        assertTrue(JarvisCommandContext.shouldPreemptCallConfirmation("Hogy vagy?", true))
+        // Saying a name is not authorization to place a call.
+        assertFalse(VoiceCalling.callConfirmationYes("Drágám"))
+        assertFalse(VoiceCalling.callConfirmationYes("nem"))
+    }
+
     @Test fun normalizesUKPhonebookDuplicatesButNeverChoosesDifferentNumbers() {
         assertEquals("+447478051290", VoiceCalling.canonicalPhone("07478 051290"))
         assertEquals("+447478051290", VoiceCalling.canonicalPhone("+44 7478 051290"))

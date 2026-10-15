@@ -53,7 +53,7 @@ internal object VoiceIntentParser {
     /** Call confirmation must not mistake 'send' or 'küldd el' for consent to call. */
     fun isCallYes(raw: String): Boolean {
         val n = normalize(raw).trimEnd('.', '!', ',')
-        return n in setOf("igen", "mehet", "yes", "hivd fel", "call now", "ja", "ruf an", "oui", "appelle", "sí", "si", "llama", "sì", "chiama", "tak", "zadzwon")
+        return n in setOf("igen", "mehet", "yes", "call now", "ja", "ruf an", "oui", "appelle", "sí", "si", "llama", "sì", "chiama", "tak", "zadzwon")
     }
 
     /** A multi-step workflow must not accept message-send or call words as consent. */

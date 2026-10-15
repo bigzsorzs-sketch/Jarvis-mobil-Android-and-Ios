@@ -11,6 +11,8 @@ import android.speech.*
 import androidx.compose.runtime.*
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -96,6 +98,9 @@ class HandsFreeService : Service(), RecognitionListener {
         }
     }
     private var recognizer: SpeechRecognizer? = null
+    private val captureScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private var cloudCaptureJob: Job? = null
+    private var cloudCaptureGeneration = 0L
     private var recognizerGeneration = 0
     private var cloudVoice: JarvisCloudVoicePlayer? = null
     private var foregroundStream: JarvisCloudVoicePlayer.StreamHandle? = null
@@ -155,7 +160,8 @@ class HandsFreeService : Service(), RecognitionListener {
         )
         awaitingCommand = tapActivated
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED
-            || !SpeechRecognizer.isRecognitionAvailable(this)) {
+            || (!JarvisAiGateway.canTranscribe(this) &&
+                !SpeechRecognizer.isRecognitionAvailable(this))) {
             HandsFreeStatus.status = "Mikrofonengedély vagy Android beszédfelismerő hiányzik."
             stopSelf()
             return START_NOT_STICKY
@@ -210,7 +216,7 @@ class HandsFreeService : Service(), RecognitionListener {
             // Prefer the system recognizer for the selected language: presence of
             // an offline engine does not mean it has a Hungarian model.
             usingOnDeviceRecognizer = false
-            createRecognizer()
+            if (!tapActivated || !JarvisAiGateway.canTranscribe(this)) createRecognizer()
             again(450)
         } catch (_: Exception) {
             if (usingOnDeviceRecognizer) {
@@ -276,9 +282,73 @@ class HandsFreeService : Service(), RecognitionListener {
         if (running && !speaking && !recognizerListening && !foregroundReplyPending)
             handler.postDelayed(restart, delay)
     }
+    /** One cloud-recognized utterance, followed by the SAME foreground GPT-5.2
+     * conversation and Android validation pathway as typed requests.
+     * Only explicitly enabled, user-started Home microphone sessions use this.
+     */
+    private fun startCloudCapture() {
+        if (!running || cloudCaptureJob?.isActive == true) return
+        val generation = ++cloudCaptureGeneration
+        val language = JarvisLanguageSettings.load(applicationContext)
+        HandsFreeStatus.status = "Hallgatlak · GPT beszédfelismerés"
+        HandsFreeStatus.listening = true
+        HandsFreeStatus.userSpeaking = false
+        cloudCaptureJob = captureScope.launch {
+            val result = JarvisCloudSpeechCapture.record(applicationContext) { level, speakingNow ->
+                handler.post {
+                    if (running && generation == cloudCaptureGeneration) {
+                        HandsFreeStatus.micLevel = level
+                        HandsFreeStatus.userSpeaking = speakingNow
+                    }
+                }
+            }
+            if (!running || generation != cloudCaptureGeneration) return@launch
+            HandsFreeStatus.listening = false
+            HandsFreeStatus.userSpeaking = false
+            HandsFreeStatus.micLevel = 0f
+            cloudCaptureJob = null
+            when (result) {
+                JarvisCloudSpeechCapture.Result.Silence -> {
+                    HandsFreeStatus.status = "Nem hallottam beszédet. Figyelek tovább."
+                    again(350)
+                }
+                JarvisCloudSpeechCapture.Result.Unavailable -> {
+                    HandsFreeStatus.status = "A felhős mikrofonrögzítés nem indult. Ellenőrizd az engedélyt."
+                    again(2_500)
+                }
+                is JarvisCloudSpeechCapture.Result.Audio -> {
+                    lastVoiceEndedAtMs = SystemClock.elapsedRealtime()
+                    HandsFreeStatus.status = "Beszédfelismerés az OpenRouteren…"
+                    val transcript = JarvisAiGateway.transcribe(
+                        applicationContext, result.wav, language)
+                    // Consent revocation or a stopped service invalidates old audio.
+                    if (!running || generation != cloudCaptureGeneration) return@launch
+                    if (!JarvisAiGateway.canTranscribe(applicationContext)) {
+                        HandsFreeStatus.status = "A hangfeltöltés engedélyét visszavontad."
+                        again(500)
+                    } else if (transcript.isNullOrBlank()) {
+                        HandsFreeStatus.status = JarvisAiGateway.lastTranscriptionError
+                            .ifBlank { "Nem értettem. Ismételd meg a kérést." }
+                        again(1_100)
+                    } else {
+                        HandsFreeStatus.heard = transcript
+                        recognizedUtteranceLanguage = language
+                        process(transcript)
+                    }
+                }
+            }
+        }
+    }
+
     private fun listen() {
-        if (!running || speaking || recognizerListening || foregroundReplyPending) return
+        if (!running || speaking || recognizerListening || foregroundReplyPending ||
+            cloudCaptureJob?.isActive == true) return
+        if (tapActivated && JarvisAiGateway.canTranscribe(this)) {
+            startCloudCapture()
+            return
+        }
         try {
+            if (recognizer == null) createRecognizer()
             recognizedUtteranceLanguage = null
             speechObservedThisTurn = false
             // Preserve the latest recognized transcript between capture cycles.
@@ -341,6 +411,10 @@ class HandsFreeService : Service(), RecognitionListener {
     }
 
     private fun speak(text: String) {
+        // Never record or upload Jarvis's own AI audio as a new command.
+        cloudCaptureGeneration++
+        cloudCaptureJob?.cancel()
+        cloudCaptureJob = null
         val replySerial = ++spokenReplySerial
         bargeInMonitor?.stop()
         val wantedLanguage = recognizedUtteranceLanguage ?:
@@ -1415,6 +1489,10 @@ class HandsFreeService : Service(), RecognitionListener {
         handler.removeCallbacks(foregroundReplyTimeout)
         recognizerListening = false
         HandsFreeStatus.listening = false
+        ++cloudCaptureGeneration
+        cloudCaptureJob?.cancel()
+        cloudCaptureJob = null
+        captureScope.cancel()
         ++recognizerGeneration
         foregroundReplyPending = false
         cancelForegroundStream()

@@ -427,7 +427,7 @@ fun JarvisApp(context: Context, launcherRequest: String? = null) {
             }
         }
     }
-    fun executeHome(command: String) {
+    fun executeHome(command: String, aiProposal: JarvisAiOutcome? = null) {
         if (command.isBlank()) return
         // Do this BEFORE any loading guard, Gmail follow-up or AI call.
         // Typed or dictated "állj" must immediately cancel BOTH narrators.
@@ -550,8 +550,12 @@ fun JarvisApp(context: Context, launcherRequest: String? = null) {
         // Every independent typed/voice command preempts stale call flows.
         // Do NOT execute apps here: normal routing below prioritizes internal
         // Jarvis pages, Android intents and installed apps in that order.
-        if (JarvisCommandContext.independentRequest(command)) clearCallFlow()
-        if (pendingCall != null && now > pendingCallUntilMs) clearCallFlow()
+        // An unexpired confirmed contact must survive "igen, hívd", "hívd",
+        // and "hívd fel". Independent NEW calls or other commands still cancel it.
+        // The actual dialing remains inside the explicit confirmation branch.
+        val activePendingCall = pendingCall != null && now <= pendingCallUntilMs
+        if (JarvisCommandContext.shouldPreemptCallConfirmation(command, activePendingCall))
+            clearCallFlow()
         if (awaitingCallTarget != null && now > awaitingCallTargetUntilMs) clearCallFlow()
         // BEFORE invalidating earlier approvals, consume explicit follow-ups
         // on the original user-initiated call. A bare "igen, hívd" is allowed
@@ -576,7 +580,13 @@ fun JarvisApp(context: Context, launcherRequest: String? = null) {
                 addHistory(command to "Rendben, nem indítok hívást.")
                 return
             }
-            if (VoiceCalling.extractRequest(command) == null && !VoiceCalling.needsTarget(command)) {
+            if (VoiceCalling.needsTarget(command)) {
+                // A one-word partial transcript is NOT an explicit yes.
+                // Keep the resolved number while we ask the user to confirm.
+                addHistory(command to "A számot megtartottam, de ez nem egyértelmű jóváhagyás. Mondd: igen, hívd – vagy: nem.")
+                return
+            }
+            if (VoiceCalling.extractRequest(command) == null) {
                 addHistory(command to "A hívás indításához válaszolj: igen, hívd – vagy: nem. Ha másik személyt hívnál, mondd a teljes hívási parancsot.")
                 return
             }
@@ -883,6 +893,48 @@ fun JarvisApp(context: Context, launcherRequest: String? = null) {
             addHistory(command to JarvisScreenControl.execute(context, action))
             return
         }
+        // Spoken commands are interpreted by GPT-5.2 first. The model can
+        // PROPOSE one allowlisted action, but only the existing Android validators
+        // can execute it. Text-only answers are never executable instructions.
+        if (aiProposal != null) {
+            when {
+                aiProposal.callTarget != null -> {
+                    addHistory(command to resolveCallTarget(aiProposal.callTarget))
+                    return
+                }
+                aiProposal.nativeAction != null &&
+                    JarvisNativeActions.validate(aiProposal.nativeAction, command) -> {
+                    addHistory(command to JarvisNativeActions.execute(
+                        context, aiProposal.nativeAction, command))
+                    return
+                }
+                aiProposal.deviceAction != null &&
+                    JarvisPhoneActions.authorized(aiProposal.deviceAction, command) -> {
+                    addHistory(command to JarvisPhoneActions.execute(
+                        context, aiProposal.deviceAction))
+                    return
+                }
+                aiProposal.route != null &&
+                    aiProposal.route in JarvisAiTools.allowedRoutes &&
+                    JarvisAiTools.userAskedToOpen(command) -> {
+                    addHistory(command to openTool(aiProposal.route, asPage = true))
+                    return
+                }
+                aiProposal.messageDraft != null -> {
+                    prepareMessageReview(aiProposal.messageDraft)
+                    addHistory(command to "Előkészítettem az üzenetpiszkozatot ellenőrzésre.")
+                    return
+                }
+                aiProposal.conversationReply &&
+                    JarvisAiRouting.shouldAskAi(command, true) -> {
+                    addHistory(command to aiProposal.message)
+                    return
+                }
+            }
+            // If the provider does not support tool-calling, an explicit and
+            // locally parsed request remains executable; never trust AI prose
+            // as a device command.
+        }
         // Navigation commands have priority over generic "open Maps" shortcuts.
         // The recognized city/address must be passed directly to Google's
         // turn-by-turn intent, never dropped in favour of an empty map view.
@@ -1126,11 +1178,29 @@ fun JarvisApp(context: Context, launcherRequest: String? = null) {
             
         }
     }
-    val latestExecutor = rememberUpdatedState<(String) -> Unit> { executeHome(it) }
+    // The microphone transcript reaches GPT-5.2 BEFORE the action router.
+    // Confirmation answers remain local so an "igen" cannot be reinvented by AI.
+    val latestVoiceHandler = rememberUpdatedState<(String, (String) -> Unit) -> Unit> { command, respond ->
+        voiceReply = command to respond
+        val approval = VoiceCalling.callConfirmationYes(command) ||
+            VoiceIntentParser.isNo(command) || VoiceIntentParser.isPlaybackStop(command)
+        if (approval || !JarvisAiGateway.configured(context)) {
+            executeHome(command)
+        } else {
+            val chatAtStart = currentChat.id
+            val transcriptHistory = currentChat.aiTurns.toList()
+            val selectedLanguageTag = language.tag
+            drawerScope.launch {
+                val proposal = JarvisAiGateway.askStructured(
+                    context, command, selectedLanguageTag, history = transcriptHistory)
+                if (voiceReply?.first == command && currentChat.id == chatAtStart)
+                    executeHome(command, proposal)
+            }
+        }
+    }
     DisposableEffect(context) {
         val handler: (String, (String) -> Unit) -> Unit = { command, respond ->
-            voiceReply = command to respond
-            latestExecutor.value(command)
+            latestVoiceHandler.value(command, respond)
         }
         JarvisForegroundCommands.handler = handler
         onDispose {

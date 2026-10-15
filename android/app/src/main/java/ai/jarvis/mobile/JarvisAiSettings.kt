@@ -25,6 +25,7 @@ internal fun JarvisAiSettings(context: Context) {
     var paired by remember { mutableStateOf(JarvisAiGateway.hasSavedConnection(context)) }
     var cloudConsent by remember { mutableStateOf(JarvisAiGateway.cloudConsent(context)) }
     var voiceConsent by remember { mutableStateOf(JarvisAiGateway.voiceConsent(context)) }
+    var transcriptionConsent by remember { mutableStateOf(JarvisAiGateway.transcriptionConsent(context)) }
     val selectedLanguage = LocalJarvisLanguage.current
     val scope = rememberCoroutineScope()
     var audioTestRunning by remember { mutableStateOf(false) }
@@ -195,6 +196,39 @@ internal fun JarvisAiSettings(context: Context) {
         style = MaterialTheme.typography.bodySmall
     )
     Spacer(Modifier.height(12.dp))
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        RegisterJarvisControl("GPT beszédfelismerés engedélyezése", click = {
+            transcriptionConsent = !transcriptionConsent
+            JarvisAiGateway.setTranscriptionConsent(context, transcriptionConsent)
+        })
+        Checkbox(checked = transcriptionConsent, onCheckedChange = { enabled ->
+            transcriptionConsent = enabled
+            JarvisAiGateway.setTranscriptionConsent(context, enabled)
+        })
+        androidx.compose.material3.Text(
+            listOf(
+                "Felhős hangfelismerés (OpenRouter, GPT Transcribe)",
+                "Cloud speech recognition (OpenRouter, GPT Transcribe)",
+                "Cloud-Spracherkennung (OpenRouter, GPT Transcribe)",
+                "Reconnaissance vocale cloud (OpenRouter, GPT Transcribe)",
+                "Reconocimiento de voz en la nube (OpenRouter, GPT Transcribe)",
+                "Riconoscimento vocale cloud (OpenRouter, GPT Transcribe)",
+                "Rozpoznawanie mowy w chmurze (OpenRouter, GPT Transcribe)"
+            )[selectedLanguage.ordinal], style = MaterialTheme.typography.bodyMedium
+        )
+    }
+    androidx.compose.material3.Text(
+        listOf(
+            "Ha bekapcsolod, a főoldali mikrofon által rögzített rövid hangminták az OpenRouterhez kerülnek szövegfelismerésre. A GPT-5.2 a felismert szöveget kapja. A hang nem kerül a Jarvis tárhelyére. Kikapcsolva az Android beszédfelismerése marad. Közvetlen OpenRouterrel és saját Jarvis-szerverrel is használható.",
+            "When enabled, short audio clips from the Home microphone are sent to OpenRouter for transcription. GPT-5.2 receives the text. Audio is not saved by Jarvis. Disabled: Android recognition remains. Direct OpenRouter or a configured private Jarvis server.",
+            "Kurze Mikrofonaufnahmen werden zur Transkription an OpenRouter gesendet. GPT-5.2 erhält den Text. Keine lokale Speicherung. Direkter OpenRouter- oder privater Jarvis-Servermodus.",
+            "Les courts enregistrements sont transmis à OpenRouter pour transcription, puis le texte à GPT-5.2. Sans stockage local. OpenRouter direct ou serveur Jarvis privé.",
+            "Se envían clips breves a OpenRouter para transcripción y el texto a GPT-5.2. Sin almacenamiento local. OpenRouter directo o servidor privado Jarvis.",
+            "Brevi clip audio vanno a OpenRouter per la trascrizione e il testo a GPT-5.2. Nessun salvataggio locale. OpenRouter diretto o server Jarvis privato.",
+            "Krótkie nagrania są wysyłane do OpenRouter w celu transkrypcji, a tekst do GPT-5.2. Bez zapisu lokalnego. Bezpośredni OpenRouter lub prywatny serwer Jarvis."
+        )[selectedLanguage.ordinal], style = MaterialTheme.typography.bodySmall
+    )
+    Spacer(Modifier.height(12.dp))
     Text("Hangellenőrzés: " + (JarvisVoiceReadiness.reason(context)
         ?: "Az AI-hang beállításai rendben vannak."),
         style = MaterialTheme.typography.bodySmall)
@@ -276,6 +310,8 @@ internal fun JarvisAiSettings(context: Context) {
             selectedMode = JarvisAiGateway.mode(context)
             savedMode = JarvisAiGateway.mode(context)
             cloudConsent = false
+            transcriptionConsent = false
+            voiceConsent = false
             paired = false
             status = "A helyben tárolt hozzáférést töröltem."
         }, commandLabel = "Leválasztás") { Text("Leválasztás") }
@@ -306,7 +342,7 @@ internal fun JarvisAiSettings(context: Context) {
     }
     Spacer(Modifier.height(10.dp))
     Text(
-        "A szokásos telefonparancsok helyben futnak. Az általános kérdéseket a kiválasztott AI-kapcsolat válaszolja meg.",
+        "A felismert hangszöveget GPT-5.2 értelmezheti. Az Android a hívások, címzettek és jogosultságok tényleges végrehajtását külön ellenőrzi.",
         style = MaterialTheme.typography.bodySmall
     )
 }
