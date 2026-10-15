@@ -137,6 +137,21 @@ class JarvisNavigationInstrumentedTest {
         composeRule.onNodeWithText("Mentett helyek importálása").assertExists()
     }
 
+    @Test fun savedPlacesImportRemainsAccessibleFromSettingsWithoutNavigationMenu() {
+        finishOnboarding()
+        composeRule.onNodeWithTag("jarvis-home-drawer-trigger").performClick()
+        // The drawer contains a lazy list: Settings is below the viewport on
+        // phones and is not composed until the list scrolls to that item.
+        composeRule.onNodeWithTag("jarvis-drawer-list")
+            .performScrollToNode(hasText(displayedRoute("Beállítások")))
+        composeRule.onNodeWithText(displayedRoute("Beállítások")).performClick()
+        composeRule.onNodeWithText("Mentett helyek és otthoni cím")
+            .performScrollTo().performClick()
+        composeRule.onNodeWithText("Otthoni cím mentése").assertExists()
+        composeRule.onNodeWithText("Navigálás haza").assertExists()
+        composeRule.onNodeWithText("Mentett helyek importálása").assertExists()
+    }
+
     @Test fun homeMenusAndTwoNewPagesCanBeOpened() {
         // First-run permissions are optional: never grant access in a UI test.
         val prefs = composeRule.activity.getSharedPreferences(
