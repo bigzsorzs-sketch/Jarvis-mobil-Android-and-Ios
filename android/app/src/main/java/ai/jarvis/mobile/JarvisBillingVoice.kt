@@ -11,7 +11,8 @@ import java.util.Locale
  */
 internal object BillingVoice {
     internal fun normalize(raw: String): String = Normalizer.normalize(raw, Normalizer.Form.NFD)
-        .replace(Regex("\\p{M}+"), "").lowercase(Locale.ROOT).trim()
+        .replace(Regex("\\p{M}+"), "").lowercase(Locale.ROOT)
+        .replace('ł', 'l').replace('ß', 's').trim()
 
     fun isCandidate(raw: String): Boolean {
         val v = normalize(raw).replace(Regex("""^(?:jarvis[, :]*|kerlek |please )+"""), "").trim()
@@ -26,8 +27,16 @@ internal object BillingVoice {
             "faktur", "presupuesto", "devis", "arajanlat", "wycena", "preventivo",
             "offene rechnungen").any { it in v }
     }
-    private fun sending(v: String) = listOf("kuldd", "kuldj", "send", "envoi", "enviar",
-        "envia", "invia", "verschick", "senden", "wyslij", "envoye").any { it in v }
+    // A client name containing "send" or "envoi" must not trigger an actual
+    // invoice delivery. Nor may "create an invoice, but DO NOT SEND" send it.
+    private val sendVerbs = Regex(
+        """\\b(?:kuldd|kuldj|kuld|send|envoi(?:e|er|ez)?|enviar|envia|invia(?:re)?|verschick(?:e|en)?|senden|wyslij|wysylaj)\\b"""
+    )
+    private val negatedSend = Regex(
+        """\\b(?:ne\\s+(?:kuldd|kuldj|kuld)|nem\\s+(?:kuldd|kuldj|kuld)|don't\\s+send|dont\\s+send|do\\s+not\\s+send|never\\s+send|nicht\\s+senden|ne\\s+pas\\s+envoyer|n'envoie\\s+pas|no\\s+envia(?:r|s)?|non\\s+inviare|nie\\s+(?:wyslij|wysylaj))\\b"""
+    )
+    private fun sending(v: String) = !negatedSend.containsMatchIn(v) &&
+        sendVerbs.containsMatchIn(v)
     private fun creating(v: String) = listOf("keszits", "kesziten", "create", "make",
         "erstell", "creer", "cree", "crear", "crea", "tworz", "utworz", "prepara",
         "przygotuj").any { it in v }
