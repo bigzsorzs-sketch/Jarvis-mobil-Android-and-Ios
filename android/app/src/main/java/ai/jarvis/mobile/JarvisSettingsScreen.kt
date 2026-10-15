@@ -61,7 +61,8 @@ internal fun JarvisSettingsRow(icon: String, title: String, detail: String, onCl
 @Composable
 internal fun JarvisSettingsScreen(
     context: Context, isDark: Boolean, onToggleTheme: () -> Unit, onVoice: () -> Unit,
-    onAi: () -> Unit, onMore: () -> Unit, language: JarvisLanguage
+    onAi: () -> Unit, onMore: () -> Unit, onSmartHome: () -> Unit,
+    language: JarvisLanguage
 ) {
     SettingsSectionTitle("Általános")
     JarvisSettingsGroup {
@@ -90,6 +91,9 @@ internal fun JarvisSettingsScreen(
             JarvisLanguage.POLISH -> "Adres domu, import Google Takeout"
         }
         JarvisSettingsRow("➤", placesTitle, placesHelp, onMore)
+        SettingsDivider()
+        JarvisSettingsRow("⌂", "Smart Home",
+            "Home Assistant: eszközök, lámpák, TV és háztartási gépek állapota", onSmartHome)
     }
     Spacer(Modifier.height(16.dp))
     SettingsSectionTitle("AI-kapcsolat")

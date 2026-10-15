@@ -917,6 +917,38 @@ fun JarvisApp(context: Context, launcherRequest: String? = null) {
             addHistory(command to JarvisScreenControl.execute(context, action))
             return
         }
+        // First-party Smart Home: exactly matched, explicitly named entities.
+        // No arbitrary AI tools, remote appliance starts, or optimistic success.
+        val homeToggle = JarvisHomeCommands.parse(command)
+        val homeStatus = if (homeToggle == null) JarvisHomeCommands.statusTarget(command) else null
+        if (homeToggle != null || homeStatus != null) {
+            val config = runCatching { JarvisHomeConnect.load(context) }.getOrNull()
+            if (config == null) {
+                addHistory(command to "A Smart Home még nincs csatlakoztatva. " +
+                    "Nyisd meg a Smart Home oldalt és állítsd be a Home Assistant HTTPS kapcsolatot.")
+                return
+            }
+            val startedInChat = currentChat.id
+            drawerScope.launch {
+                val response = withContext(Dispatchers.IO) {
+                    runCatching {
+                        val devices = JarvisHomeConnect.discover(config)
+                        val device = JarvisHomeCommands.match(
+                            homeToggle ?: JarvisHomeCommands.Toggle(homeStatus.orEmpty(), true), devices)
+                        when {
+                            device == null -> "Nem találtam egyetlen egyértelműen egyező Smart Home eszközt."
+                            homeToggle == null -> "Home Assistant szerint: " +
+                                device.name + " – " + device.state + "."
+                            !device.canToggle -> "Ez az eszköz csak állapotlekérdezésre használható."
+                            else -> JarvisHomeConnect.toggle(config, device.id, homeToggle.on)
+                        }
+                    }.getOrElse { "Smart Home hiba: " + (it.message ?: "A vezérlés nem igazolt.") }
+                }
+                if (requestRevision == commandRevision && currentChat.id == startedInChat)
+                    addHistory(command to response)
+            }
+            return
+        }
         // Spoken commands are interpreted by GPT-5.2 first. The model can
         // PROPOSE one allowlisted action, but only the existing Android validators
         // can execute it. Text-only answers are never executable instructions.
@@ -1590,6 +1622,7 @@ fun JarvisApp(context: Context, launcherRequest: String? = null) {
                                     onVoice = { page = "Hangbeállítások" },
                                     onAi = { page = "AI-agy" },
                                     onMore = { page = "Továbbiak" },
+                                    onSmartHome = { page = "Smart Home" },
                                     language = language
                                 )
                                 "Hangbeállítások" -> HandsFreePanel(context)
@@ -1607,6 +1640,7 @@ fun JarvisApp(context: Context, launcherRequest: String? = null) {
                                 "Üzenetek" -> MessageInboxScreen(context, onPermissions = {
                                     page = "Engedélyek"
                                 })
+                                "Smart Home" -> JarvisSmartHomePanel(context, language)
                                 "Vércukor" -> JarvisGlucoseDashboard(context, readings) {
                                     securePrefs.write("readings", writeReadings(readings))
                                 }
