@@ -550,8 +550,12 @@ fun JarvisApp(context: Context, launcherRequest: String? = null) {
         // Every independent typed/voice command preempts stale call flows.
         // Do NOT execute apps here: normal routing below prioritizes internal
         // Jarvis pages, Android intents and installed apps in that order.
-        if (JarvisCommandContext.independentRequest(command)) clearCallFlow()
-        if (pendingCall != null && now > pendingCallUntilMs) clearCallFlow()
+        // An unexpired confirmed contact must survive "igen, hívd", "hívd",
+        // and "hívd fel". Independent NEW calls or other commands still cancel it.
+        // The actual dialing remains inside the explicit confirmation branch.
+        val activePendingCall = pendingCall != null && now <= pendingCallUntilMs
+        if (JarvisCommandContext.shouldPreemptCallConfirmation(command, activePendingCall))
+            clearCallFlow()
         if (awaitingCallTarget != null && now > awaitingCallTargetUntilMs) clearCallFlow()
         // BEFORE invalidating earlier approvals, consume explicit follow-ups
         // on the original user-initiated call. A bare "igen, hívd" is allowed
