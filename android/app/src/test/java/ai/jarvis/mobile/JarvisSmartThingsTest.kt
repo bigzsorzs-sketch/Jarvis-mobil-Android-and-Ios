@@ -76,6 +76,6 @@ class JarvisSmartThingsTest {
         assertNull(JarvisSmartThingsPolicy.switchValue(
             JSONObject().put("components", JSONObject().put("main", JSONObject()
                 .put("switch", JSONObject().put("switch", JSONObject()
-                    .put("value", "unavailable"))))))
+                    .put("value", "unavailable")))))))
     }
 }
