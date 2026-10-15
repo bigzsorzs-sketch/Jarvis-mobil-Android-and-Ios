@@ -13,7 +13,12 @@ permissions:
   contents: read
 jobs:
   compose-ui:
+    name: Compose API ${{ matrix.api-level }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        api-level: [35, 36]
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
@@ -37,10 +42,10 @@ jobs:
         run: |
           SDKMANAGER=$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -1)
           test -n "$SDKMANAGER"
-          IMAGE_DIR="$ANDROID_HOME/system-images/android-35/google_apis/x86_64"
+          IMAGE_DIR="$ANDROID_HOME/system-images/android-${{ matrix.api-level }}/google_apis/x86_64"
           for attempt in 1 2 3; do
             echo "Android emulator image verification attempt $attempt/3"
-            yes | "$SDKMANAGER" --install "system-images;android-35;google_apis;x86_64" || true
+            yes | "$SDKMANAGER" --install "system-images;android-${{ matrix.api-level }};google_apis;x86_64" || true
             if test -s "$IMAGE_DIR/system.img"; then
               echo "Verified emulator system.img exists"
               exit 0
@@ -53,7 +58,7 @@ jobs:
           exit 1
       - uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 35
+          api-level: ${{ matrix.api-level }}
           target: google_apis
           arch: x86_64
           profile: pixel_4
@@ -65,7 +70,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: Jarvis-Android-UI-Test-Reports
+          name: Jarvis-Android-UI-Test-Reports-api-${{ matrix.api-level }}
           path: |
             android/app/build/reports/androidTests/
             android/app/build/outputs/androidTest-results/
