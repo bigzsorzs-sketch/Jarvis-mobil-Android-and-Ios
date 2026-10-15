@@ -165,6 +165,7 @@ internal fun JarvisSmartHomePanel(context: Context, language: JarvisLanguage) {
                 color = JarvisPalette.subtleText, style = MaterialTheme.typography.bodySmall)
         }
     }
+    JarvisDeparturePanel(context, language)
     Spacer(Modifier.height(12.dp))
     Text(tr(
         "A kapcsolathoz saját Home Assistant szerver és érvényes HTTPS/tanúsítvány szükséges. A helyi HTTP alapértelmezés nem engedélyezett. Eszközt csak akkor lát a Jarvis, ha azt a Home Assistant valóban elérhetővé teszi.",

@@ -165,6 +165,7 @@ class JarvisAlarmReceiver : BroadcastReceiver() {
 class JarvisBootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent?) {
         if (intent?.action != Intent.ACTION_BOOT_COMPLETED) return
+        runCatching { JarvisDepartureGuard.rearmAfterBoot(context) }
         val saved = JarvisAlarms.current(context)
         if (saved <= 0L || saved < System.currentTimeMillis()) return
         if (!JarvisAlarms.canSchedule(context)) return
