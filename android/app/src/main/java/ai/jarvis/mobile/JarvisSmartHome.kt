@@ -142,7 +142,7 @@ internal object JarvisHomeConnect {
             return "Az eszköz nem elérhető a Home Assistant szerint."
         val domain = id.substringBefore('.')
         request(config, "POST", "/api/services/" + domain +
-            if (on) "/turn_on" else "/turn_off", JSONObject().put("entity_id", id))
+            (if (on) "/turn_on" else "/turn_off"), JSONObject().put("entity_id", id))
         repeat(3) { attempt ->
             if (attempt > 0) Thread.sleep(550L)
             val actual = state(config, id)?.state
@@ -180,7 +180,8 @@ internal object JarvisHomeCommands {
         val target = input.removePrefix(prefix.first)
             .replace(Regex("""^(?:a|az|the|le|la|el|il|lo|die|das)\s+"""), "")
             .trim()
-        if (target.length !in 2..90 || target in setOf("minden", "osszes", "all",
+        if (target.length !in 2..90 || target in setOf("mikrofon", "telefon", "bluetooth",
+                "wifi", "kepernyo", "hang", "minden", "osszes", "all",
                 "everything", "every device", "whole house", "all lights")) return null
         return Toggle(target, prefix.second)
     }
