@@ -48,7 +48,7 @@ internal object GmailRecipientPhrase {
     private val action = Regex("""(?iu)^(?:k[uü]ldj|k[uü]ldd|k[uü]ld|[ií]rj|k[eé]sz[ií]ts|send|write|compose)\s+(?:el\s+)?""")
     private val mail = Regex("""(?iu)\b(?:e-?mailt?|levelet|an?\s+email|mail)\b""")
     private val filler = Regex("""(?iu)^(?:(?:egy|a|az|an?|the|to)\s*)?(?:(?:pr[oó]ba|test)\s*)?$""")
-    private val nameWithEnding = Regex("""(?iu)^(.+?(?:nak|nek))\s+(?:(?:egy|a|az)\s+)?(?:(?:pr[oó]ba|test)\s*)?$""")
+    private val nameWithEnding = Regex("""(?iu)^(.+?(?:nak|nek))(?:\s+(?:(?:egy|a|az)\s*)?(?:(?:pr[oó]ba|test)\s*)?)?$""")
 
     fun extract(head: String): String {
         val phrase = head.replace(action, "").trim()
