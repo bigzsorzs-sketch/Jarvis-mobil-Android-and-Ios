@@ -1198,7 +1198,17 @@ fun JarvisApp(context: Context, launcherRequest: String? = null) {
         voiceReply = command to respond
         val approval = VoiceCalling.callConfirmationYes(command) ||
             VoiceIntentParser.isNo(command) || VoiceIntentParser.isPlaybackStop(command)
-        if (approval || !JarvisAiGateway.configured(context)) {
+        val cloudConfigured = JarvisAiGateway.configured(context)
+        val incrementalConversation = cloudConfigured &&
+            JarvisAiRouting.mayStreamVoiceTurn(
+                command, JarvisAiGateway.canStreamText(context, command))
+        // Ordinary conversation goes straight to the existing GPT-5.2 SSE
+        // path and speaks completed sentences as they arrive. Previously
+        // the mic did an entire non-streamed GPT request BEFORE starting
+        // the incremental answer, adding a second model round-trip.
+        // Tool-capable commands still ask GPT-5.2 for a structured proposal
+        // before the original Android validators may execute anything.
+        if (approval || !cloudConfigured || incrementalConversation) {
             executeHome(command)
         } else {
             val chatAtStart = currentChat.id
