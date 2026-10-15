@@ -1221,6 +1221,17 @@ fun JarvisApp(context: Context, launcherRequest: String? = null) {
             val chatAtStart = currentChat.id
             val transcriptHistory = currentChat.aiTurns.toList()
             val selectedLanguageTag = language.tag
+            // STOP, a fresh spoken command, or a microphone interruption must
+            // invalidate the in-flight model proposal itself, not just its audio.
+            val cancelPreflight: () -> Unit = {
+                if (voiceTurnGeneration.accepts(requestId)) {
+                    voiceTurnGeneration.next()
+                    voicePreflightJob?.cancel()
+                    voicePreflightJob = null
+                    if (voiceReply === responseSlot) voiceReply = null
+                }
+            }
+            JarvisVoiceStreamBridge.interruptCurrent = cancelPreflight
             voicePreflightJob = drawerScope.launch {
                 try {
                     val proposal = JarvisAiGateway.askStructured(
@@ -1234,6 +1245,8 @@ fun JarvisApp(context: Context, launcherRequest: String? = null) {
                         currentChat.id == chatAtStart)
                         executeHome(command, proposal)
                 } finally {
+                    if (JarvisVoiceStreamBridge.interruptCurrent === cancelPreflight)
+                        JarvisVoiceStreamBridge.interruptCurrent = null
                     if (voiceTurnGeneration.accepts(requestId))
                         voicePreflightJob = null
                 }
