@@ -42,6 +42,7 @@ internal fun JarvisSmartHomePanel(context: Context, language: JarvisLanguage) {
         "Pierwsze połączenie: Home Assistant. Światła/TV z weryfikacją; AGD: tylko stan."
     ), color = JarvisPalette.subtleText, style = MaterialTheme.typography.bodySmall)
 
+    JarvisSmartThingsPanel(context, language)
     JarvisNearbyPanel(context, language)
     Spacer(Modifier.height(12.dp))
     HorizontalDivider()
