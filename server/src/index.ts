@@ -9,6 +9,7 @@ import { selectedLanguageInstruction } from "./responseLanguage.js";
 import { readLimitedProviderJson } from "./responseLimits.js";
 import { betaSessionSubject, redeemInvite } from "./betaInvite.js";
 import { MAX_TRANSCRIPTION_JSON_BYTES, validatedTranscriptionAudio } from "./transcription.js";
+import { monthlyQuotas } from "./monthlyQuotas.js";
 
 function required(name: string): string {
   const v = process.env[name]?.trim();
@@ -66,6 +67,7 @@ redis.on("error", () => { /* Fail requests closed; never log private content */ 
 const PORT = Number(process.env.PORT ?? 8080);
 const HOST = process.env.HOST ?? "127.0.0.1";
 const BODY_LIMIT = 512 * 1024; // Bounded role-separated history plus current question.
+const MONTHLY_QUOTAS = monthlyQuotas(process.env);
 const MAX_INPUT = 8000;
 
 // Jarvis application identity, not the identity of the underlying model.
@@ -125,7 +127,8 @@ async function readInput(req: IncomingMessage, limit = BODY_LIMIT): Promise<unkn
 
 const server = http.createServer(async (req, res) => {
   if (req.method === "GET" && req.url === "/health") {
-    reply(res, 200, { status: "ok" });
+    // Redis-down must not look like a healthy server to load balancers or operators.
+    reply(res, redis.isReady ? 200 : 503, { status: redis.isReady ? "ok" : "unavailable" });
     return;
   }
   if (req.method === "POST" && req.url === "/v1/activate") {
@@ -182,7 +185,7 @@ const server = http.createServer(async (req, res) => {
       const quota = await redis.eval(QUOTA_SCRIPT, {
         keys: ["transcribe:rate:" + subject + ":" + minute,
           "transcribe:monthly:" + subject + ":" + month],
-        arguments: ["6", "400", "180", String(40 * 86400)]
+        arguments: ["6", String(MONTHLY_QUOTAS.transcribe), "180", String(40 * 86400)]
       });
       if (quota !== 0) return reply(res, 429, { error: "TRANSCRIPTION_LIMIT" });
       const controller = new AbortController();
@@ -232,7 +235,7 @@ const server = http.createServer(async (req, res) => {
       const quota = await redis.eval(QUOTA_SCRIPT, {
         keys: ["voice:rate:" + subject + ":" + minute,
           "voice:monthly:" + subject + ":" + month],
-        arguments: ["8", "250", "180", String(40 * 86400)]
+        arguments: ["8", String(MONTHLY_QUOTAS.voice), "180", String(40 * 86400)]
       });
       if (quota !== 0) return reply(res, 429, { error: "VOICE_LIMIT" });
       const controller = new AbortController();
@@ -302,7 +305,7 @@ const server = http.createServer(async (req, res) => {
     const monthlyKey = "monthly:" + subject + ":" + month;
     const quota = await redis.eval(QUOTA_SCRIPT, {
       keys: [rateKey, monthlyKey],
-      arguments: ["12", "1000", "180", String(40 * 86400)]
+      arguments: ["12", String(MONTHLY_QUOTAS.chat), "180", String(40 * 86400)]
     });
     if (quota !== 0) return reply(res, 429, { error: "USAGE_LIMIT" });
     const toolsRequested = shouldOfferToolCalls(message);
