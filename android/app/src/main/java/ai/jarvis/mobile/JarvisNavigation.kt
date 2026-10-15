@@ -32,6 +32,7 @@ internal object JarvisToolCatalog {
         JarvisTool("Alkalmazások", "Alkalmazások", "▦"),
         JarvisTool("Előzmények", "Előzmények", "◷"),
         JarvisTool("Vércukor", "Vércukor", "♧"),
+        JarvisTool("Smart Home", "Smart Home", "⌂"),
         JarvisTool("Számlázás", "Számlák", "▤"),
         JarvisTool("Email", "Email", "✉"),
         JarvisTool("Amazon", "Amazon", "▣"),
