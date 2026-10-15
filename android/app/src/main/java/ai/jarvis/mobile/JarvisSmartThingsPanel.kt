@@ -125,7 +125,7 @@ internal fun JarvisSmartThingsPanel(context: Context, language: JarvisLanguage) 
                             runCatching {
                                 val access = JarvisSmartThings.loadTestToken(context)
                                     ?: error("SmartThings test token expired.")
-                                JarvisSmartThings.state(access, device)
+                                JarvisSmartThings.readStatus(access, device)
                             }
                         }
                         result.onSuccess { state ->
