@@ -38,4 +38,16 @@ class JarvisVoiceSinglePassTest {
         assertFalse(JarvisAiRouting.mayReuseVoiceResponse(
             "Mesélj nekem a Holdról!", JarvisAiOutcome(""), true))
     }
+    @Test fun directPlainVoiceChatUsesIncrementalAnswerWhenAvailable() {
+        assertTrue(JarvisAiRouting.mayStreamVoiceTurn(
+            "Mesélj nekem a Holdról!", incrementalAvailable = true))
+        assertFalse(JarvisAiRouting.mayStreamVoiceTurn(
+            "Mesélj nekem a Holdról!", incrementalAvailable = false))
+    }
+
+    @Test fun speechStreamingDoesNotBypassNativePhoneRouting() {
+        assertFalse(JarvisAiRouting.mayStreamVoiceTurn(
+            "Hívd fel Esztert", incrementalAvailable = true))
+    }
+
 }
