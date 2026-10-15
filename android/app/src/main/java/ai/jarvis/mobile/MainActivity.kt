@@ -1570,6 +1570,7 @@ fun JarvisApp(context: Context, launcherRequest: String? = null) {
                                     onVoice = { page = "Hangbeállítások" },
                                     onAi = { page = "AI-agy" },
                                     onMore = { page = "Továbbiak" },
+                                    onSmartHome = { page = "Smart Home" },
                                     language = language
                                 )
                                 "Hangbeállítások" -> HandsFreePanel(context)
@@ -1587,6 +1588,7 @@ fun JarvisApp(context: Context, launcherRequest: String? = null) {
                                 "Üzenetek" -> MessageInboxScreen(context, onPermissions = {
                                     page = "Engedélyek"
                                 })
+                                "Smart Home" -> JarvisSmartHomePanel(context, language)
                                 "Vércukor" -> JarvisGlucoseDashboard(context, readings) {
                                     securePrefs.write("readings", writeReadings(readings))
                                 }
