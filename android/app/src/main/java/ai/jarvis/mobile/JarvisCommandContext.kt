@@ -17,6 +17,16 @@ internal object JarvisCommandContext {
             .replace(Regex("""[^a-z0-9+? ]+"""), " ")
             .replace(Regex("""\s+"""), " ").trim()
 
+    /**
+     * A valid, short-lived call approval takes priority over an incomplete new
+     * call command such as "hívd" or "hívd fel". Without this exception,
+     * independentRequest() clears the resolved phone number before "yes" can
+     * reach the confirmation handler.
+     */
+    fun shouldPreemptCallConfirmation(raw: String, activePendingCall: Boolean): Boolean =
+        independentRequest(raw) &&
+            !(activePendingCall && VoiceCalling.callConfirmationYes(raw))
+
     fun independentRequest(raw: String): Boolean {
         val s = normalize(raw)
         if (s.isBlank()) return false
