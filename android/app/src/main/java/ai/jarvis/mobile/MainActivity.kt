@@ -519,12 +519,32 @@ fun JarvisApp(context: Context, launcherRequest: String? = null) {
                     conversation.add("Jarvis" to response)
                     return
                 }
+                is GmailDraftNext.Ready -> {
+                    // "Írj" prepares a draft, while a separate "küldd el"
+                    // authorizes the actual Gmail API operation.
+                    gmailDraft = next.draft.copy(expiresAtMs = now + 180_000L)
+                    val answer = "A levél kész, de még nincs elküldve. " +
+                        "Címzett: ${next.draft.recipient}; tárgy: ${next.draft.subject}. " +
+                        "Küldéshez mondd: küldd el. Megszakításhoz: mégse."
+                    completeCommand(command, answer)
+                    conversation.add("Jarvis" to answer)
+                    return
+                }
                 is GmailDraftNext.Complete -> {
                     gmailDraft = null
                     gmailAction(GmailRequest(command, next.send))
                     return
                 }
             }
+        }
+        // Never let generic AI pretend to send an email when no private,
+        // locally verified draft is awaiting explicit consent.
+        if (GmailDraftConversationFlow.isExplicitSend(command)) {
+            val answer = "Nincs elküldésre váró email-piszkozat. " +
+                "Kezdd így: írj emailt a címzettnek."
+            completeCommand(command, answer)
+            conversation.add("Jarvis" to answer)
+            return
         }
         JarvisControlCommand.parse(command)?.let { control ->
             val result = controls.execute(control, language)
