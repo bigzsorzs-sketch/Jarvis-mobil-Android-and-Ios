@@ -14,7 +14,14 @@ internal object BillingVoice {
         .replace(Regex("\\p{M}+"), "").lowercase(Locale.ROOT).trim()
 
     fun isCandidate(raw: String): Boolean {
-        val v = normalize(raw)
+        val v = normalize(raw).replace(Regex("""^(?:jarvis[, :]*|kerlek |please )+"""), "").trim()
+        // General discussion about invoices must reach the conversational model.
+        val requested = Regex("""^(?:keszits[a-z]*|kuld[a-z]*|nyisd|mutasd|jelold|create|make|send|open|show|mark|erstell[a-z]*|verschick[a-z]*|senden|offne|zeige|creer|cree|envoi[a-z]*|ouvrir|ouvre|affiche|marquer|crear|crea|enviar|envia|abre|muestra|marcar|invia|apri|mostra|segna|tworz|utworz|przygotuj|prepara|wyslij|otworz|pokaz|oznacz)\b""").containsMatchIn(v)
+        val outstanding = listOf("fizetetlen szaml", "unpaid invoice", "outstanding invoice",
+            "offene rechnungen", "factures impayees", "facturas pendientes", "fatture non pagate",
+            "nieoplacone faktury").any { v.startsWith(it) }
+        val shortcut = v in setOf("szamlazas", "szamlak", "billing", "invoices", "rechnungen", "factures", "facturas", "fatture", "faktury")
+        if (!requested && !outstanding && !shortcut) return false
         return listOf("szaml", "invoice", "billing", "rechnung", "factur", "fattur",
             "faktur", "presupuesto", "devis", "arajanlat", "wycena", "preventivo",
             "offene rechnungen").any { it in v }

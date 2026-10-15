@@ -32,6 +32,15 @@ internal object BasicCommandRouter {
                 "don't ", "do not ", "never ").any { questionText.startsWith(it) }) {
             return BasicAction.UNKNOWN
         }
+        val shortcut = questionText.removePrefix("kérlek ").trim().trimEnd('.', '!')
+        val bareShortcuts = setOf("vércukor", "vércukornapló", "számlázás", "számlák",
+            "e-mail küldés", "whatsapp üzeneteim", "messenger", "engedélyek", "beállítások",
+            "telefon jegyzetei", "térkép", "naptár", "ébresztő", "telefon", "főoldal",
+            "glucose", "billing", "invoices", "email", "maps", "calendar", "alarms",
+            "notes", "permissions", "settings", "home")
+        // Mentioning a feature in a conversation is not a request to open it.
+        if (!JarvisAiTools.userAskedToOpen(raw) && shortcut !in bareShortcuts)
+            return BasicAction.UNKNOWN
         return when {
             listOf("vércukor", "vercukor", "cukornapl", "glucose", "blood sugar").any { it in input } -> BasicAction.OPEN_GLUCOSE
             listOf("száml", "szaml", "invoice", "billing").any { it in input } -> BasicAction.OPEN_INVOICES

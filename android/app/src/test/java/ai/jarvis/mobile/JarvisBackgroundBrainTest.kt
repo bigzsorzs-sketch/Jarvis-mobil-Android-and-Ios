@@ -4,10 +4,10 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class JarvisBackgroundBrainTest {
-    @Test fun simpleTurnsKeepFastNoReasoningBudget() {
+    @Test fun simpleTurnsKeepFastNoReasoningWithMaximumOutputCeiling() {
         val budget = JarvisReasoningPolicy.forQuestion("Szia!", false)
         assertEquals("none", budget.effort)
-        assertTrue(budget.maxTokens <= 900)
+        assertEquals(128_000, budget.maxTokens)
     }
 
     @Test fun complexCodingQuestionsGetMoreReasoningBudget() {
@@ -38,7 +38,7 @@ class JarvisBackgroundBrainTest {
             .contains("Unverified background developer study note"))
         assertFalse(payload.has("tools"))
         assertEquals("medium", payload.getJSONObject("reasoning").getString("effort"))
-        assertEquals(3200, payload.getInt("max_tokens"))
+        assertEquals(128_000, payload.getInt("max_tokens"))
     }
 
     @Test fun studySelectionStaysOnDeveloperTopics() {

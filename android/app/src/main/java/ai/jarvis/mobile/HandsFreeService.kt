@@ -113,6 +113,7 @@ class HandsFreeService : Service(), RecognitionListener {
     // Non-identifying debug latency metric for measurable Basic voice QA.
     private var lastVoiceEndedAtMs = 0L
     private var activeVoiceCommand: String? = null
+    private val aiConversation = mutableListOf<Pair<String, String>>()
     private var turnCounter = 0L
     private var usingOnDeviceRecognizer = false
     private var recognizedUtteranceLanguage: JarvisLanguage? = null
@@ -545,6 +546,7 @@ class HandsFreeService : Service(), RecognitionListener {
                     }
                 }
                 if (delivered) {
+                    aiConversation.clear() // Foreground chat owns its own isolated context.
                     awaitingCommand = true
                     // An asynchronous Gmail/API response must not create
                     // repeated microphone cycles while still pending.
@@ -1096,13 +1098,9 @@ class HandsFreeService : Service(), RecognitionListener {
             proposePhoneCall(calledName, now)
             return
         }
-        LocalConversation.reply(command)?.let {
-            speak(it)
-            return
-        }
-        JarvisCapabilities.replyIfAsked(command)?.let {
-            speak(it)
-            return
+        if (!JarvisAiGateway.configured(applicationContext)) {
+            LocalConversation.reply(command)?.let { speak(it); return }
+            JarvisCapabilities.replyIfAsked(command)?.let { speak(it); return }
         }
         JarvisCapabilities.localPageToOpen(command)?.let { route ->
             HandsFreeNavigation.destination = route
@@ -1152,7 +1150,7 @@ class HandsFreeService : Service(), RecognitionListener {
                     aiJob?.cancel()
                     aiJob = CoroutineScope(Dispatchers.Main.immediate).launch {
                         val outcome = JarvisAiGateway.askStructured(applicationContext, command,
-                            recognizedUtteranceLanguage?.tag)
+                            recognizedUtteranceLanguage?.tag, history = aiConversation.toList())
                         if (running) {
                             speaking = false
                             when {
@@ -1212,7 +1210,15 @@ class HandsFreeService : Service(), RecognitionListener {
                                             speak(callMessage("missing"))
                                     }
                                 }
-                                else -> speak(outcome.message)
+                                else -> {
+                                    if (outcome.conversationReply) {
+                                        val next = JarvisConversationContext.bounded(
+                                            aiConversation + (command to outcome.message))
+                                        aiConversation.clear()
+                                        aiConversation.addAll(next)
+                                    }
+                                    speak(outcome.message)
+                                }
                             }
                         }
                     }
@@ -1412,6 +1418,7 @@ class HandsFreeService : Service(), RecognitionListener {
         cloudVoice?.release()
         cloudVoice = null
         activeVoiceCommand = null
+        aiConversation.clear()
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
     }

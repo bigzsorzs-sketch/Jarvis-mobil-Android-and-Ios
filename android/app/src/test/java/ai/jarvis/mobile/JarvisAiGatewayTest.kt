@@ -86,7 +86,8 @@ class JarvisAiGatewayTest {
 
     @Test fun routesQuestionsButNotLocalCommands() {
         assertTrue(JarvisAiRouting.shouldAskAi("Magyarázd el a napfogyatkozást"))
-        assertFalse(JarvisAiRouting.shouldAskAi("Szia"))
+        assertTrue(JarvisAiRouting.shouldAskAi("Szia"))
+        assertFalse(JarvisAiRouting.shouldAskAi("Szia", cloudConversation = false))
         assertFalse(JarvisAiRouting.shouldAskAi("Nyisd meg a jegyzeteket"))
     }
 }

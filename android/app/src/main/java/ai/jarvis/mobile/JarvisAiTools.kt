@@ -15,7 +15,8 @@ internal data class JarvisAiOutcome(
     val deviceAction: String? = null,
     val callTarget: String? = null,
     val messageDraft: OutgoingMessage? = null,
-    val nativeAction: String? = null
+    val nativeAction: String? = null,
+    val conversationReply: Boolean = false
 )
 
 internal object JarvisAiTools {
@@ -280,7 +281,7 @@ internal object JarvisAiTools {
         }
         return JarvisAiOutcome(answer.ifEmpty {
             "Az AI üres szöveges választ küldött; ellenőrizd a választott modell beállításait."
-        })
+        }, conversationReply = answer.isNotBlank())
     }
 
     /** The private server only proposes an action, it must never execute one. */
@@ -322,7 +323,8 @@ internal object JarvisAiTools {
         if (JarvisNativeActions.identify(originalInput) != null) {
             return JarvisAiOutcome("A szerver nem adott ellenőrzött Android-parancsot. Nem történt végrehajtás.")
         }
-        return JarvisAiOutcome(body.optString("reply", "").trim()
-            .ifEmpty { "Az AI üres választ küldött." })
+        val answer = body.optString("reply", "").trim()
+        return JarvisAiOutcome(answer.ifEmpty { "Az AI üres választ küldött." },
+            conversationReply = answer.isNotBlank())
     }
 }

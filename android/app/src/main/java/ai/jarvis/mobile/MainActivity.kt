@@ -184,9 +184,9 @@ fun JarvisApp(context: Context, launcherRequest: String? = null) {
     var commandRevision by remember { mutableIntStateOf(0) }
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val drawerScope = rememberCoroutineScope()
-    fun saveChatTurn(turn: Pair<String, String>) {
+    fun saveChatTurn(turn: Pair<String, String>, aiContext: Boolean = false) {
         // Capture the actual chat object; a delayed response belongs to its origin.
-        chatSession.save(currentChat, turn)
+        chatSession.save(currentChat, turn, aiContext)
     }
     fun addHistory(turn: Pair<String, String>) {
         // Voice answers are still delivered, but successful local actions
@@ -404,11 +404,12 @@ fun JarvisApp(context: Context, launcherRequest: String? = null) {
         commandRevision += 1
         val revision = commandRevision
         val selectedLanguage = language.tag
+        val aiHistory = currentChat.aiTurns.toList()
         val waiting = question to "A kiválasztott fájlokat ellenőrzöm és elemzésre küldöm…"
         conversation.add(waiting)
         drawerScope.launch {
             val result = try {
-                JarvisAiGateway.askStructured(context, question, selectedLanguage, attachments)
+                JarvisAiGateway.askStructured(context, question, selectedLanguage, attachments, aiHistory)
             } finally {
                 // Selected files are temporary private cache files, not durable
                 // chat history. Delete after the attempt, including HTTP errors.
@@ -421,7 +422,7 @@ fun JarvisApp(context: Context, launcherRequest: String? = null) {
                 val response = if (revision == commandRevision) result.message
                     else "Újabb kérés érkezett; az előző AI-elemzést nem hajtottam végre eszközműveletként."
                 conversation[index] = question to response
-                saveChatTurn(question to response)
+                saveChatTurn(question to response, revision == commandRevision && result.conversationReply)
             }
         }
     }
@@ -999,10 +1000,11 @@ fun JarvisApp(context: Context, launcherRequest: String? = null) {
             
             return
         }
-        if (JarvisAiRouting.shouldAskAi(command)) {
+        if (JarvisAiRouting.shouldAskAi(command, JarvisAiGateway.configured(context))) {
             // Deep technical requests get a bounded plan -> evidence -> review loop.
             // All device commands retain the existing native execution path.
             val researchAgent = JarvisAgentResearch.shouldHandle(command)
+            val aiHistory = currentChat.aiTurns.toList()
             val pending = command to "AI-válaszra várok…"
             conversation.add(pending)
             val pendingIndex = conversation.lastIndex
@@ -1037,7 +1039,7 @@ fun JarvisApp(context: Context, launcherRequest: String? = null) {
                     JarvisVoiceStreamBridge.interruptCurrent = abortTurn
                 try {
                 val outcome = if (researchAgent) {
-                    JarvisAgentResearch.answer(context, command, language.tag)
+                    JarvisAgentResearch.answer(context, command, language.tag, aiHistory)
                 } else if (JarvisAiGateway.canStreamText(context, command)) {
                     JarvisAiGateway.askIncremental(context, command, language.tag,
                         cancellation = streamCancellation,
@@ -1062,8 +1064,8 @@ fun JarvisApp(context: Context, launcherRequest: String? = null) {
                             if (requestRevision == commandRevision &&
                                 voiceReply?.first == command)
                                 JarvisVoiceStreamBridge.deliver(command, phrase)
-                        })
-                } else JarvisAiGateway.askStructured(context, command)
+                        }, history = aiHistory)
+                } else JarvisAiGateway.askStructured(context, command, language.tag, history = aiHistory)
                 if (requestRevision != commandRevision) {
                     val oldIndex = if (pendingIndex in conversation.indices &&
                         conversation[pendingIndex].first == command) pendingIndex
@@ -1105,7 +1107,7 @@ fun JarvisApp(context: Context, launcherRequest: String? = null) {
                     else JarvisPendingTurn.findIndex(conversation, pending)
                 if (index >= 0) {
                     conversation[index] = command to answer
-                    saveChatTurn(command to answer)
+                    saveChatTurn(command to answer, outcome.conversationReply)
                     completeCommand(command, answer)
                 }
                 } finally {

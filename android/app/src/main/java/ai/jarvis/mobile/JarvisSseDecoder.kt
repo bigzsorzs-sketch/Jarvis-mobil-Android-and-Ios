@@ -47,7 +47,7 @@ internal class JarvisSseDecoder {
             }
         }
         if (delta.isNullOrEmpty()) return null
-        if (full.length + delta.length > 16_000) {
+        if (full.length + delta.length > JarvisNetworkSafety.MAX_AI_TEXT_CHARACTERS) {
             failure = "Az AI válasza túllépte a biztonságos szöveghatárt."
             done = true
             return null

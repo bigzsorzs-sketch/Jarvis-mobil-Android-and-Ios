@@ -40,7 +40,8 @@ class JarvisCapabilitiesTest {
     @Test fun canExplainItselfOfflineWithNaturalHungarianRequest() {
         val request = "mit tud elmondani magadról"
         assertTrue(JarvisCapabilities.replyIfAsked(request)!!.startsWith("Jarvis vagyok"))
-        assertFalse(JarvisAiRouting.shouldAskAi(request))
+        assertFalse(JarvisAiRouting.shouldAskAi(request, cloudConversation = false))
+        assertTrue(JarvisAiRouting.shouldAskAi(request))
         assertNotNull(JarvisCapabilities.replyIfAsked("Mit tudsz elmondani magadról?"))
         assertNull(JarvisCapabilities.replyIfAsked("Mit tudsz elmondani az autókról?"))
     }

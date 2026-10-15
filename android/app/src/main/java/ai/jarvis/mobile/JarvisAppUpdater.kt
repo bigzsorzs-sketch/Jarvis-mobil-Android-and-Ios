@@ -286,22 +286,17 @@ internal object JarvisUpdateVoice {
     private fun normalize(value: String): String = java.text.Normalizer.normalize(
         value.lowercase(Locale.ROOT), java.text.Normalizer.Form.NFD
     ).replace(Regex("\\p{M}+"), "")
-    fun shouldInstall(value: String): Boolean {
-        val s = normalize(value)
-        return listOf("frissits", "frissitsd", "telepits", "install", "actualiza",
-            "aktualisier", "aggiorna", "zainstaluj", "aktualizuj", "mettre a jour")
-            .any { it in s } && isRequest(value)
-    }
+        .replace(Regex("[^a-z0-9\\s]"), " ").trim().replace(Regex("\\s+"), " ")
+        .replace(Regex("^(?:(?:hey jarvis|jarvis|please|kerlek|legy szives|bitte|s il te plait|por favor|per favore|prosze) )+"), "")
+    private val install = Regex("""^(?:frissitsd?|telepitsd?|install|update|actualiza|aktualisiere|aggiorna|zainstaluj|aktualizuj|mets a jour|mettre a jour)\b""")
+    private val check = Regex("""^(?:ellenorizd?|nezd meg|keress|check|open|show|prufe?|uberprufe?|verifie|verifier|cherche|busca|comprueba|comprobar|controlla|verifica|sprawdz|szukaj|nyisd meg|mutasd)\b""")
+    private val target = Regex("""\b(?:jarvis|frissites[a-z]*|verzio[a-z]*|updates?|versions?|aktualisierung[a-z]*|mise[s]? a jour|actualizaci[a-z]*|aggiornament[a-z]*|aktualizac[a-z]*|magad|yourself|alkalmazas[a-z]*|aplikac[a-z]*|applik[a-z]*|app)\b""")
+    private val negation = Regex("""\b(?:ne|nem|not|never|dont|no|nicht|pas|non|nie)\b""")
+    fun shouldInstall(value: String): Boolean = isRequest(value) && install.containsMatchIn(normalize(value))
     fun isRequest(value: String): Boolean {
         val s = normalize(value)
-        val action = listOf("frissit", "ellenoriz", "update", "check", "aktualisier",
-            "pruf", "verifi", "mise a jour", "actualiz", "comprobar", "aggiorn",
-            "controll", "aktualizac", "sprawdz").any { it in s }
-        val target = listOf("jarvis", "frissites", "verzio", "update", "version",
-            "aktualisierung", "mise a jour", "mises a jour", "actualizaci",
-            "aggiornament", "aktualizac", "magad", "yourself", "alkalmazas",
-            "aplikac", "applik", "app").any { it in s }
-        return action && target
+        return !negation.containsMatchIn(s) && target.containsMatchIn(s) &&
+            (install.containsMatchIn(s) || check.containsMatchIn(s))
     }
 }
 
