@@ -57,7 +57,7 @@ internal fun JarvisAttachmentPicker(
             busy = false
             onStatus(
                 (if (accepted > 0) "Helyben előkészítve: " + accepted + " csatolmány. " +
-                    "A kiválasztott fájlok helyben megnyithatók. AI-elemzéshez csak támogatott kép, PDF és szöveg: maximum 5 MB/fájl, összesen 20 MB." else "") +
+                    "A fájlok helyben megnyithatók. Az AI-nak kép, PDF és szöveg (5 MB/fájl, 20 MB összesen) vagy 1 videó (legfeljebb 128 MB, csak 4 képkocka, hang nélkül) küldhető; külön Küldés gombbal." else "") +
                     (if (errors.isNotBlank()) " " + errors else "")
             )
         }
@@ -112,8 +112,9 @@ internal fun JarvisAttachmentPicker(
                             JarvisVideoSampling.MAX_FRAMES
                     )
                     Text(
-                        "Ez még nem AI-alapú tartalomelemzés. Beszédátirat és " +
-                            "a videó értelmezése az AI-agy bekötése után lesz elérhető.",
+                        "Ez a helyi előnézet. Az AI-agynak a Küldés gombbal legfeljebb 4 " +
+                            "képkockát elemeztethetsz közvetlen OpenRouter-módban. " +
+                            "Az eredeti videót és hangját nem küldi el; nincs beszédátirat.",
                         style = MaterialTheme.typography.bodySmall
                     )
                     Spacer(Modifier.height(12.dp))
