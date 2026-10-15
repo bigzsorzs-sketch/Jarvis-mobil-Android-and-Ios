@@ -8,6 +8,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -24,6 +25,8 @@ internal fun JarvisSavedPlacesPanel(context: Context) {
         mutableStateListOf<JarvisSavedPlace>().apply { addAll(JarvisSavedPlaces.list(context)) }
     }
     var status by remember { mutableStateOf("") }
+    var manualName by remember { mutableStateOf("") }
+    var manualAddress by remember { mutableStateOf("") }
     val coroutine = rememberCoroutineScope()
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) coroutine.launch {
@@ -71,6 +74,54 @@ internal fun JarvisSavedPlacesPanel(context: Context) {
         "Sin acceso directo a Google. Importa el CSV de « Saved » o GeoJSON de Google Takeout.",
         "Nessun accesso diretto a Google. Importa CSV « Saved » o GeoJSON da Google Takeout.",
         "Brak bezpośredniego dostępu do Google. Zaimportuj CSV « Saved » lub GeoJSON z Google Takeout."), color = JarvisPalette.subtleText)
+    Spacer(Modifier.height(12.dp))
+    Text(message(language, "Saját mentett cím név alapján", "Save an address by name",
+        "Adresse unter Namen speichern", "Enregistrer une adresse par nom",
+        "Guardar dirección por nombre", "Salva indirizzo per nome",
+        "Zapisz adres pod nazwą"), color = JarvisPalette.mainText)
+    OutlinedTextField(
+        value = manualName, onValueChange = { manualName = it },
+        label = { Text(message(language, "Név (például Eszter)",
+            "Name (e.g. Eszter)", "Name", "Nom", "Nombre", "Nome", "Nazwa")) },
+        singleLine = true, modifier = Modifier.fillMaxWidth()
+    )
+    OutlinedTextField(
+        value = manualAddress, onValueChange = { manualAddress = it },
+        label = { Text(message(language, "Teljes cím és irányítószám",
+            "Full address and postcode", "Vollständige Adresse",
+            "Adresse complète", "Dirección completa",
+            "Indirizzo completo", "Pełny adres")) },
+        modifier = Modifier.fillMaxWidth()
+    )
+    Button(
+        enabled = JarvisSavedPlaces.validManualPlace(manualName, manualAddress),
+        onClick = {
+            runCatching { JarvisSavedPlaces.saveManual(context, manualName, manualAddress) }
+                .onSuccess {
+                    places.clear()
+                    places.addAll(JarvisSavedPlaces.list(context))
+                    manualName = ""
+                    manualAddress = ""
+                    status = message(language, "Cím mentve. Most már navigálhatsz név alapján.",
+                        "Address saved. You can now navigate by name.",
+                        "Adresse gespeichert.", "Adresse enregistrée.",
+                        "Dirección guardada.", "Indirizzo salvato.", "Adres zapisany.")
+                }
+                .onFailure { status = it.message ?: "Nem sikerült a mentés." }
+        },
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Text(message(language, "Cím mentése", "Save address",
+            "Adresse speichern", "Enregistrer l'adresse",
+            "Guardar dirección", "Salva indirizzo", "Zapisz adres"))
+    }
+    Text(message(language,
+        "Csak a Jarvis helyi, titkosított névjegyzékében tárolódik; a Google Maps mentett listáját nem módosítja.",
+        "Stored only in Jarvis's encrypted local list; does not change your Google Maps saved places.",
+        "Nur lokal in Jarvis gespeichert.", "Enregistré localement dans Jarvis.",
+        "Guardado solo en Jarvis.", "Salvato solo in Jarvis.",
+        "Zapisano tylko w Jarvis."), color = JarvisPalette.subtleText)
+
     Button(
         onClick = { picker.launch(arrayOf("text/*", "application/json", "application/geo+json", "application/octet-stream")) },
         modifier = Modifier.fillMaxWidth()
