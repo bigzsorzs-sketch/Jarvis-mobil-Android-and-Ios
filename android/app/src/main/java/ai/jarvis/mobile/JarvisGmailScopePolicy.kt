@@ -15,7 +15,10 @@ internal object JarvisGmailScopePolicy {
         is GmailOperation.Read, is GmailOperation.ResolveRecipient ->
             setOf(READ)
         is GmailOperation.Send ->
-            if (operation.actuallySend) setOf(SEND) else setOf(READ)
+            // Sending also calls /profile for a verified From header and may
+            // resolve a human recipient name from Gmail headers.
+            // Google's /profile endpoint is NOT authorized by gmail.send alone.
+            if (operation.actuallySend) ALL else setOf(READ)
         is GmailOperation.Reply -> ALL
         GmailOperation.Disconnect -> emptySet()
         is GmailOperation.Incomplete -> emptySet()
