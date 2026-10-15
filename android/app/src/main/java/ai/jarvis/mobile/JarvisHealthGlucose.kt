@@ -11,6 +11,7 @@ import android.health.connect.ReadRecordsResponse
 import android.health.connect.ReadRecordsRequestUsingFilters
 import android.health.connect.TimeInstantRangeFilter
 import android.health.connect.datatypes.BloodGlucoseRecord
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.suspendCancellableCoroutine
 import java.time.Instant
 import kotlin.coroutines.resume
@@ -31,7 +32,7 @@ internal object JarvisHealthGlucose {
 
     suspend fun latest(context: Context): JarvisGlucoseData.Point? {
         if (!isAuthorized(context)) return null
-        return runCatching {
+        return try {
             val mgr = context.getSystemService(HealthConnectManager::class.java) ?: return null
             val req = ReadRecordsRequestUsingFilters.Builder(BloodGlucoseRecord::class.java)
                 .setTimeRangeFilter(
@@ -48,13 +49,26 @@ internal object JarvisHealthGlucose {
                         override fun onResult(result: ReadRecordsResponse<BloodGlucoseRecord>) {
                             val r = result.records.maxByOrNull { it.time }
                             val mmol = r?.level?.inMillimolesPerLiter
-                            cont.resume(if (r != null && mmol != null && mmol.isFinite() && mmol in 1.0..35.0)
-                                JarvisGlucoseData.Point(r.time.toEpochMilli(), mmol, "health-connect")
-                                else null)
+                            if (cont.isActive) {
+                                cont.resume(if (r != null && mmol != null &&
+                                        mmol.isFinite() && mmol in 1.0..35.0)
+                                    JarvisGlucoseData.Point(r.time.toEpochMilli(),
+                                        mmol, "health-connect")
+                                    else null)
+                            }
                         }
-                        override fun onError(error: HealthConnectException) { cont.resume(null) }
+                        override fun onError(error: HealthConnectException) {
+                            if (cont.isActive) cont.resume(null)
+                        }
                     })
             }
-        }.getOrNull()
+        } catch (cancelled: CancellationException) {
+            // STOP, a new voice turn, or a screen change must cancel the
+            // suspended Health Connect request instead of yielding stale
+            // health data to an already cancelled conversation.
+            throw cancelled
+        } catch (_: Exception) {
+            null
+        }
     }
 }
