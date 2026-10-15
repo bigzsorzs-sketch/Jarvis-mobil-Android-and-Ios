@@ -9,11 +9,23 @@ on:
     paths:
       - "android/**"
       - ".github/workflows/android-ui-emulator.yml"
+# An earlier commit in the same PR should not keep running costly emulator
+# jobs while newer, different code is already awaiting validation. Main
+# builds and manual release workflows are never cancelled by this rule.
+concurrency:
+  group: jarvis-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 permissions:
   contents: read
 jobs:
   compose-ui:
+    name: Compose API ${{ matrix.api-level }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        api-level: [35, 36]
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
@@ -29,9 +41,31 @@ jobs:
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules > /dev/null
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
+      # Hosted SDK downloads occasionally return a corrupt zip but sdkmanager
+      # still exits successfully. Verify the actual image and retry a clean
+      # download before the emulator runner attempts to boot it.
+      - name: Verify Android 35 system image with bounded retries
+        shell: bash
+        run: |
+          SDKMANAGER=$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -1)
+          test -n "$SDKMANAGER"
+          IMAGE_DIR="$ANDROID_HOME/system-images/android-${{ matrix.api-level }}/google_apis/x86_64"
+          for attempt in 1 2 3; do
+            echo "Android emulator image verification attempt $attempt/3"
+            yes | "$SDKMANAGER" --install "system-images;android-${{ matrix.api-level }};google_apis;x86_64" || true
+            if test -s "$IMAGE_DIR/system.img"; then
+              echo "Verified emulator system.img exists"
+              exit 0
+            fi
+            echo "::warning::Android system image incomplete, retrying fresh download"
+            rm -rf "$IMAGE_DIR"
+            sleep 8
+          done
+          echo "::error::Android 35 emulator image unavailable after 3 attempts"
+          exit 1
       - uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 35
+          api-level: ${{ matrix.api-level }}
           target: google_apis
           arch: x86_64
           profile: pixel_4
@@ -43,7 +77,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: Jarvis-Android-UI-Test-Reports
+          name: Jarvis-Android-UI-Test-Reports-api-${{ matrix.api-level }}
           path: |
             android/app/build/reports/androidTests/
             android/app/build/outputs/androidTest-results/

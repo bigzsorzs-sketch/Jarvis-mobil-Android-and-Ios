@@ -1,0 +1,138 @@
+name: Build Jarvis Android 0.2.39 signed PRIVATE QA APK
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: "Enter BUILD_SIGNED_PRIVATE_QA_ONLY (this never publishes a release)"
+        type: string
+        required: true
+      source_sha:
+        description: "Exact 40-character main commit SHA already passing main Android, emulator and gateway tests"
+        type: string
+        required: true
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: jarvis-android-039-private-signing
+  cancel-in-progress: false
+
+jobs:
+  private-signed-qa:
+    # Intentionally unavailable on PR branches: private keys are not exposed
+    # to pull request code. First independently review and merge the tested
+    # changes into main, THEN obtain an owner-approved, signed QA build.
+    if: >-
+      ${{ github.repository == 'bigzsorzs-sketch/Jarvis-mobil-Android-and-Ios' &&
+          github.ref == 'refs/heads/main' &&
+          inputs.confirmation == 'BUILD_SIGNED_PRIVATE_QA_ONLY' &&
+          inputs.source_sha == github.sha }}
+    environment: production
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify pinned release candidate and source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "${{ inputs.source_sha }}" = "$GITHUB_SHA"
+          grep -F 'applicationId = "ai.jarvis.mobile"' android/app/build.gradle.kts
+          grep -F 'versionCode = 50' android/app/build.gradle.kts
+          grep -F 'versionName = "0.2.39"' android/app/build.gradle.kts
+          test "$GITHUB_REF" = "refs/heads/main"
+
+      - name: Require all three successful CI workflows on this exact main SHA
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for workflow in android-debug.yml android-ui-emulator.yml gateway-typecheck.yml; do
+            status="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/$workflow/runs?head_sha=$GITHUB_SHA&event=push&per_page=20" |
+              jq -r --arg sha "$GITHUB_SHA"                 '[.workflow_runs[] | select(.head_sha == $sha and .head_branch == "main" and .event == "push")][0].conclusion // "missing"')"
+            echo "$workflow: $status"
+            test "$status" = "success" || { echo "::error::Required green main CI missing: $workflow"; exit 1; }
+          done
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.11.1"
+      - name: Install target Android build tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -1)"
+          test -n "$sdkmanager"
+          "$sdkmanager" "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Restore EXISTING protected signing identity
+        shell: bash
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_UPLOAD_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          umask 077
+          test -n "$KEYSTORE_BASE64"
+          test -n "$STORE_PASSWORD"
+          test -n "$KEY_ALIAS"
+          test -n "$KEY_PASSWORD"
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/jarvis-upload.jks"
+          test -s "$RUNNER_TEMP/jarvis-upload.jks"
+          chmod 600 "$RUNNER_TEMP/jarvis-upload.jks"
+
+      - name: Re-run tests, lint, build signed QA APK
+        shell: bash
+        env:
+          ANDROID_SIGNING_STORE_FILE: ${{ runner.temp }}/jarvis-upload.jks
+          ANDROID_SIGNING_STORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_STORE_PASSWORD }}
+          ANDROID_SIGNING_KEY_ALIAS: ${{ secrets.ANDROID_UPLOAD_KEY_ALIAS }}
+          ANDROID_SIGNING_KEY_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
+          JARVIS_GATEWAY_ORIGIN: ${{ vars.JARVIS_GATEWAY_ORIGIN }}
+        run: |
+          set -euo pipefail
+          test -s "$ANDROID_SIGNING_STORE_FILE"
+          gradle -p android :app:testDebugUnitTest :app:testReleaseUnitTest :app:lintRelease :app:assembleRelease
+
+      - name: Verify in-place signer lineage and package version
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk=android/app/build/outputs/apk/release/app-release.apk
+          test -s "$apk"
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$apk" > "$RUNNER_TEMP/signature.txt"
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$apk" |
+            grep -F "package: name='ai.jarvis.mobile' versionCode='50' versionName='0.2.39'"
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$apk" | grep -F "targetSdkVersion:'36'"
+          unzip -t "$apk" >/dev/null
+          # Public historic 0.2.38/0.2.37 Jarvis signer fingerprint; no secrets in source.
+          expected="955338795da61366091ed256b0f6b2a948b9aaf9d7771b022a65b88a94b2d86a"
+          signed="$(grep -iE 'Signer #1 certificate SHA-256 digest: [0-9a-f]{64}' "$RUNNER_TEMP/signature.txt" |
+            awk '{print $NF}' | tr 'A-F' 'a-f')"
+          test "$signed" = "$expected" || { echo "::error::Signer is NOT the historical Jarvis certificate"; exit 1; }
+          mkdir -p dist
+          cp "$apk" dist/Jarvis-Android-0.2.39-SIGNED-PRIVATE-QA.apk
+          cp "$RUNNER_TEMP/signature.txt" dist/SIGNING-CERTIFICATE.txt
+          (cd dist && sha256sum *.apk > SHA256SUMS.txt)
+
+      - name: Upload private QA files; NEVER create public release or update feed
+        uses: actions/upload-artifact@v4
+        with:
+          name: Jarvis-Android-0.2.39-Signed-Private-QA
+          path: dist/
+          retention-days: 7
+          if-no-files-found: error
+
+      - name: Remove signing key on runner
+        if: always()
+        shell: bash
+        run: rm -f "$RUNNER_TEMP/jarvis-upload.jks"

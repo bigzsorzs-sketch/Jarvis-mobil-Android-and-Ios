@@ -1,4 +1,5 @@
 import { CONVERSATION_PROMPT, conversationHistory, responseBudget, needsLiveWeb } from "./conversation.js";
+import { responseDeadlineMs } from "./responseDeadline.js";
 import http, { type IncomingMessage, type ServerResponse } from "node:http";
 import { createHash, timingSafeEqual } from "node:crypto";
 import { createRemoteJWKSet, jwtVerify } from "jose";
@@ -9,6 +10,7 @@ import { selectedLanguageInstruction } from "./responseLanguage.js";
 import { readLimitedProviderJson } from "./responseLimits.js";
 import { betaSessionSubject, redeemInvite } from "./betaInvite.js";
 import { MAX_TRANSCRIPTION_JSON_BYTES, validatedTranscriptionAudio } from "./transcription.js";
+import { monthlyQuotas } from "./monthlyQuotas.js";
 
 function required(name: string): string {
   const v = process.env[name]?.trim();
@@ -66,6 +68,7 @@ redis.on("error", () => { /* Fail requests closed; never log private content */ 
 const PORT = Number(process.env.PORT ?? 8080);
 const HOST = process.env.HOST ?? "127.0.0.1";
 const BODY_LIMIT = 512 * 1024; // Bounded role-separated history plus current question.
+const MONTHLY_QUOTAS = monthlyQuotas(process.env);
 const MAX_INPUT = 8000;
 
 // Jarvis application identity, not the identity of the underlying model.
@@ -81,7 +84,7 @@ Jelenlegi Android-tesztverzió:
 - Helyi Android-parancsok: alkalmazásoldalak megnyitása, navigáció külső térképen, jóváhagyást igénylő hívás-előkészítés. Névjegyeket kizárólag a telefon saját névjegyzékéből keresünk. Az AI válasznál OpenRouter webkeresés is elérhető, ha friss információ szükséges.
 - Engedélyhez kötött üzenetértesítések, támogatott gyorsválasz, külső WhatsApp/Messenger üzenet-előkészítés.
 - Helyi vércukornapló, számlatervezetek PDF-megosztása, jegyzetalkalmazás megnyitása, kísérleti ébresztő, világos/sötét mód, fájlválasztás.
-- Gmail-kereső vagy UC bejelentkezési oldal megnyitása, de nem teljes Gmail- vagy UC-fiók olvasása.
+- Gmail-funkciók az Androidon: a felhasználó külön Google OAuth-engedélyével olvasás, levélírás és küldés is támogatott. Google-fiók és engedély nélkül ne állíts Gmail-olvasást vagy sikeres küldést. A UC csak hivatalos bejelentkezési oldalra ad át, ott nem olvasol személyes fióktartalmat.
 Az open_jarvis_page és open_phone_app függvényekkel csak kért menüpontot vagy telefonos alkalmazást nyithatsz meg. A prepare_phone_call hívást javasolhat, amit Android külön ellenőriz és jóváhagyat. A select_native_tool csak egy felhasználó által kért, támogatott Android-műveletet javasolhat (navigáció, Jarvis-ébresztő, email-piszkozat, Gmail keresés vagy UC-oldal megnyitás); minden paramétert a telefon az eredeti parancsból ellenőriz. A prepare_message_draft csak WhatsApp/Messenger üzenetpiszkozatot javasolhat; az eredeti felhasználói szövegből a telefon határozza meg a címzettet és az üzenetet, a felhasználó átnézi és a külső alkalmazásban küldi el. Ne állítsd, hogy hívást vagy üzenetet elküldtél.\nKorlátok: a modell szöveges válasza önmagában nem képes alkalmazásoldalt, Android-eszközt vagy PC-t irányítani;
 nem férsz hozzá automatikusan a készülék élő állapotához, üzenet- vagy fájltartalmához;
 nincs mobilos önjavítás, önálló kódmódosítás, önálló release, automatikus Gmail- vagy WhatsApp-üzenetküldés, EXE-futtatás.
@@ -125,7 +128,8 @@ async function readInput(req: IncomingMessage, limit = BODY_LIMIT): Promise<unkn
 
 const server = http.createServer(async (req, res) => {
   if (req.method === "GET" && req.url === "/health") {
-    reply(res, 200, { status: "ok" });
+    // Redis-down must not look like a healthy server to load balancers or operators.
+    reply(res, redis.isReady ? 200 : 503, { status: redis.isReady ? "ok" : "unavailable" });
     return;
   }
   if (req.method === "POST" && req.url === "/v1/activate") {
@@ -182,7 +186,7 @@ const server = http.createServer(async (req, res) => {
       const quota = await redis.eval(QUOTA_SCRIPT, {
         keys: ["transcribe:rate:" + subject + ":" + minute,
           "transcribe:monthly:" + subject + ":" + month],
-        arguments: ["6", "400", "180", String(40 * 86400)]
+        arguments: ["6", String(MONTHLY_QUOTAS.transcribe), "180", String(40 * 86400)]
       });
       if (quota !== 0) return reply(res, 429, { error: "TRANSCRIPTION_LIMIT" });
       const controller = new AbortController();
@@ -232,7 +236,7 @@ const server = http.createServer(async (req, res) => {
       const quota = await redis.eval(QUOTA_SCRIPT, {
         keys: ["voice:rate:" + subject + ":" + minute,
           "voice:monthly:" + subject + ":" + month],
-        arguments: ["8", "250", "180", String(40 * 86400)]
+        arguments: ["8", String(MONTHLY_QUOTAS.voice), "180", String(40 * 86400)]
       });
       if (quota !== 0) return reply(res, 429, { error: "VOICE_LIMIT" });
       const controller = new AbortController();
@@ -302,7 +306,7 @@ const server = http.createServer(async (req, res) => {
     const monthlyKey = "monthly:" + subject + ":" + month;
     const quota = await redis.eval(QUOTA_SCRIPT, {
       keys: [rateKey, monthlyKey],
-      arguments: ["12", "1000", "180", String(40 * 86400)]
+      arguments: ["12", String(MONTHLY_QUOTAS.chat), "180", String(40 * 86400)]
     });
     if (quota !== 0) return reply(res, 429, { error: "USAGE_LIMIT" });
     const toolsRequested = shouldOfferToolCalls(message);
@@ -313,7 +317,15 @@ const server = http.createServer(async (req, res) => {
         ? rawDeveloperNote : "";
     const budget = responseBudget(message, toolsRequested);
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 2_640_000);
+    // If the Android user presses STOP or starts another voice turn, the
+    // disconnected HTTP client must not leave a costly GPT request running
+    // on the server for the rest of its (bounded) deep-answer deadline.
+    const onClientDisconnect = () => {
+      if (!res.writableEnded) controller.abort();
+    };
+    res.on("close", onClientDisconnect);
+    const timer = setTimeout(() => controller.abort(),
+      responseDeadlineMs(budget.effort, toolsRequested));
     let modelReply: {
       choices?: Array<{ message?: { content?: unknown; tool_calls?: unknown } }>;
       usage?: { total_tokens?: number };
@@ -353,7 +365,8 @@ const server = http.createServer(async (req, res) => {
       }
       modelReply = await readLimitedProviderJson(upstream) as typeof modelReply;
     } finally {
-      // Keep the same deadline for streaming the response body, not just headers.
+      // Release the disconnect listener after the provider request has ended.
+      res.off("close", onClientDisconnect);
       clearTimeout(timer);
     }
     const messageData = modelReply.choices?.[0]?.message;

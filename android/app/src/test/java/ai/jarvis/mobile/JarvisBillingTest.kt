@@ -48,6 +48,44 @@ class JarvisBillingTest {
         assertFalse(BillingVoice.isOpen("Készíts 85 fontos számlát és küldd el"))
         assertFalse(BillingVoice.isCandidate("Send email to a friend"))
     }
+    @Test fun sevenLanguageNegatedSendingNeverTriggersActualBillingEmail() {
+        val phrases = listOf(
+            "Készíts számlát Brandstrom House részére de ne küldd el",
+            "Create an invoice for Brandstrom House and don't send",
+            "Create an invoice but do not send it",
+            "Erstelle Rechnung für Brandstrom House aber nicht senden",
+            "Créer une facture mais ne pas envoyer",
+            "Crear una factura pero no enviar",
+            "Crea fattura ma non inviare",
+            "Utwórz fakturę ale nie wysyłaj"
+        )
+        phrases.forEach { phrase ->
+            val normalized = BillingVoice.normalize(phrase)
+            assertFalse("Unsafe send: $phrase", BillingVoice.sending(normalized))
+        }
+    }
+
+    @Test fun actualExplicitSendingIsNotConfusedWithNamesOrNegations() {
+        val positive = listOf(
+            "Küldd el a számlát",
+            "Send this invoice",
+            "Senden Rechnung",
+            "Envoie la facture",
+            "Enviar la factura",
+            "Invia fattura",
+            "Wyslij fakture"
+        )
+        positive.forEach { phrase ->
+            assertTrue("Expected explicit send: $phrase",
+                BillingVoice.sending(BillingVoice.normalize(phrase)))
+        }
+        for (phrase in listOf("Create invoice for Sendley Cleaners",
+            "Create invoice for Senders Ltd", "Customer: Envoiexpress",
+            "Don't send an invoice", "Ne küldd el a számlát")) {
+            assertFalse(phrase, BillingVoice.sending(BillingVoice.normalize(phrase)))
+        }
+    }
+
     @Test fun vatRoundsPerPennyAndDraftNeverClaimsSent() {
         val invoice = BillingInvoice("id", "JAR-000001", "client",
             "Oven cleaning", 101L, 5, "2026-10-12", "2026-10-26")

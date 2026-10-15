@@ -42,13 +42,18 @@ internal object MessageBuffer {
     private val quickReplies = mutableMapOf<String, Pair<PendingIntent, Array<RemoteInput>>>()
     private val messageOpens = mutableMapOf<String, PendingIntent>()
 
+    // A RemoteInput action may accept only fixed choices or auxiliary data;
+    // never submit arbitrary spoken text to a non-freeform action.
+    internal fun freeFormInput(inputs: Array<RemoteInput>?): RemoteInput? =
+        inputs?.firstOrNull { it.allowFreeFormInput && it.resultKey.isNotBlank() }
+
     fun add(notice: MessageNotice, pending: PendingIntent?, inputs: Array<RemoteInput>?, open: PendingIntent?) {
         main.post {
             notices.removeAll { it.key == notice.key }
             notices.add(0, notice)
             if (open != null) messageOpens[notice.key] = open else messageOpens.remove(notice.key)
-            if (pending != null && inputs != null && inputs.isNotEmpty()) {
-                quickReplies[notice.key] = pending to inputs
+            if (pending != null && freeFormInput(inputs) != null) {
+                quickReplies[notice.key] = pending to requireNotNull(inputs)
             } else quickReplies.remove(notice.key)
             while (notices.size > 30) {
                 quickReplies.remove(notices.last().key)
@@ -84,9 +89,10 @@ internal object MessageBuffer {
         val draft = message.trim()
         if (draft.isBlank()) return false
         val (pending, remoteInputs) = quickReplies[key] ?: return false
+        val replyInput = freeFormInput(remoteInputs) ?: return false
         return try {
             val results = Bundle()
-            results.putCharSequence(remoteInputs.first().resultKey, draft)
+            results.putCharSequence(replyInput.resultKey, draft)
             val intent = Intent()
             RemoteInput.addResultsToIntent(remoteInputs, intent, results)
             pending.send(context, 0, intent)
@@ -128,7 +134,8 @@ class JarvisNotificationListener : NotificationListenerService() {
             ?: extras.getCharSequence(Notification.EXTRA_TEXT)?.toString()?.trim().orEmpty()
         if (body.isBlank()) return
         val action = sbn.notification.actions
-            ?.firstOrNull { a -> a.remoteInputs?.isNotEmpty() == true }
+            ?.firstOrNull { a -> a.actionIntent != null &&
+                MessageBuffer.freeFormInput(a.remoteInputs) != null }
         MessageBuffer.add(
             MessageNotice(sbn.key, source, title.ifBlank { source }, body.take(2000), action != null),
             action?.actionIntent,
@@ -153,6 +160,7 @@ class JarvisNotificationListener : NotificationListenerService() {
 
 @Composable
 internal fun MessageInboxScreen(context: Context, onPermissions: () -> Unit) {
+    val language = LocalJarvisLanguage.current
     val notices = MessageBuffer.notices
     val speaker = remember(context) { TextToSpeech(context) { } }
     DisposableEffect(speaker) { onDispose { speaker.stop(); speaker.shutdown() } }
@@ -194,7 +202,15 @@ internal fun MessageInboxScreen(context: Context, onPermissions: () -> Unit) {
                         color = JarvisPalette.accent, fontWeight = FontWeight.Bold)
                     Text(notice.body, color = JarvisPalette.mainText)
                     ControlledOutlinedButton(onClick = {
-                        speaker.speak(notice.sender + ": " + notice.body, TextToSpeech.QUEUE_FLUSH, null, notice.key)
+                        val supported = speaker.setLanguage(
+                            JarvisMessageVoiceLocale.ttsLocale(language))
+                        if (supported == TextToSpeech.LANG_MISSING_DATA ||
+                            supported == TextToSpeech.LANG_NOT_SUPPORTED) {
+                            info = "A kiválasztott nyelvhez nincs telepített Android-felolvasó hang."
+                        } else {
+                            speaker.speak(notice.sender + ": " + notice.body,
+                                TextToSpeech.QUEUE_FLUSH, null, notice.key)
+                        }
                     }, commandLabel = "🔊 Felolvasás") { Text("🔊 Felolvasás") }
                     if (notice.canReply) {
                         ControlledOutlinedTextField(drafts[notice.key].orEmpty(),
@@ -205,8 +221,10 @@ internal fun MessageInboxScreen(context: Context, onPermissions: () -> Unit) {
                             try {
                                 dictateReply.launch(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                                     putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                                    putExtra(RecognizerIntent.EXTRA_LANGUAGE, "hu-HU")
-                                    putExtra(RecognizerIntent.EXTRA_PROMPT, "Diktáld a választ – küldés előtt ellenőrizheted")
+                                    putExtra(RecognizerIntent.EXTRA_LANGUAGE,
+                                        JarvisMessageVoiceLocale.speechTag(language))
+                                    putExtra(RecognizerIntent.EXTRA_PROMPT,
+                                        JarvisMessageVoiceLocale.dictationPrompt(language))
                                 })
                             } catch (_: Exception) { info = "Nincs telepített beszédfelismerő." }
                         }, commandLabel = "🎤 Válasz diktálása") { Text("🎤 Válasz diktálása") }

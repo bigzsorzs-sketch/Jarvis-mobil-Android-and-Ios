@@ -12,7 +12,41 @@ class VoiceIntentParserTest {
         assertEquals("nyisd meg a térképet", VoiceIntentParser.afterWakeWord("Hé, Jarvis! nyisd meg a térképet"))
         assertEquals("", VoiceIntentParser.afterWakeWord("Jarvis"))
         assertNull(VoiceIntentParser.afterWakeWord("Beszéljünk a Jarvis alkalmazásról"))
+        assertNull(VoiceIntentParser.afterWakeWord("Azt mondtam neki, hogy hey Jarvis állj le"))
+        assertFalse(VoiceIntentParser.isStop("Azt mondtam neki, hogy hey Jarvis állj le"))
         assertNull(VoiceIntentParser.afterWakeWord("Hey Jarvisnak mondtam"))
+    }
+
+    @Test fun explicitMicrophoneStopWorksInSevenLanguages() {
+        val commands = listOf(
+            "Jarvis, állj le",
+            "Kérlek, kapcsold ki a figyelést",
+            "Please stop listening",
+            "Bitte hör auf zuzuhören",
+            "Arrête d'écouter",
+            "Deja de escuchar",
+            "Smetti di ascoltare",
+            "Przestań słuchać"
+        )
+        commands.forEach { assertTrue(it, VoiceIntentParser.isStop(it)) }
+    }
+
+    @Test fun negationsAndQuotedStopInstructionsNeverShutDownMicrophone() {
+        val commands = listOf(
+            "Ne állj le",
+            "Jarvis, ne állj le",
+            "Azt mondtam, hogy állj le, de ne most",
+            "Don't stop listening",
+            "Please do not stop listening",
+            "I asked what stop listening means",
+            "Ne kapcsold ki a figyelést",
+            "Arrête? Nem, maradj bekapcsolva!"
+        )
+        commands.forEach { assertFalse(it, VoiceIntentParser.isStop(it)) }
+        // A short STOP during playback should silence TTS but should not
+        // accidentally shut down the entire hands-free conversation.
+        assertTrue(VoiceIntentParser.isPlaybackStop("Állj"))
+        assertFalse(VoiceIntentParser.isStop("Állj"))
     }
 
     @Test fun confirmRequiresExplicitWord() {

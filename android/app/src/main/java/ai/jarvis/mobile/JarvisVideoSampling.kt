@@ -11,11 +11,12 @@ internal object JarvisVideoSampling {
     const val MAX_FRAMES = 12
     private const val TARGET_INTERVAL_MS = 10_000L
 
-    fun timestampsMs(durationMs: Long): List<Long> {
+    fun timestampsMs(durationMs: Long, maxFrames: Int = MAX_FRAMES): List<Long> {
+        require(maxFrames in 1..MAX_FRAMES)
         if (durationMs <= 0L) return emptyList()
         val count = min(
-            MAX_FRAMES,
-            max(1, (durationMs / TARGET_INTERVAL_MS).coerceAtMost(MAX_FRAMES.toLong()).toInt() + 1)
+            maxFrames,
+            max(1, (durationMs / TARGET_INTERVAL_MS).coerceAtMost(maxFrames.toLong()).toInt() + 1)
         )
         return (0 until count).map { index ->
             // Middle of each segment, never seek to/after a potentially invalid end timestamp.

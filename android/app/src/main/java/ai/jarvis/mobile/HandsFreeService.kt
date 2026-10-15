@@ -101,6 +101,8 @@ class HandsFreeService : Service(), RecognitionListener {
     private val captureScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var cloudCaptureJob: Job? = null
     private var cloudCaptureGeneration = 0L
+    private var consecutiveCloudFailures = 0
+    private var useAndroidRecognizerFallback = false
     private var recognizerGeneration = 0
     private var cloudVoice: JarvisCloudVoicePlayer? = null
     private var foregroundStream: JarvisCloudVoicePlayer.StreamHandle? = null
@@ -282,6 +284,34 @@ class HandsFreeService : Service(), RecognitionListener {
         if (running && !speaking && !recognizerListening && !foregroundReplyPending)
             handler.postDelayed(restart, delay)
     }
+    /**
+     * Two consecutive capture/provider failures should not trap a live voice
+     * session in the same failing cloud-recorder loop. Prefer the existing
+     * Android recognition path if the platform reports it available. The
+     * transcript still passes through the SAME foreground AI and native
+     * action validation, including phone-call confirmation.
+     */
+    private fun recoverCloudRecognition(reason: String) {
+        consecutiveCloudFailures++
+        val platformAvailable = runCatching {
+            SpeechRecognizer.isRecognitionAvailable(this)
+        }.getOrDefault(false)
+        if (VoiceCaptureRecoveryPolicy.shouldFallback(consecutiveCloudFailures, platformAvailable)) {
+            try {
+                createRecognizer()
+                useAndroidRecognizerFallback = true
+                HandsFreeStatus.status =
+                    "A felhős beszédfelismerés hibázott. Android beszédfelismerőre váltok."
+                again(400)
+                return
+            } catch (_: Exception) {
+                // Do not claim the system recognizer works when it failed to initialize.
+            }
+        }
+        HandsFreeStatus.status = reason
+        again(VoiceCaptureRecoveryPolicy.retryDelay(consecutiveCloudFailures))
+    }
+
     /** One cloud-recognized utterance, followed by the SAME foreground GPT-5.2
      * conversation and Android validation pathway as typed requests.
      * Only explicitly enabled, user-started Home microphone sessions use this.
@@ -313,8 +343,7 @@ class HandsFreeService : Service(), RecognitionListener {
                     again(350)
                 }
                 JarvisCloudSpeechCapture.Result.Unavailable -> {
-                    HandsFreeStatus.status = "A felhős mikrofonrögzítés nem indult. Ellenőrizd az engedélyt."
-                    again(2_500)
+                    recoverCloudRecognition("A felhős mikrofonrögzítés nem indult. Ellenőrizd az engedélyt.")
                 }
                 is JarvisCloudSpeechCapture.Result.Audio -> {
                     lastVoiceEndedAtMs = SystemClock.elapsedRealtime()
@@ -327,10 +356,10 @@ class HandsFreeService : Service(), RecognitionListener {
                         HandsFreeStatus.status = "A hangfeltöltés engedélyét visszavontad."
                         again(500)
                     } else if (transcript.isNullOrBlank()) {
-                        HandsFreeStatus.status = JarvisAiGateway.lastTranscriptionError
-                            .ifBlank { "Nem értettem. Ismételd meg a kérést." }
-                        again(1_100)
+                        recoverCloudRecognition(JarvisAiGateway.lastTranscriptionError
+                            .ifBlank { "Nem értettem. Ismételd meg a kérést." })
                     } else {
+                        consecutiveCloudFailures = 0
                         HandsFreeStatus.heard = transcript
                         recognizedUtteranceLanguage = language
                         process(transcript)
@@ -343,7 +372,7 @@ class HandsFreeService : Service(), RecognitionListener {
     private fun listen() {
         if (!running || speaking || recognizerListening || foregroundReplyPending ||
             cloudCaptureJob?.isActive == true) return
-        if (tapActivated && JarvisAiGateway.canTranscribe(this)) {
+        if (tapActivated && !useAndroidRecognizerFallback && JarvisAiGateway.canTranscribe(this)) {
             startCloudCapture()
             return
         }
@@ -632,7 +661,8 @@ class HandsFreeService : Service(), RecognitionListener {
                     // An asynchronous Gmail/API response must not create
                     // repeated microphone cycles while still pending.
                     if (foregroundReplyPending)
-                        handler.postDelayed(foregroundReplyTimeout, VoiceSessionPolicy.REPLY_TIMEOUT_MS)
+                        handler.postDelayed(foregroundReplyTimeout,
+                            JarvisResponseDeadline.foregroundVoiceMs(sharedCommand))
                     return
                 }
                 foregroundReplyPending = false
@@ -1102,9 +1132,9 @@ class HandsFreeService : Service(), RecognitionListener {
             }
             return
         }
-        // Structured AI draft requests must not be intercepted by legacy local parsing.
-        val outgoing = if (localAiDraft != null) null
-            else ExternalTasks.parseMessage(command)
+        // A recognized local draft has already returned above. Avoid a dead
+        // conditional here; unsupported/legacy formats use the fallback parser.
+        val outgoing = ExternalTasks.parseMessage(command)
         if (outgoing != null) {
             if (!privateVoiceAllowed()) {
                 speak("A telefon lezárva. A privát üzenetekhez előbb oldd fel.")

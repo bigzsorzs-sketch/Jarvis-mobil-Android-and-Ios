@@ -11,13 +11,16 @@ import java.util.Locale
 internal object VoiceIntentParser {
     private fun normalize(value: String): String =
         Normalizer.normalize(value.lowercase(Locale.ROOT), Normalizer.Form.NFD)
-            .replace(Regex("\\p{M}+"), "").trim()
+            .replace(Regex("\\p{M}+"), "")
+            // Polish ł is a distinct letter and is NOT decomposed by NFD.
+            // Normalize it for safe Polish voice-command comparison.
+            .replace('ł', 'l').trim()
 
     fun afterWakeWord(raw: String): String? {
         val normal = normalize(raw)
         // ASR may insert punctuation between the greeting and the name.
         // Bare "Jarvis" is accepted only at the start, never a passing mention.
-        val match = Regex("""\b(?:hey|hej|he|szia|ok|okay)[,\s]+jarvis\b|^jarvis\b""")
+        val match = Regex("""^(?:\b(?:hey|hej|he|szia|ok|okay)[,\s]+jarvis\b|jarvis\b)""")
             .find(normal) ?: return null
         return raw.substring((match.range.last + 1).coerceAtMost(raw.length))
             .trim().trimStart(',', '.', '!', ':', ' ')
@@ -39,10 +42,26 @@ internal object VoiceIntentParser {
         )
     }
 
+    /**
+     * Stop the user-started microphone session ONLY on an explicit utterance.
+     * A substring check would treat "Ne állj le" / "Don't stop listening"
+     * and quoted instructions as permission to shut down the session.
+     * Keep voice session stop distinct from stopping just the read-aloud player.
+     */
     fun isStop(raw: String): Boolean {
-        val n = normalize(raw)
-        return listOf("allj le", "leallas", "hagyd abba", "kapcsold ki a figyelest", "stop listening")
-            .any { n.contains(it) }
+        val spoken = afterWakeWord(raw) ?: raw
+        val normalized = normalize(spoken).trim().trimEnd('.', '!', '?', ',')
+            .replace(Regex("""^(?:kerlek|legy szives|figyelj|please|bitte|por favor|per favore|prosze)[,\s]+"""), "")
+            .trim()
+        return normalized in setOf(
+            "allj le", "leallas", "hagyd abba", "kapcsold ki a figyelest",
+            "stop listening", "stop the microphone",
+            "hor auf zuzuhoren", "hor auf mit dem zuhoren",
+            "arrete d'ecouter", "arretez d'ecouter",
+            "deja de escuchar", "deten la escucha",
+            "smetti di ascoltare", "interrompi l'ascolto",
+            "przestan sluchac", "wylacz nasluchiwanie"
+        )
     }
 
     fun isYes(raw: String): Boolean {

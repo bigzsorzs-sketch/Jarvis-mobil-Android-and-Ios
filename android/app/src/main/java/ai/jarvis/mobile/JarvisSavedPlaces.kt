@@ -16,9 +16,12 @@ internal object JarvisSavedPlaces {
     private const val MAX_FILE_BYTES = 2_000_000
     private const val MAX_PLACES = 1000
 
-    private fun normalized(value: String): String =
+    // German sharp-s and Polish ł do not decompose into Latin letters via NFD.
+    // Without explicit folds "Łódź" fails to match a user saying "Lodz".
+    internal fun normalized(value: String): String =
         Normalizer.normalize(value.lowercase(Locale.ROOT), Normalizer.Form.NFD)
             .replace(Regex("\\p{M}+"), "")
+            .replace("ł", "l").replace("ß", "ss")
             .replace(Regex("""[^a-z0-9 ]"""), " ")
             .trim().replace(Regex("""\s+"""), " ")
 

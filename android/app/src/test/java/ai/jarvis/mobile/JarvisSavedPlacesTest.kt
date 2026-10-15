@@ -51,6 +51,16 @@ class JarvisSavedPlacesTest {
         assertFalse(JarvisSavedPlaces.isListRequest("Mit tudsz a Google Mapsről?"))
     }
 
+    @Test fun multilingualSavedPlaceNamesDoNotDisappearDuringVoiceMatching() {
+        assertEquals("lodz", JarvisSavedPlaces.normalized("Łódź"))
+        assertEquals(JarvisSavedPlaces.normalized("Łódź"),
+            JarvisSavedPlaces.normalized("Lodz"))
+        assertEquals("strasse", JarvisSavedPlaces.normalized("Straße"))
+        assertEquals(JarvisSavedPlaces.normalized("Straße"),
+            JarvisSavedPlaces.normalized("Strasse"))
+        assertEquals("eszte r", JarvisSavedPlaces.normalized("Eszte-r"))
+    }
+
     @Test fun savedPlaceReferenceIsNotCorruptedByCaseStripping() {
         assertEquals("Tesco", JarvisSavedPlaces.importedName("a mentett Tesco helyhez"))
         assertEquals("Tesco", JarvisSavedPlaces.importedName("a mentett Tesco helyre"))

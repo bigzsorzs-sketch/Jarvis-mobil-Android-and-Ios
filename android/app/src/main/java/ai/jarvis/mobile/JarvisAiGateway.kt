@@ -5,6 +5,10 @@ import android.util.Base64
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URI
@@ -573,7 +577,7 @@ internal object JarvisAiGateway {
         val direct = mode(context) == DIRECT_TEST
         if (attachments.isNotEmpty() && !direct) {
             return@withContext JarvisAiOutcome(
-                "A képek és PDF-ek AI-elemzése jelenleg a közvetlen OpenRouter-kapcsolattal használható. Nem küldtem fájlt.")
+                "Fájlok, képek és videó-képkockák AI-elemzése jelenleg közvetlen OpenRouter-kapcsolattal használható. Nem küldtem fájlt.")
         }
         val credential = if (direct) prefs.read(KEY_DIRECT, "") else prefs.read(KEY_TOKEN, "")
         val base = if (direct) null else normalizedBaseUrl(baseUrl(context))
@@ -587,13 +591,19 @@ internal object JarvisAiGateway {
         }
 
         var connection: HttpURLConnection? = null
+        // Cancellation (new voice request / STOP / chat change) must close the
+        // blocking HttpURLConnection promptly. A readTimeout alone only stops
+        // an idle socket and otherwise retains a background IO thread.
+        val cancelConnection = currentCoroutineContext()[Job]?.invokeOnCompletion {
+            connection?.disconnect()
+        }
         try {
             val endpoint = if (direct) OPENROUTER_ENDPOINT else "$base/v1/chat"
             connection = URL(endpoint).openConnection() as HttpURLConnection
             connection.requestMethod = "POST"
             connection.instanceFollowRedirects = false
             connection.connectTimeout = 10000
-            connection.readTimeout = 2_700_000
+            connection.readTimeout = JarvisResponseDeadline.socketReadMs(question)
             connection.doOutput = true
             connection.setRequestProperty("Content-Type", "application/json; charset=utf-8")
             connection.setRequestProperty("Accept", "application/json")
@@ -658,9 +668,17 @@ internal object JarvisAiGateway {
                     "A szerver átirányított; biztonsági okból megszakítottam.")
                 else -> JarvisAiOutcome("Az AI-szolgáltató hibát jelzett (HTTP $status).")
             }
+        } catch (e: CancellationException) {
+            // A cancelled turn is not a provider failure and must never
+            // surface as a new user-visible response or action proposal.
+            throw e
         } catch (_: Exception) {
+            // Disconnect from cancellation often manifests as IOException;
+            // restore structured cancellation rather than a fake AI error.
+            currentCoroutineContext().ensureActive()
             JarvisAiOutcome("Nem sikerült kapcsolódni az AI-hoz. Ellenőrizd az internetet és a kulcsot.")
         } finally {
+            cancelConnection?.dispose()
             connection?.disconnect()
         }
     }
