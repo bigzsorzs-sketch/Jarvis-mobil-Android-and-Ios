@@ -16,7 +16,7 @@ import androidx.compose.ui.unit.dp
 internal fun HandsFreePanel(context: Context) {
     val status = HandsFreeStatus.status
     var allowWhileLocked by remember(context) {
-        mutableStateOf(SecurePrefs(context).read("voice_private_on_lock", "false") == "true")
+        mutableStateOf(SecurePrefs(context).read("voice_lights_on_lock", "false") == "true")
     }
     Card(colors = CardDefaults.cardColors(containerColor = JarvisPalette.panel)) {
         Column(
@@ -33,17 +33,17 @@ internal fun HandsFreePanel(context: Context) {
             Text("Állapot: $status", color = JarvisPalette.accent)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Column(Modifier.weight(1f)) {
-                    Text("Privát üzenetek felolvasása lezárt képernyőn",
+                    Text("Világítás hangvezérlése lezárt képernyőn",
                         color = JarvisPalette.mainText, style = MaterialTheme.typography.bodyMedium)
-                    Text("Alapértelmezés: kikapcsolva. Mások is hallhatják a felolvasást.",
+                    Text("Alapértelmezés: kikapcsolva. Ez nem hangazonosítás: mások is kiadhatnak lámpaparancsokat. Személyes adatokhoz és híváshoz feloldás kell.",
                         color = JarvisPalette.subtleText, style = MaterialTheme.typography.bodySmall)
                 }
-                RegisterJarvisControl("Privát üzenetek felolvasása lezárt képernyőn", click = {
+                RegisterJarvisControl("Világítás hangvezérlése lezárt képernyőn", click = {
                     allowWhileLocked = !allowWhileLocked
-                    SecurePrefs(context).write("voice_private_on_lock", allowWhileLocked.toString())
+                    SecurePrefs(context).write("voice_lights_on_lock", allowWhileLocked.toString())
                 })
                 Switch(checked = allowWhileLocked, onCheckedChange = { enabled ->
-                    SecurePrefs(context).write("voice_private_on_lock", enabled.toString())
+                    SecurePrefs(context).write("voice_lights_on_lock", enabled.toString())
                     allowWhileLocked = enabled
                 })
             }
