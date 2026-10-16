@@ -5,6 +5,47 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class JarvisSmartHomeTest {
+    @Test fun chatAndVoiceShareExactlyNamedHomeAssistantActions() {
+        val devices = listOf(
+            JarvisHomeEntity("light.hall", "Előszobai lámpa", "off", "light", true),
+            JarvisHomeEntity("sensor.washer", "Mosógép", "washing", "sensor", false)
+        )
+        var actions = 0
+        val turnedOn = JarvisHomeCommandRunner.evaluate(
+            "Kapcsold be az előszobai lámpát", devices
+        ) { entity, on ->
+            actions++
+            assertEquals("light.hall", entity.id)
+            assertTrue(on)
+            "Home Assistant visszaigazolta."
+        }
+        assertEquals("Home Assistant visszaigazolta.", turnedOn)
+        assertEquals(1, actions)
+        assertTrue(JarvisHomeCommandRunner.handles("Kapcsold be az előszobai lámpát"))
+        assertTrue(JarvisHomeCommandRunner.handles("Mi a mosógép állapota?"))
+        assertFalse(JarvisHomeCommandRunner.handles("Milyen idő van ma?"))
+    }
+
+    @Test fun backgroundHomeVoiceNeverTogglesAppliancesOrAmbiguousLights() {
+        val devices = listOf(
+            JarvisHomeEntity("light.room_a", "Nappali lámpa", "off", "light", true),
+            JarvisHomeEntity("light.room_b", "Nappali lámpa", "off", "light", true),
+            JarvisHomeEntity("switch.washer_plug", "Mosógép", "off", "switch", true)
+        )
+        var calls = 0
+        val operation: (JarvisHomeEntity, Boolean) -> String = { _, _ ->
+            calls++; "DO NOT RUN"
+        }
+        assertEquals("Nem találtam egyetlen egyértelműen egyező Smart Home eszközt.",
+            JarvisHomeCommandRunner.evaluate("Kapcsold be a nappali lámpát", devices, operation))
+        assertEquals("Ez az eszköz csak állapotlekérdezésre használható.",
+            JarvisHomeCommandRunner.evaluate("Kapcsold be a mosógépet", devices, operation))
+        assertEquals(0, calls)
+        assertEquals("Home Assistant szerint: Mosógép – off.",
+            JarvisHomeCommandRunner.evaluate("Mi a mosógép állapota?", devices, operation))
+        assertEquals(0, calls)
+    }
+
     @Test fun onlyVerifiedHttpsOriginsCanCarryTokens() {
         assertEquals("https://myhome.example.org:8123",
             JarvisHomePolicy.origin("https://myhome.example.org:8123/"))
