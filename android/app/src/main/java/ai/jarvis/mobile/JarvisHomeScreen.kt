@@ -113,10 +113,6 @@ internal fun JarvisHomeScreen(
                 issue = "AI-feltöltéshez aktív, engedélyezett AI-kapcsolat szükséges. A fájlok és az üzenet megmaradtak."
                 return
             }
-            if (JarvisAiGateway.mode(context) != JarvisAiGateway.DIRECT_TEST) {
-                issue = "Fájlok AI-elemzése jelenleg csak közvetlen OpenRouter-kapcsolattal működik. A kiválasztott fájlok megmaradtak."
-                return
-            }
         }
         keyboard?.hide()
         text = ""
