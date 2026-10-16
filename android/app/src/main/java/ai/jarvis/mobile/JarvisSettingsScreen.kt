@@ -103,17 +103,19 @@ internal fun JarvisSettingsScreen(
     SettingsSectionTitle("Telefon-hozzáférés")
     PermissionCenter(context, onDone = {}, showContinue = false, showHeading = false)
     Spacer(Modifier.height(14.dp))
-    SettingsSectionTitle("Android képernyővezérlés — opcionális")
-    JarvisSettingsGroup {
-        JarvisSettingsRow("◎", "Képernyővezérlés engedélyezése",
-            "Az Android Beállításokban, külön jóváhagyással. Vissza, Főképernyő, görgetés és egyértelmű gombok.") {
-            JarvisScreenControl.openPermissionSettings(context)
+    if (!BuildConfig.IS_PLAY_DISTRIBUTION) {
+        SettingsSectionTitle("Android képernyővezérlés — opcionális")
+        JarvisSettingsGroup {
+            JarvisSettingsRow("◎", "Képernyővezérlés engedélyezése",
+                "Az Android Beállításokban, külön jóváhagyással. Vissza, Főképernyő, görgetés és egyértelmű gombok.") {
+                JarvisScreenControl.openPermissionSettings(context)
+            }
         }
+        Text("Csak külön kimondott vagy leírt műveletet hajt végre. Külső alkalmazás tartalmát nem küldi az AI-nak. Nem hagy jóvá fizetést, törlést vagy más érzékeny műveletet.",
+            color = JarvisPalette.subtleText,
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.padding(12.dp))
     }
-    Text("Csak külön kimondott vagy leírt műveletet hajt végre. Külső alkalmazás tartalmát nem küldi az AI-nak. Nem hagy jóvá fizetést, törlést vagy más érzékeny műveletet.",
-        color = JarvisPalette.subtleText,
-        style = MaterialTheme.typography.bodySmall,
-        modifier = Modifier.padding(12.dp))
     Spacer(Modifier.height(16.dp))
     SettingsSectionTitle("Adatvédelem és helyi adatok")
     JarvisSettingsGroup {
@@ -149,6 +151,13 @@ internal fun JarvisSettingsScreen(
     Spacer(Modifier.height(16.dp))
     // Explicit user-chosen cloud destination, never a background export.
     JarvisBackupSettings(context, language)
+    SettingsDivider()
+    JarvisSettingsRow("ⓘ",
+        if (language == JarvisLanguage.HUNGARIAN) "Adatvédelmi szabályzat" else "Privacy policy",
+        "Jarvis Mobile – Google Play és GitHub") {
+        openSystemIntent(context, android.content.Intent(android.content.Intent.ACTION_VIEW,
+            android.net.Uri.parse("https://github.com/bigzsorzs-sketch/Jarvis-mobil-Android-and-Ios/blob/main/docs/PRIVACY_POLICY.md")))
+    }
     Spacer(Modifier.height(8.dp))
     Text("A Jarvis AI-kérdések felhőbe küldését az AI-adatvédelem és hozzáférés menüpontban " +
         "engedélyezheted vagy a Leválasztás gombbal visszavonhatod. " +

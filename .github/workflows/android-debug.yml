@@ -48,13 +48,32 @@ jobs:
         run: |
           # The PR runner has no signing keys. Verify release compilation and
           # AAB creation without publishing unsigned artifacts as production.
-          if ! gradle -p android :app:testDebugUnitTest :app:lintDebug :app:lintRelease :app:assembleDebug :app:assembleRelease :app:bundleRelease --stacktrace; then
+          if ! gradle -p android :app:testDebugUnitTest :app:lintDebug :app:lintRelease :app:assembleDebug :app:assembleRelease :app:bundleRelease :app:lintPlay :app:assemblePlay :app:bundlePlay --stacktrace; then
             echo "::group::Android lint details"
             cat android/app/build/reports/lint-results-debug.txt 2>/dev/null || true
             cat android/app/build/intermediates/lint_intermediate_text_report/debug/lintReportDebug/lint-results-debug.txt 2>/dev/null || true
             echo "::endgroup::"
             exit 1
           fi
+      - name: Enforce restricted-permission exclusions in Play APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk="android/app/build/outputs/apk/play/app-play.apk"
+          test -s "$apk"
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump permissions "$apk" > "$RUNNER_TEMP/play-permissions.txt"
+          for permission in REQUEST_INSTALL_PACKAGES ACCESS_BACKGROUND_LOCATION SCHEDULE_EXACT_ALARM; do
+            if grep -Fq "android.permission.$permission" "$RUNNER_TEMP/play-permissions.txt"; then
+              echo "::error::Forbidden Play-only permission: $permission"
+              exit 1
+            fi
+          done
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump xmltree "$apk" AndroidManifest.xml > "$RUNNER_TEMP/play-manifest.txt"
+          if grep -Fq '.JarvisAccessibilityService' "$RUNNER_TEMP/play-manifest.txt"; then
+            echo "::error::AccessibilityService must not be declared in Play build"
+            exit 1
+          fi
+          test -s android/app/build/outputs/bundle/play/app-play.aab
       - name: Upload Android lint report
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

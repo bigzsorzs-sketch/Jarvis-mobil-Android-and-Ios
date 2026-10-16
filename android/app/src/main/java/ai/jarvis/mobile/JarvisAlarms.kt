@@ -40,11 +40,12 @@ internal object JarvisAlarms {
         context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
 
     fun canSchedule(context: Context): Boolean =
-        Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
-            manager(context).canScheduleExactAlarms()
+        !BuildConfig.IS_PLAY_DISTRIBUTION &&
+        (Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
+            manager(context).canScheduleExactAlarms())
 
     fun requestExactPermission(context: Context) {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
+        if (BuildConfig.IS_PLAY_DISTRIBUTION || Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
         try {
             context.startActivity(
                 Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM)

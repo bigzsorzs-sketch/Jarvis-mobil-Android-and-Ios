@@ -25,6 +25,19 @@ import com.google.android.gms.location.Priority
 internal fun JarvisDeparturePanel(context: Context, language: JarvisLanguage) {
     fun tr(hu: String, en: String, de: String, fr: String, es: String, it: String, pl: String) =
         listOf(hu, en, de, fr, es, it, pl)[language.ordinal]
+    if (BuildConfig.IS_PLAY_DISTRIBUTION) {
+        Text(tr(
+            "A háttérbeli otthonelhagyás-figyelés ebben a Google Play-kiadásban nem érhető el. A lámpák és az otthoni eszközök kézi vezérlése továbbra is használható.",
+            "Background home-departure alerts are disabled in the Google Play edition. Manual Smart Home control remains available.",
+            "Die Hintergrund-Ortserkennung ist in der Play-Version deaktiviert.",
+            "Les alertes de départ en arrière-plan sont désactivées dans la version Play.",
+            "Las alertas de salida en segundo plano están desactivadas en la versión Play.",
+            "Gli avvisi di uscita in background sono disattivati nella versione Play.",
+            "Powiadomienia o wyjściu w tle są wyłączone w wersji Play."
+        ), style = MaterialTheme.typography.bodySmall,
+            color = JarvisPalette.subtleText)
+        return
+    }
     val permissionRefresh = PermissionRefresh.serial
     val saved = remember(permissionRefresh) { JarvisDepartureGuard.home(context) }
     var radius by remember { mutableStateOf(saved?.radiusMeters ?: 150f) }
