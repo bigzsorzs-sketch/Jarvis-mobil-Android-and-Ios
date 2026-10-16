@@ -521,7 +521,9 @@ class HandsFreeService : Service(), RecognitionListener {
         val enabled = if (locked)
             SecurePrefs(this).read("voice_private_on_lock", "false") == "true"
         else false
-        return VoicePrivacyPolicy.mayUsePrivateData(locked, enabled)
+        return VoicePrivacyPolicy.mayUsePrivateData(locked, enabled) &&
+            JarvisSpeakerSecurityPolicy.permitted(
+                locked, JarvisVoiceRisk.PERSONAL)
     }
 
     private fun clearProposal() { proposed = null; confirmUntil = 0L }
@@ -572,13 +574,25 @@ class HandsFreeService : Service(), RecognitionListener {
         // All foreground speech, including follow-ups on typed calls, uses the
         // SAME Activity session. Only microphone transport belongs to this service.
         val wake = VoiceIntentParser.afterWakeWord(heard)
-        // The Activity's shared command handler can remain registered when the
-        // screen is no longer in front. Enforce the SAME locked-phone rule
-        // before either the shared or local Home Assistant execution path.
-        if ((tapActivated || awaitingCommand || wake != null) &&
-            JarvisHomeCommandRunner.handles((wake ?: heard).trim()) &&
-            getSystemService(KeyguardManager::class.java).isDeviceLocked) {
-            speak("Oldd fel a telefont a Smart Home vezérléshez, majd ismételd meg a parancsot.")
+        // Never confuse a speech transcript with speaker identity. Our current
+        // verifier is UNKNOWN, so private data / calls remain locked even when
+        // legacy voice-on-lock consent exists. General conversation stays alive.
+        val incomingVoiceCommand = (wake ?: heard).trim()
+        val voiceActive = tapActivated || awaitingCommand || wake != null
+        val screenLocked = getSystemService(KeyguardManager::class.java).isDeviceLocked
+        if (voiceActive && screenLocked &&
+            JarvisSpeakerSecurityPolicy.isPersonalRequest(incomingVoiceCommand)) {
+            speak("A személyazonosságodat most nem tudom hang alapján igazolni. " +
+                "Ehhez a művelethez oldd fel a telefont.")
+            return
+        }
+        if (voiceActive && screenLocked &&
+            JarvisHomeCommandRunner.handles(incomingVoiceCommand) &&
+            !JarvisSpeakerSecurityPolicy.permitted(
+                true, JarvisVoiceRisk.LIGHTING,
+                lightingOptIn = SecurePrefs(this).read("voice_private_on_lock", "false") == "true")) {
+            speak("A lezárt képernyős Smart Home vezérléshez előbb adj engedélyt " +
+                "a Jarvis hangbeállításaiban.")
             return
         }
         if ((tapActivated || awaitingCommand || wake != null) && privateVoiceAllowed()) {
@@ -897,9 +911,11 @@ class HandsFreeService : Service(), RecognitionListener {
         // must be unlocked; there is no unattended control from a lock screen.
         // This uses the same exact-name/allowlist/read-back path as chat.
         if (JarvisHomeCommandRunner.handles(command)) {
-            val keyguard = getSystemService(KeyguardManager::class.java)
-            if (keyguard.isDeviceLocked) {
-                speak("Oldd fel a telefont a Smart Home vezérléshez, majd ismételd meg a parancsot.")
+            val locked = getSystemService(KeyguardManager::class.java).isDeviceLocked
+            val consent = SecurePrefs(this).read("voice_private_on_lock", "false") == "true"
+            if (!JarvisSpeakerSecurityPolicy.permitted(
+                    locked, JarvisVoiceRisk.LIGHTING, lightingOptIn = consent)) {
+                speak("A lezárt képernyős Smart Home vezérlés nincs engedélyezve a hangbeállításokban.")
             } else {
                 aiJob = captureScope.launch {
                     val response = JarvisHomeCommandRunner.execute(applicationContext, command)
