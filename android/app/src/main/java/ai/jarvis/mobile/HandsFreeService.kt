@@ -572,6 +572,15 @@ class HandsFreeService : Service(), RecognitionListener {
         // All foreground speech, including follow-ups on typed calls, uses the
         // SAME Activity session. Only microphone transport belongs to this service.
         val wake = VoiceIntentParser.afterWakeWord(heard)
+        // The Activity's shared command handler can remain registered when the
+        // screen is no longer in front. Enforce the SAME locked-phone rule
+        // before either the shared or local Home Assistant execution path.
+        if ((tapActivated || awaitingCommand || wake != null) &&
+            JarvisHomeCommandRunner.handles((wake ?: heard).trim()) &&
+            getSystemService(KeyguardManager::class.java).isDeviceLocked) {
+            speak("Oldd fel a telefont a Smart Home vezérléshez, majd ismételd meg a parancsot.")
+            return
+        }
         if ((tapActivated || awaitingCommand || wake != null) && privateVoiceAllowed()) {
             val sharedCommand = (wake ?: heard).trim()
             if (sharedCommand.isNotBlank()) {
