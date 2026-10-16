@@ -57,6 +57,18 @@ class JarvisGlucoseDataTest {
         }
     }
 
+    @Test fun libreLinkUpBridgeGuidanceDoesNotClaimAbbottDirectAccess() {
+        val guide = JarvisGlucoseStrings.text("linkupBridge", JarvisLanguage.ENGLISH)
+        val source = JarvisGlucoseStrings.text("healthReadingSource", JarvisLanguage.ENGLISH)
+        assertTrue(guide.contains("LibreLinkUp"))
+        assertTrue(guide.contains("Health Connect"))
+        assertTrue(guide.contains("community app"))
+        assertTrue(guide.contains("unverified"))
+        assertTrue(source.contains("not direct Abbott access"))
+        assertTrue(JarvisGlucoseStrings.text("healthNoRecords", JarvisLanguage.HUNGARIAN)
+            .contains("nincs hozzáférhető vércukormérés"))
+    }
+
     @Test fun checkMySugarIsARestrictedLocalHealthRequest() {
         val allowed = listOf(
             "Jarvis nézd meg a cukrom",

@@ -331,13 +331,32 @@ internal fun JarvisGlucoseDashboard(
                 GlucoseCard {
                     GText("health", color = JarvisPalette.mainText, weight = FontWeight.Bold)
                     GText("healthHint", color = glucoseMuted, size = 12)
+                    GText("linkupBridge", color = glucoseMuted, size = 12)
                     if (JarvisHealthGlucose.supported() && !JarvisHealthGlucose.isAuthorized(context)) {
                         ControlledOutlinedButton(onClick = {
                             healthPermission.launch(JarvisHealthGlucose.READ_PERMISSION)
                         }, commandLabel = JarvisGlucoseStrings.text("healthPermission", LocalJarvisLanguage.current)) { GText("healthPermission", color = JarvisPalette.mainText) }
                     } else if (JarvisHealthGlucose.supported()) {
-                        ControlledOutlinedButton(onClick = { checkHealth() }, commandLabel = JarvisGlucoseStrings.text("refresh", LocalJarvisLanguage.current)) {
+                        ControlledOutlinedButton(onClick = { checkHealth() }, enabled = !loadingHealth,
+                            commandLabel = JarvisGlucoseStrings.text("refresh", LocalJarvisLanguage.current)) {
                             GText("refresh", color = JarvisPalette.mainText)
+                        }
+                        if (checkedHealth && !loadingHealth) {
+                            val synced = healthReading
+                            if (synced == null) {
+                                GText("healthNoRecords", color = glucoseMuted, size = 12)
+                            } else {
+                                Text(JarvisGlucoseData.shownValue(synced.mmol, mgDl) +
+                                    (if (mgDl) " mg/dL" else " mmol/L") + " · " +
+                                    JarvisGlucoseData.normalizeStamp(synced.timestamp),
+                                    color = JarvisPalette.mainText, fontSize = 14.sp)
+                                GText("healthReadingSource", color = glucoseMuted, size = 12)
+                                if (System.currentTimeMillis() - synced.timestamp > 600_000L ||
+                                    synced.timestamp > System.currentTimeMillis() + 60_000L) {
+                                    GText("stale", color = glucoseMuted, size = 12)
+                                }
+                                GText("healthNotRealtime", color = glucoseMuted, size = 12)
+                            }
                         }
                     }
                 }
