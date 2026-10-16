@@ -111,6 +111,8 @@ internal object JarvisAiGateway {
      * Explicitly saved mode always wins; existing paired server users remain paired.
      */
     fun mode(context: Context): String {
+        // Customer builds must never fall back to an end-user OpenRouter key.
+        if (JarvisSupabaseAuth.enabled()) return SERVER
         val prefs = SecurePrefs(context)
         val stored = prefs.read(KEY_MODE, "")
         val hasServer = (
@@ -136,8 +138,9 @@ internal object JarvisAiGateway {
         return if (mode(context) == DIRECT_TEST) {
             isValidOpenRouterKey(prefs.read(KEY_DIRECT, ""))
         } else {
-            normalizedBaseUrl(prefs.read(KEY_URL, "")) != null &&
-                isValidTesterToken(prefs.read(KEY_TOKEN, ""))
+            normalizedBaseUrl(baseUrl(context)) != null &&
+                if (JarvisSupabaseAuth.enabled()) JarvisSupabaseAuth.hasSession(context)
+                else isValidTesterToken(prefs.read(KEY_TOKEN, ""))
         }
     }
 
@@ -252,12 +255,14 @@ internal object JarvisAiGateway {
                 return@withContext null
             }
             val direct = mode(context) == DIRECT_TEST
-            val credential = SecurePrefs(context).read(
-                if (direct) KEY_DIRECT else KEY_TOKEN, "")
+            val credential = if (direct) SecurePrefs(context).read(KEY_DIRECT, "")
+                else if (JarvisSupabaseAuth.enabled()) JarvisSupabaseAuth.accessToken(context).orEmpty()
+                else SecurePrefs(context).read(KEY_TOKEN, "")
             val endpoint = if (direct)
                 "https://openrouter.ai/api/v1/audio/transcriptions"
             else normalizedBaseUrl(baseUrl(context))?.plus("/v1/transcribe")
             if (endpoint == null || if (direct) !isValidOpenRouterKey(credential)
+                else if (JarvisSupabaseAuth.enabled()) credential.isBlank()
                 else !isValidTesterToken(credential)) {
                 lastTranscriptionError = "A beszédfelismerő kapcsolata nincs beállítva."
                 return@withContext null
@@ -327,7 +332,9 @@ internal object JarvisAiGateway {
             }
             val prefs = SecurePrefs(context)
             val direct = mode(context) == DIRECT_TEST
-            val token = prefs.read(if (direct) KEY_DIRECT else KEY_TOKEN, "")
+            val token = if (direct) prefs.read(KEY_DIRECT, "")
+                else if (JarvisSupabaseAuth.enabled()) JarvisSupabaseAuth.accessToken(context).orEmpty()
+                else prefs.read(KEY_TOKEN, "")
             val endpoint = if (direct) "https://openrouter.ai/api/v1/audio/speech"
                 else normalizedBaseUrl(baseUrl(context))?.plus("/v1/speech")
                     ?: return@withContext null
@@ -579,10 +586,13 @@ internal object JarvisAiGateway {
             return@withContext JarvisAiOutcome(
                 "Fájlok, képek és videó-képkockák AI-elemzése jelenleg közvetlen OpenRouter-kapcsolattal használható. Nem küldtem fájlt.")
         }
-        val credential = if (direct) prefs.read(KEY_DIRECT, "") else prefs.read(KEY_TOKEN, "")
+        val credential = if (direct) prefs.read(KEY_DIRECT, "")
+            else if (JarvisSupabaseAuth.enabled()) JarvisSupabaseAuth.accessToken(context).orEmpty()
+            else prefs.read(KEY_TOKEN, "")
         val base = if (direct) null else normalizedBaseUrl(baseUrl(context))
         if ((direct && !isValidOpenRouterKey(credential)) ||
-            (!direct && (base == null || !isValidTesterToken(credential)))) {
+            (!direct && (base == null || if (JarvisSupabaseAuth.enabled()) credential.isBlank()
+                else !isValidTesterToken(credential)))) {
             return@withContext JarvisAiOutcome(if (direct) {
                 "Az AI-agy nincs beállítva. Beállítások → AI-agy alatt add meg a saját OpenRouter-kulcsodat."
             } else {
