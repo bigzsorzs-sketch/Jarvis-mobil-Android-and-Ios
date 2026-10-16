@@ -40,18 +40,36 @@ jobs:
             jq -r --arg tag "$RELEASE_TAG" '[.[] | select(.tag_name == $tag)][0].id // empty')" || {
               echo "::error::Refusing to replace existing release"; exit 1;
             }
-      - name: Require green main APK, Kotlin, lint and Android 15/16 emulator checks
+      - name: Wait for successful source unit, lint, APK and both emulator checks
         shell: bash
         run: |
           set -euo pipefail
-          for workflow in android-debug.yml android-ui-emulator.yml; do
-            gh api "repos/$GITHUB_REPOSITORY/actions/workflows/$workflow/runs?head_sha=$SOURCE_SHA&event=push&per_page=20" |
-              jq -e --arg sha "$SOURCE_SHA" --arg repo "$GITHUB_REPOSITORY" '
-                [.workflow_runs[] | select(.head_sha == $sha and .head_branch == "main" and
-                  .head_repository.full_name == $repo and .event == "push")][0] |
-                .status == "completed" and .conclusion == "success"
-              ' >/dev/null
+          for attempt in $(seq 1 30); do
+            ready=1
+            for workflow in android-debug.yml android-ui-emulator.yml; do
+              state="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/$workflow/runs?head_sha=$SOURCE_SHA&event=push&per_page=20" |
+                jq -r --arg sha "$SOURCE_SHA" --arg repo "$GITHUB_REPOSITORY" '
+                  [.workflow_runs[] | select(.head_sha == $sha and .head_branch == "main" and
+                    .head_repository.full_name == $repo and .event == "push")][0] |
+                  if . == null then "pending"
+                  elif .status != "completed" then "pending"
+                  elif .conclusion == "success" then "success"
+                  else "failed" end')"
+              if [[ "$state" == "failed" ]]; then
+                echo "::error::Required workflow failed: $workflow"; exit 1
+              elif [[ "$state" != "success" ]]; then
+                ready=0
+              fi
+            done
+            if [[ "$ready" == 1 ]]; then
+              echo "Both Android source checks passed at $SOURCE_SHA"
+              exit 0
+            fi
+            echo "Waiting for pinned source checks ($attempt/30)"
+            sleep 30
           done
+          echo "::error::Pinned source Android checks did not complete successfully"
+          exit 1
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
