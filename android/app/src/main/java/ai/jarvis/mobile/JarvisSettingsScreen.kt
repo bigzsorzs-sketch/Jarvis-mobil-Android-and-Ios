@@ -153,7 +153,7 @@ internal fun JarvisSettingsScreen(
     JarvisBackupSettings(context, language)
     SettingsDivider()
     JarvisSettingsRow("ⓘ",
-        if (language == JarvisLanguage.HUNGARIAN) "Adatvédelmi szabályzat" else "Privacy policy",
+        "Adatvédelmi szabályzat",
         "Jarvis Mobile – Google Play és GitHub") {
         openSystemIntent(context, android.content.Intent(android.content.Intent.ACTION_VIEW,
             android.net.Uri.parse("https://github.com/bigzsorzs-sketch/Jarvis-mobil-Android-and-Ios/blob/main/docs/PRIVACY_POLICY.md")))
