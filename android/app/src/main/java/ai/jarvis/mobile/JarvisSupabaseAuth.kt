@@ -12,6 +12,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
+import java.io.ByteArrayOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
 import java.security.MessageDigest
@@ -98,10 +99,17 @@ internal object JarvisSupabaseAuth {
             connection.outputStream.use { it.write(payload.toString().toByteArray(Charsets.UTF_8)) }
             if (connection.responseCode != 200 && connection.responseCode != 201)
                 throw IllegalStateException(errorMessage(connection.responseCode))
-            val stream = connection.inputStream
-            val data = stream.use { it.readNBytes(65_537) }
-            require(data.size <= 65_536) { "Túl nagy hitelesítési válasz." }
-            JSONObject(String(data, Charsets.UTF_8))
+            val data = ByteArrayOutputStream()
+            connection.inputStream.use { stream ->
+                val buffer = ByteArray(8192)
+                while (true) {
+                    val n = stream.read(buffer)
+                    if (n < 0) break
+                    require(data.size() + n <= 65_536) { "Túl nagy hitelesítési válasz." }
+                    data.write(buffer, 0, n)
+                }
+            }
+            JSONObject(data.toString(Charsets.UTF_8.name()))
         } catch (e: IllegalStateException) {
             throw e
         } catch (_: Exception) {
