@@ -121,7 +121,7 @@ internal object JarvisCapabilities {
             }
         }.map { it.route }.toMutableSet()
         // A named nested Settings page is more specific than its parent.
-        if (matches.any { it in setOf("AI-agy", "Hangbeállítások", "Engedélyek") }) {
+        if (matches.any { it in setOf("Hangbeállítások", "Engedélyek") }) {
             matches.remove("Beállítások")
         }
         if ("Továbbiak" in matches) matches.remove("Ébresztő")
