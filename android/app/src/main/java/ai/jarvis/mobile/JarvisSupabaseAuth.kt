@@ -195,7 +195,8 @@ internal object JarvisSupabaseAuth {
     /** Refresh tokens rotate; serialize every refresh to prevent reuse/races. */
     suspend fun accessToken(context: Context): String? = mutex.withLock {
         val prefs = SecurePrefs(context)
-        val session = runCatching { JSONObject(prefs.read(SESSION, "{}")) }.getOrNull()
+        val savedBeforeRefresh = prefs.read(SESSION, "{}")
+        val session = runCatching { JSONObject(savedBeforeRefresh) }.getOrNull()
             ?: return@withLock null
         val token = session.optString("access_token")
         val expiry = session.optLong("expires_at")
@@ -206,6 +207,8 @@ internal object JarvisSupabaseAuth {
         try {
             val response = request("token?grant_type=refresh_token", JSONObject()
                 .put("refresh_token", refresh))
+            // Sign-out can occur while HTTP is in flight. Never resurrect that session.
+            if (prefs.read(SESSION, "{}") != savedBeforeRefresh) return@withLock null
             persist(context, response)
             response.optString("access_token").takeIf { it.isNotBlank() }
         } catch (_: Exception) {
