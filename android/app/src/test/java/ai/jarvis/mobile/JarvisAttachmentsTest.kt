@@ -4,9 +4,9 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class JarvisAttachmentsTest {
-    @Test fun twentyImageHardLimit() {
-        assertTrue(JarvisAttachments.withinLimits(19, 0, true, 1024))
-        assertFalse(JarvisAttachments.withinLimits(20, 0, true, 1024))
+    @Test fun tenImageHardLimit() {
+        assertTrue(JarvisAttachments.withinLimits(9, 0, true, 1024))
+        assertFalse(JarvisAttachments.withinLimits(10, 0, true, 1024))
         assertTrue(JarvisAttachments.withinLimits(20, 0, false, 1024))
     }
     @Test fun commonDocumentsArchivesAndMediaAreRecognized() {
