@@ -16,6 +16,19 @@ class JarvisLanguagesTest {
         assertEquals("Ask Jarvis", JarvisTranslations.text("Kérdezd meg Jarvist", JarvisLanguage.ENGLISH))
     }
 
+    @Test fun remainingPrivacyAndCalendarCopyIsLocalizedInAllSevenLanguages() {
+        val notice = "A Jarvis az AI-kérdéseket a korábban engedélyezett kapcsolaton keresztül dolgozza fel. " +
+            "A beállítóoldal eltávolítása nem módosítja a mentett hozzáférést vagy hozzájárulásokat. " +
+            "Az alkalmazás helyi adatainak végleges törlését az Android Alkalmazásadatok / Tárhely menüjében indíthatod."
+        for (lang in JarvisLanguage.entries.filter { it != JarvisLanguage.HUNGARIAN }) {
+            org.junit.Assert.assertNotEquals(lang.tag, notice, JarvisTranslations.text(notice, lang))
+            for (key in listOf("Adatvédelmi szabályzat",
+                    "Jarvis Mobile – Google Play és GitHub", "Átadtam a naptár megnyitását az Androidnak.")) {
+                org.junit.Assert.assertNotEquals(lang.tag, key, JarvisTranslations.text(key, lang))
+            }
+        }
+    }
+
     @Test fun languageTagsAndUnknownValuesAreStable() {
         assertEquals(JarvisLanguage.HUNGARIAN, JarvisLanguage.fromTag(null))
         assertEquals(JarvisLanguage.HUNGARIAN, JarvisLanguage.fromTag("not-a-language"))
