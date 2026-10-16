@@ -370,6 +370,12 @@ fun JarvisApp(context: Context, launcherRequest: String? = null) {
         pendingSequenceUntilMs = android.os.SystemClock.elapsedRealtime() + 40_000L
     }
     fun openTool(destination: String, asPage: Boolean = false): String {
+        // Old links/voice commands may still ask for the removed AI-brain page.
+        // Keep privacy controls accessible without reopening credential entry.
+        if (destination == "AI-agy") {
+            page = "AI-adatvédelem"
+            return "Megnyitottam az AI-adatvédelem és hozzáférés oldalt."
+        }
         // Backward-compatible route guard for pending voice/AI requests from
         // before the Navigation page was removed. Real destination navigation
         // still executes earlier through VoiceNavigation, unchanged.
@@ -1455,6 +1461,10 @@ fun JarvisApp(context: Context, launcherRequest: String? = null) {
     val invoices = remember { mutableStateListOf<Invoice>().apply { addAll(readInvoices(securePrefs.read("invoices", "[]"))) } }
     val notes = remember { mutableStateListOf<String>().apply { addAll(readNotes(securePrefs.read("notes", "[]"))) } }
 
+    // Restore legacy in-memory navigation to the new privacy screen after an update.
+    LaunchedEffect(page) {
+        if (page == "AI-agy") page = "AI-adatvédelem"
+    }
     val onHome = page == "Főoldal"
     CompositionLocalProvider(
         LocalJarvisControls provides controls,
@@ -1599,13 +1609,13 @@ fun JarvisApp(context: Context, launcherRequest: String? = null) {
                                 "Beállítások" -> JarvisSettingsScreen(
                                     context, isDark, toggleTheme,
                                     onVoice = { page = "Hangbeállítások" },
-                                    onAi = { page = "AI-agy" },
+                                    onAi = { page = "AI-adatvédelem" },
                                     onMore = { page = "Továbbiak" },
                                     onSmartHome = { page = "Smart Home" },
                                     language = language
                                 )
                                 "Hangbeállítások" -> HandsFreePanel(context)
-                                "AI-agy" -> JarvisAiSettings(context)
+                                "AI-adatvédelem" -> JarvisAiSettings(context)
                                 "Engedélyek" -> PermissionCenter(
                                     context,
                                     onDone = {
