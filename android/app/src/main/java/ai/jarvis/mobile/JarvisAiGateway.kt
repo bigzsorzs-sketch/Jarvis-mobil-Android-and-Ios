@@ -146,6 +146,9 @@ internal object JarvisAiGateway {
 
     /** The public HTTPS origin can be preconfigured at build time; no secret is embedded. */
     fun baseUrl(context: Context): String {
+        // In customer mode, never trust a manually supplied/stale tester endpoint.
+        if (JarvisSupabaseAuth.enabled())
+            return normalizedBaseUrl(BuildConfig.JARVIS_GATEWAY_ORIGIN).orEmpty()
         val stored = SecurePrefs(context).read(KEY_URL, "")
         return stored.ifBlank { normalizedBaseUrl(BuildConfig.JARVIS_GATEWAY_ORIGIN).orEmpty() }
     }
