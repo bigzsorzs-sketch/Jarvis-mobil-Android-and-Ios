@@ -507,7 +507,7 @@ class HandsFreeService : Service(), RecognitionListener {
                 JarvisVoiceReadiness.reason(applicationContext)
                     ?: "Nem tudtam elindítani az AI-hang lejátszását."
             }
-            HandsFreeStatus.status = "AI-hang nem indult; ellenőrizd a Beállítások → AI-agy oldalt."
+            HandsFreeStatus.status = "AI-hang nem indult; ellenőrizd a Beállítások → AI-adatvédelem és hozzáférés oldalt."
             finishSpokenReply()
         }
     }

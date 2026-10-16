@@ -110,7 +110,7 @@ internal fun JarvisHomeScreen(
                 return
             }
             if (!JarvisAiGateway.configured(context)) {
-                issue = "AI-feltöltéshez a Beállítások → AI-agy alatt előbb engedélyezd és állítsd be az AI-kapcsolatot. A fájlok és az üzenet megmaradtak."
+                issue = "AI-feltöltéshez a Beállítások → AI-adatvédelem és hozzáférés alatt előbb engedélyezd és állítsd be az AI-kapcsolatot. A fájlok és az üzenet megmaradtak."
                 return
             }
             if (JarvisAiGateway.mode(context) != JarvisAiGateway.DIRECT_TEST) {
