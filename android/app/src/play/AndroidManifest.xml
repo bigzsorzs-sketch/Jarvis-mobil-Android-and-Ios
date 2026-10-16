@@ -9,7 +9,7 @@
     <!-- Precise alarms are optional and are not an advertised core feature in Play. -->
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" tools:node="remove" />
     <!-- GPT-assisted cross-app UI automation must not be distributed as a Play accessibility tool. -->
-    <application>
+    <application android:allowBackup="false" android:usesCleartextTraffic="false">
         <service android:name=".JarvisAccessibilityService" tools:node="remove" />
     </application>
 </manifest>
