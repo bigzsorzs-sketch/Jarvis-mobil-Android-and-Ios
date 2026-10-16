@@ -570,25 +570,17 @@ class HandsFreeService : Service(), RecognitionListener {
         // All foreground speech, including follow-ups on typed calls, uses the
         // SAME Activity session. Only microphone transport belongs to this service.
         val wake = VoiceIntentParser.afterWakeWord(heard)
-        // Never confuse a speech transcript with speaker identity. Our current
-        // verifier is UNKNOWN, so private data / calls remain locked even when
-        // legacy voice-on-lock consent exists. General conversation stays alive.
-        val incomingVoiceCommand = (wake ?: heard).trim()
-        val voiceActive = tapActivated || awaitingCommand || wake != null
-        val screenLocked = getSystemService(KeyguardManager::class.java).isDeviceLocked
-        if (voiceActive && screenLocked &&
-            JarvisSpeakerSecurityPolicy.isPersonalRequest(incomingVoiceCommand)) {
-            speak("A személyazonosságodat most nem tudom hang alapján igazolni. " +
-                "Ehhez a művelethez oldd fel a telefont.")
-            return
-        }
-        if (voiceActive && screenLocked &&
-            JarvisHomeCommandRunner.handles(incomingVoiceCommand) &&
-            !JarvisSpeakerSecurityPolicy.permitted(
-                true, JarvisVoiceRisk.LIGHTING,
-                lightingOptIn = SecurePrefs(this).read("voice_lights_on_lock", "false") == "true")) {
-            speak("A lezárt képernyős Smart Home vezérléshez előbb adj engedélyt " +
-                "a Jarvis hangbeállításaiban.")
+        // Speech recognition cannot authenticate the speaker. Even an
+        // explicitly enabled legacy preference must not override Android lock.
+        // Stop requests were handled above so stopping voice always works.
+        if (getSystemService(KeyguardManager::class.java).isDeviceLocked) {
+            clearProposal()
+            proposedCall = null
+            proposedSequence = null
+            externalProposal = null
+            awaitingExternalDraft = null
+            speak("A hangalapú műveletekhez oldd fel a telefont. " +
+                "Hangazonosítás még nincs beállítva.")
             return
         }
         if ((tapActivated || awaitingCommand || wake != null) && privateVoiceAllowed()) {
@@ -902,18 +894,22 @@ class HandsFreeService : Service(), RecognitionListener {
             speak("Gmail-művelethez nyisd meg Jarvist a feloldott telefonon, és ismételd meg a parancsot.")
             return
         }
-        // Explicitly started voice can operate an already configured Home
-        // Assistant even if the Jarvis Activity is not foreground. The phone
-        // must be unlocked; there is no unattended control from a lock screen.
-        // This uses the same exact-name/allowlist/read-back path as chat.
+        // Run only an exact, user-named and allowlisted Home Assistant action.
+        // Recheck lock immediately before execution: phone state can change
+        // while an earlier voice command is awaiting the coroutine dispatcher.
         if (JarvisHomeCommandRunner.handles(command)) {
-            val locked = getSystemService(KeyguardManager::class.java).isDeviceLocked
-            val consent = SecurePrefs(this).read("voice_lights_on_lock", "false") == "true"
             if (!JarvisSpeakerSecurityPolicy.permitted(
-                    locked, JarvisVoiceRisk.LIGHTING, lightingOptIn = consent)) {
-                speak("A lezárt képernyős Smart Home vezérlés nincs engedélyezve a hangbeállításokban.")
+                    getSystemService(KeyguardManager::class.java).isDeviceLocked,
+                    JarvisVoiceRisk.LIGHTING)) {
+                speak("Smart Home vezérléshez oldd fel a telefont.")
             } else {
                 aiJob = captureScope.launch {
+                    if (!JarvisSpeakerSecurityPolicy.permitted(
+                            getSystemService(KeyguardManager::class.java).isDeviceLocked,
+                            JarvisVoiceRisk.LIGHTING)) {
+                        if (running) speak("A telefon időközben lezárult; nem hajtottam végre a parancsot.")
+                        return@launch
+                    }
                     val response = JarvisHomeCommandRunner.execute(applicationContext, command)
                     if (running) speak(response)
                 }
