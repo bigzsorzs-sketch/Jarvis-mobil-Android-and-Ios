@@ -179,7 +179,7 @@ jobs:
           cat > "$RUNNER_TEMP/notes.md" <<'EOF'
           # Jarvis Android 0.2.43 — aláírt TESZTFRISSÍTÉS
 
-          **0.2.43 / versionCode 53**; Android csomag: **ai.jarvis.mobile**.
+          **0.2.43 / versionCode 54**; Android csomag: **ai.jarvis.mobile**.
           **Ez TESZTkiadás, nem éles Google Play-verzió és nem teljesen tesztelt késztermék.**
 
           Megmaradnak a Jarvis korábbi funkciói. Az új #74–#75 fejlesztések:
@@ -224,7 +224,7 @@ jobs:
           ready=0
           for attempt in $(seq 1 15); do
             if
-          gh api "repos/$GITHUB_REPOSITORY/releases/$id" |
+              gh api "repos/$GITHUB_REPOSITORY/releases/$id" |
             jq -e --arg tag "$RELEASE_TAG" --arg source "$SOURCE_SHA" --arg digest "$digest" \
               --arg sums "$sums" --arg cert "$cert" --argjson size "$size" '
                 .tag_name == $tag and .target_commitish == $source and
