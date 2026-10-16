@@ -27,12 +27,4 @@ internal object JarvisSpeakerSecurityPolicy {
         return !deviceLocked
     }
 
-    /** Fail closed: treat everything except an exact recognised light request as private. */
-    fun isPersonalRequest(command: String): Boolean {
-        val parsed = JarvisHomeCommands.parse(command) ?: return true
-        // A phrase alone cannot identify a configured entity, so it is not
-        // proof that the addressed device is a lamp. Locked devices stay blocked
-        // even for recognised lamp commands until speaker verification exists.
-        return parsed.target.isNotBlank()
-    }
 }
