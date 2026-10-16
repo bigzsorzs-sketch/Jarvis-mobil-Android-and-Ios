@@ -1,6 +1,8 @@
 package ai.jarvis.mobile
 
 import android.content.Context
+import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -37,7 +39,7 @@ class JarvisSettingsCleanupInstrumentedTest {
             // even though the legacy top-level AI-key setup tile is hidden.
             composeRule.onNodeWithText("AI privacy and access")
                 .performScrollTo().performClick()
-            composeRule.onNodeWithText("AI brain").assertExists()
+            composeRule.onNodeWithTag("jarvis-subpage-header").assert(hasText("AI brain"))
         } finally {
             composeRule.runOnIdle {
                 JarvisLanguageSettings.save(composeRule.activity, JarvisLanguage.HUNGARIAN)
