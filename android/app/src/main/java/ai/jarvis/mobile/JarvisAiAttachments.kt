@@ -37,6 +37,8 @@ internal object JarvisAiAttachments {
         if (items.isEmpty()) return "Nincs kiválasztott fájl."
         if (items.size > MAX_ITEMS)
             return "Egy AI-kéréshez legfeljebb 20 támogatott fájl választható."
+        if (items.count { it.isImage } > JarvisAttachments.MAX_IMAGES)
+            return "Egy AI-kérésben legfeljebb 10 kép küldhető."
         val videos = items.filter {
             it.mimeType.substringBefore(';').trim().lowercase(java.util.Locale.ROOT) in videoMime
         }
