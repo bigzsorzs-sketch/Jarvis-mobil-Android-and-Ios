@@ -22,6 +22,8 @@ class JarvisSmartHomeTest {
         assertEquals("Home Assistant visszaigazolta.", turnedOn)
         assertEquals(1, actions)
         assertTrue(JarvisHomeCommandRunner.handles("Kapcsold be az előszobai lámpát"))
+        assertEquals(false, JarvisHomeCommands.parse("Kapcsold le az előszobai lámpát")?.on)
+        assertEquals(true, JarvisHomeCommands.parse("Kapcsold fel az előszobai lámpát")?.on)
         assertTrue(JarvisHomeCommandRunner.handles("Mi a mosógép állapota?"))
         assertFalse(JarvisHomeCommandRunner.handles("Milyen idő van ma?"))
     }
