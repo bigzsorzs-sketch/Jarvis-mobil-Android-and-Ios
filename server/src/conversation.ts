@@ -50,6 +50,17 @@ export function conversationHistory(raw: unknown): HistoryMessage[] {
   });
 }
 
+/** Linear-time suffix cleanup: avoids searching/backtracking over the full prompt. */
+function withoutTrailingGreetingPunctuation(value: string): string {
+  let end = value.length;
+  while (end > 0) {
+    const last = value[end - 1];
+    if (last !== "!" && last !== "?" && last !== ".") break;
+    end--;
+  }
+  return value.slice(0, end);
+}
+
 export function responseBudget(question: string, hasTools: boolean): { effort: string; maxTokens: number } {
   if (hasTools) return { effort: "none", maxTokens: 800 };
   const q = question.toLowerCase().normalize("NFD").replace(/\p{M}+/gu, "").replace(/ł/g, "l");
@@ -63,7 +74,7 @@ export function responseBudget(question: string, hasTools: boolean): { effort: s
       "confronta", "spiega", "porownaj", "wyjasnij", "szczegol"].some(word => q.includes(word)))
     return { effort: "medium", maxTokens: MAX_CONVERSATION_TOKENS };
   if (["szia", "hello", "hi", "koszi", "koszonom", "thanks", "thank you", "hallo", "danke", "bonjour",
-      "merci", "hola", "gracias", "ciao", "grazie", "czesc", "dziekuje"].includes(q.trim().replace(/[!?.]+$/, "")))
+      "merci", "hola", "gracias", "ciao", "grazie", "czesc", "dziekuje"].includes(withoutTrailingGreetingPunctuation(q.trim())))
     return { effort: "none", maxTokens: MAX_CONVERSATION_TOKENS };
   return { effort: "low", maxTokens: MAX_CONVERSATION_TOKENS };
 }
