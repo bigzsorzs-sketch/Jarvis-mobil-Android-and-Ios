@@ -168,6 +168,8 @@ internal object JarvisHomeCommands {
         if (input.startsWith("kerlek ")) input = input.removePrefix("kerlek ")
         val prefixes = listOf(
             "kapcsold be " to true, "kapcsold ki " to false,
+            "kapcsold fel " to true, "kapcsold le " to false,
+            "oltsd le " to false,
             "turn on " to true, "turn off " to false,
             "switch on " to true, "switch off " to false,
             "schalte ein " to true, "schalte aus " to false,
