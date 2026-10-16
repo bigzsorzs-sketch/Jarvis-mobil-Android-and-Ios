@@ -78,8 +78,12 @@ internal fun openEmail(context: Context): Boolean =
 internal fun openMap(context: Context): Boolean =
     openSystemIntent(context, Intent(Intent.ACTION_VIEW, Uri.parse("geo:0,0?q=")))
 
+/** Launch an installed Android calendar's main app directly. Never open a Jarvis page. */
 internal fun openCalendar(context: Context): Boolean =
-    openSystemIntent(context, Intent(Intent.ACTION_VIEW).setData(CalendarContract.CONTENT_URI))
+    openSystemIntent(context, Intent(Intent.ACTION_MAIN)
+        .addCategory(Intent.CATEGORY_APP_CALENDAR)) ||
+    openSystemIntent(context, Intent(Intent.ACTION_VIEW)
+        .setData(CalendarContract.CONTENT_URI))
 
 internal fun addCalendarEvent(context: Context, title: String): Boolean =
     openSystemIntent(
