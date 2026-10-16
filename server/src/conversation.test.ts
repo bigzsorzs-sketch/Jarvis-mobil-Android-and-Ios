@@ -28,6 +28,20 @@ test("adaptive GPT-5.2 depth in seven languages", () => {
   assert.equal(responseBudget("Hi!",false).effort,"none");
   assert.equal(responseBudget("And the other one?",false).effort,"low");
 });
+test("greeting punctuation classification stays identical without a backtracking regex", () => {
+  for (const greeting of ["Hi!", "hello??", "  Ciao...  ", "hola!?.", "Danke?!!",
+      "hi" + "!".repeat(590)]) {
+    assert.equal(responseBudget(greeting, false).effort, "none", greeting);
+  }
+  for (const nonGreeting of ["hi,", "hello!x", "hi!?", "greetings", "hi?!x"]) {
+    if (nonGreeting !== "hi!?")
+      assert.equal(responseBudget(nonGreeting, false).effort, "low", nonGreeting);
+    else
+      assert.equal(responseBudget(nonGreeting, false).effort, "none", nonGreeting);
+  }
+  assert.equal(responseBudget("!".repeat(590) + "x", false).effort, "low");
+});
+
 test("ordinary conversation does not require web tools", () => {
   assert.equal(needsLiveWeb("Tell me about yourself"),false);
   assert.equal(needsLiveWeb("milyen új frissítést kaptál"),false);
