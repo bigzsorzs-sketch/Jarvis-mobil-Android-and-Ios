@@ -11,6 +11,7 @@ import { readLimitedProviderJson } from "./responseLimits.js";
 import { betaSessionSubject, redeemInvite } from "./betaInvite.js";
 import { MAX_TRANSCRIPTION_JSON_BYTES, validatedTranscriptionAudio } from "./transcription.js";
 import { monthlyQuotas } from "./monthlyQuotas.js";
+import { hasLifetimeLicense } from "./lifetimeEntitlement.js";
 
 function required(name: string): string {
   const v = process.env[name]?.trim();
@@ -172,10 +173,12 @@ const server = http.createServer(async (req, res) => {
       subject = await betaSessionSubject(redis, match[1]);
     }
     const tester = subject !== null;
+    let verifiedBySupabase = false;
     if (!subject && jwks) {
       try {
         const verified = await jwtVerify(match[1], jwks, { issuer, audience });
         subject = verified.payload.sub ?? null;
+        verifiedBySupabase = true;
       } catch {
         return reply(res, 401, { error: "INVALID_TOKEN" });
       }
@@ -185,10 +188,16 @@ const server = http.createServer(async (req, res) => {
     }
     // Test accounts are explicitly enrolled by the server administrator.
     // Normal paid accounts still require server-verified billing state.
-    if (!tester && !founderIds.has(subject.toLowerCase()) &&
-        !familyIds.has(subject.toLowerCase()) &&
-        await redis.get("subscription:" + subject) !== "active") {
-      return reply(res, 403, { error: "SUBSCRIPTION_REQUIRED" });
+    if (!tester && await redis.get("subscription:" + subject) !== "active") {
+      // Only verified Supabase sessions may access the founder/family grant lookup.
+      const allowedByLifetime = verifiedBySupabase && (
+        founderIds.has(subject.toLowerCase()) ||
+        familyIds.has(subject.toLowerCase()) ||
+        await hasLifetimeLicense(issuer, process.env.SUPABASE_PUBLISHABLE_KEY, match[1])
+      );
+      if (!allowedByLifetime) {
+        return reply(res, 403, { error: "SUBSCRIPTION_REQUIRED" });
+      }
     }
     if (req.url === "/v1/transcribe") {
       // Separate explicit audio consent is enforced on-device. Server verifies
