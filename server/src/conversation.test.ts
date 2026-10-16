@@ -33,11 +33,9 @@ test("greeting punctuation classification stays identical without a backtracking
       "hi" + "!".repeat(590)]) {
     assert.equal(responseBudget(greeting, false).effort, "none", greeting);
   }
-  for (const nonGreeting of ["hi,", "hello!x", "hi!?", "greetings", "hi?!x"]) {
-    if (nonGreeting !== "hi!?")
-      assert.equal(responseBudget(nonGreeting, false).effort, "low", nonGreeting);
-    else
-      assert.equal(responseBudget(nonGreeting, false).effort, "none", nonGreeting);
+  assert.equal(responseBudget("hi!?", false).effort, "none");
+  for (const nonGreeting of ["hi,", "hello!x", "greetings", "hi?!x"]) {
+    assert.equal(responseBudget(nonGreeting, false).effort, "low", nonGreeting);
   }
   assert.equal(responseBudget("!".repeat(590) + "x", false).effort, "low");
 });
