@@ -48,7 +48,6 @@ internal object JarvisToolCatalog {
     // Actual destinations reachable from tool pages and Settings.
     val subpages = listOf(
         JarvisTool("Hangbeállítások", "Hangbeállítások", "≋"),
-        JarvisTool("AI-agy", "AI-agy", "✧"),
         JarvisTool("Engedélyek", "Engedélyek", "✓"),
         JarvisTool("Továbbiak", "Továbbiak", "▣")
     )
