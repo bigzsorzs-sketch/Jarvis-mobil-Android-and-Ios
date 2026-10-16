@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { validatedMediaParts } from "./mediaParts.js";
 
-const jpeg = "data:image/jpeg;base64," + Buffer.from([255,216,255,217]).toString("base64");
+const jpeg = "data:image/jpeg;base64," + Buffer.from([255,216,255,224,0,0]).toString("base64");
 const png = "data:image/png;base64," + Buffer.from([137,80,78,71,13,10,26,10,1]).toString("base64");
 const pdf = "data:application/pdf;base64," + Buffer.from("%PDF-1.7\\nHello").toString("base64");
 const user = { type: "text", text: "Mi van a képeken?" };
