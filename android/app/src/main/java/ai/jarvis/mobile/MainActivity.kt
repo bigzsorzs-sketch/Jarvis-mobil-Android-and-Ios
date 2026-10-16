@@ -370,6 +370,11 @@ fun JarvisApp(context: Context, launcherRequest: String? = null) {
         pendingSequenceUntilMs = android.os.SystemClock.elapsedRealtime() + 40_000L
     }
     fun openTool(destination: String, asPage: Boolean = false): String {
+        // Calendar is an external phone-app handoff, never a Jarvis subpage.
+        // The same function handles drawer, chat, AI and deferred voice routes.
+        JarvisToolCatalog.phoneAppFor(destination)?.let { action ->
+            return JarvisTranslations.text(JarvisPhoneActions.execute(context, action), language)
+        }
         // Backward-compatible route guard for pending voice/AI requests from
         // before the Navigation page was removed. Real destination navigation
         // still executes earlier through VoiceNavigation, unchanged.
