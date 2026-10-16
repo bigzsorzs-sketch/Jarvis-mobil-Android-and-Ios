@@ -22,6 +22,14 @@ class JarvisAiAttachmentsTest {
         assertTrue(JarvisAiAttachments.MAX_FILE_BYTES < JarvisAiAttachments.MAX_SEND_BYTES)
     }
 
+    @Test fun uploadCannotBypassTenImageCapViaFilesPicker() {
+        fun photo(index: Int) = JarvisAttachment("id$index", "photo$index.jpg",
+            java.io.File("/tmp/not-accessed"), "image/jpeg", 1024, true)
+        assertNull(JarvisAiAttachments.rejectionReason((1..10).map(::photo)))
+        assertTrue(JarvisAiAttachments.rejectionReason((1..11).map(::photo))!!
+            .contains("10 kép"))
+    }
+
     @Test fun aiUploadPreflightRejectsUnsupportedFilesWithoutDeletingStagedItems() {
         fun item(name: String, mime: String, bytes: Long) =
             JarvisAttachment(name, name, java.io.File("/tmp/does-not-need-to-exist"), mime, bytes, mime.startsWith("image/"))
