@@ -26,12 +26,18 @@ class GmailDraftConversationTest {
         val step = GmailDraftConversationFlow.advance(initial, "Tárgy: Holnapi találkozó")
             as GmailDraftNext.Updated
         assertEquals("Holnapi találkozó", step.draft.subject)
-        val result = GmailDraftConversationFlow.advance(step.draft,
-            "Szöveg: Holnap délután négykor találkozunk.") as GmailDraftNext.Complete
-        assertEquals("ferenc@example.com", result.send.recipient)
-        assertEquals("Holnapi találkozó", result.send.subject)
-        assertEquals("Holnap délután négykor találkozunk.", result.send.body)
-        assertTrue(result.send.actuallySend)
+        val pending = GmailDraftConversationFlow.advance(step.draft,
+            "Szöveg: Holnap délután négykor találkozunk.") as GmailDraftNext.Ready
+        assertEquals("ferenc@example.com", pending.draft.recipient)
+        assertEquals("Holnapi találkozó", pending.draft.subject)
+        assertEquals("Holnap délután négykor találkozunk.", pending.draft.body)
+        assertTrue(pending.draft.actuallySend)
+        val confirmed = GmailDraftConversationFlow.advance(pending.draft,
+            "küldd el") as GmailDraftNext.Complete
+        assertEquals("ferenc@example.com", confirmed.send.recipient)
+        assertEquals("Holnapi találkozó", confirmed.send.subject)
+        assertEquals("Holnap délután négykor találkozunk.", confirmed.send.body)
+        assertTrue(confirmed.send.actuallySend)
     }
 
     @Test fun unrelatedQuestionDoesNotStealPendingDraft() {
@@ -43,6 +49,13 @@ class GmailDraftConversationTest {
         assertNull(GmailDraftConversationFlow.choice("1", 0))
         assertEquals(0, GmailDraftConversationFlow.choice("1", 2))
         assertEquals(1, GmailDraftConversationFlow.choice("második", 2))
+    }
+
+    @Test fun jarvisCanBeTheEmailSubjectWhileDraftIsOpen() {
+        val initial = GmailDraftConversation("teszt@example.com", false, expiresAtMs = 9000L)
+        val step = GmailDraftConversationFlow.advance(initial, "jarvis") as GmailDraftNext.Updated
+        assertEquals("jarvis", step.draft.subject)
+        assertEquals("", step.draft.body)
     }
 
     @Test fun writingRequestCannotAutoSend() {

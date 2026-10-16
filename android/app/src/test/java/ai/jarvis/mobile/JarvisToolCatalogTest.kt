@@ -8,6 +8,12 @@ class JarvisToolCatalogTest {
         assertEquals(JarvisToolCatalog.all.size, JarvisToolCatalog.all.map { it.name }.distinct().size)
         assertTrue(JarvisToolCatalog.all.all { it.route.isNotBlank() })
     }
+    @Test fun calendarTileDelegatesToPhoneInsteadOfCreatingJarvisPage() {
+        assertEquals("calendar", JarvisToolCatalog.phoneAppFor("Naptár"))
+        assertNull(JarvisToolCatalog.phoneAppFor("Beállítások"))
+        assertTrue(JarvisToolCatalog.all.any { it.name == "Naptár" && it.route == "Naptár" })
+    }
+
     @Test fun keyFeaturesRemainReachableFromTools() {
         val routes = JarvisToolCatalog.all.map { it.route }.toSet()
         assertTrue(routes.containsAll(setOf("Főoldal", "Vércukor", "Számlák",

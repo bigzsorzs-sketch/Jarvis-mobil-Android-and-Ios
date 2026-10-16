@@ -280,7 +280,7 @@ fun JarvisApp(context: Context, launcherRequest: String? = null) {
                 outcome.status else null
         }
         if (mailPrompt != null) {
-            conversation.add("Jarvis" to mailPrompt)
+            conversation.add(request.instruction to mailPrompt)
             // This prompt is not persisted: Gmail content stays in memory.
         }
         // The microphone service speaks its own response. Do not start a
@@ -370,6 +370,11 @@ fun JarvisApp(context: Context, launcherRequest: String? = null) {
         pendingSequenceUntilMs = android.os.SystemClock.elapsedRealtime() + 40_000L
     }
     fun openTool(destination: String, asPage: Boolean = false): String {
+        // Calendar is an external phone-app handoff, never a Jarvis subpage.
+        // The same function handles drawer, chat, AI and deferred voice routes.
+        JarvisToolCatalog.phoneAppFor(destination)?.let { action ->
+            return JarvisTranslations.text(JarvisPhoneActions.execute(context, action), language)
+        }
         // Backward-compatible route guard for pending voice/AI requests from
         // before the Navigation page was removed. Real destination navigation
         // still executes earlier through VoiceNavigation, unchanged.
@@ -456,7 +461,7 @@ fun JarvisApp(context: Context, launcherRequest: String? = null) {
         val requestRevision = commandRevision
         val now = android.os.SystemClock.elapsedRealtime()
         if (gmailLookupInstruction != null) gmailLookupInstruction = null
-        if (GmailDraftConversationFlow.isWakeWord(command)) {
+        if (gmailDraft == null && GmailDraftConversationFlow.isWakeWord(command)) {
             addHistory(command to "Igen, figyelek. Miben segíthetek?")
             return
         }
@@ -468,7 +473,7 @@ fun JarvisApp(context: Context, launcherRequest: String? = null) {
                     address, waiting.first, expiresAtMs = now + 180_000L)
                 gmailChoice = null
                 completeCommand(command, "Rögzítettem a címzettet. Mi legyen az email tárgya?")
-                conversation.add("Jarvis" to "Rögzítettem a címzettet. Mi legyen az email tárgya?")
+                conversation.add(command to "Rögzítettem a címzettet. Mi legyen az email tárgya?")
                 return
             }
         }
@@ -477,7 +482,7 @@ fun JarvisApp(context: Context, launcherRequest: String? = null) {
             if (now > choice.expiresAtMs || GmailDraftConversationFlow.isCancel(command)) {
                 gmailChoice = null
                 completeCommand(command, "Megszakítottam a Gmail-címzett kiválasztását.")
-                conversation.add("Jarvis" to "Nem küldtem emailt.")
+                conversation.add(command to "Nem küldtem emailt.")
                 return
             }
             val chosen = GmailDraftConversationFlow.choice(command, choice.options.size)
@@ -487,7 +492,7 @@ fun JarvisApp(context: Context, launcherRequest: String? = null) {
                     expiresAtMs = now + 180_000L)
                 gmailChoice = null
                 completeCommand(command, "Kiválasztottam a címzettet a Gmailből. Mi legyen a tárgy?")
-                conversation.add("Jarvis" to
+                conversation.add(command to
                     "Kiválasztottam a címzettet a Gmailből. Mi legyen a tárgy?")
                 return
             }
@@ -502,13 +507,13 @@ fun JarvisApp(context: Context, launcherRequest: String? = null) {
                     GmailDraftConversationFlow.recipientAddress(command)!!,
                     expiresAtMs = now + 180_000L)
                 completeCommand(command, "Módosítottam az email címzettjét. Mi legyen a tárgy?")
-                conversation.add("Jarvis" to "Módosítottam az email címzettjét. Mi legyen a tárgy?")
+                conversation.add(command to "Módosítottam az email címzettjét. Mi legyen a tárgy?")
                 return
             } else when (val next = GmailDraftConversationFlow.advance(oldDraft, command)) {
                 GmailDraftNext.Cancelled -> {
                     gmailDraft = null
                     completeCommand(command, "Megszakítottam az emailt. Nem küldtem el.")
-                    conversation.add("Jarvis" to "Email megszakítva, nem küldtem el.")
+                    conversation.add(command to "Email megszakítva, nem küldtem el.")
                     return
                 }
                 GmailDraftNext.NotRelated -> gmailDraft = null
@@ -516,7 +521,7 @@ fun JarvisApp(context: Context, launcherRequest: String? = null) {
                     gmailDraft = next.draft.copy(expiresAtMs = now + 180_000L)
                     val response = "Rögzítettem a tárgyat. Mi legyen a levél szövege?"
                     completeCommand(command, response)
-                    conversation.add("Jarvis" to response)
+                    conversation.add(command to response)
                     return
                 }
                 is GmailDraftNext.Ready -> {
@@ -527,7 +532,7 @@ fun JarvisApp(context: Context, launcherRequest: String? = null) {
                         "Címzett: ${next.draft.recipient}; tárgy: ${next.draft.subject}. " +
                         "Küldéshez mondd: küldd el. Megszakításhoz: mégse."
                     completeCommand(command, answer)
-                    conversation.add("Jarvis" to answer)
+                    conversation.add(command to answer)
                     return
                 }
                 is GmailDraftNext.Complete -> {
@@ -543,7 +548,7 @@ fun JarvisApp(context: Context, launcherRequest: String? = null) {
             val answer = "Nincs elküldésre váró email-piszkozat. " +
                 "Kezdd így: írj emailt a címzettnek."
             completeCommand(command, answer)
-            conversation.add("Jarvis" to answer)
+            conversation.add(command to answer)
             return
         }
         JarvisControlCommand.parse(command)?.let { control ->
@@ -847,7 +852,7 @@ fun JarvisApp(context: Context, launcherRequest: String? = null) {
         // or disclose the address to the general AI model.
         GmailDraftConversationFlow.recipientAddress(command)?.let {
             completeCommand(command, "Emailcímet adtál meg. Levelet csak kifejezett kérésre készítek elő.")
-            conversation.add("Jarvis" to "Emailcímet adtál meg. Levelet csak kifejezett kérésre készítek elő.")
+            conversation.add(command to "Emailcímet adtál meg. Levelet csak kifejezett kérésre készítek elő.")
             return
         }
         // Route user-originated Gmail actions before generic narration or AI.
