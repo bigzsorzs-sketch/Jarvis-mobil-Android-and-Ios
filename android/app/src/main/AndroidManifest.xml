@@ -69,6 +69,15 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!-- Private-beta OAuth callback; PKCE protects authorization-code exchange.
+                 Replace with verified HTTPS Android App Links before public launch. -->
+            <intent-filter android:autoVerify="false">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="ai.jarvis.mobile" android:host="auth"
+                    android:path="/callback" />
+            </intent-filter>
         </activity>
         <service android:name=".JarvisAssistantService"
             android:label="Jarvis Mobile" android:exported="true"

@@ -58,6 +58,8 @@ jobs:
           ANDROID_SIGNING_KEY_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
           # This is only the public Jarvis server URL, never the provider key.
           JARVIS_GATEWAY_ORIGIN: ${{ vars.JARVIS_GATEWAY_ORIGIN }}
+          JARVIS_SUPABASE_URL: ${{ vars.JARVIS_SUPABASE_URL }}
+          JARVIS_SUPABASE_PUBLISHABLE_KEY: ${{ vars.JARVIS_SUPABASE_PUBLISHABLE_KEY }}
         run: |
           set -euo pipefail
           test -s "$ANDROID_SIGNING_STORE_FILE"

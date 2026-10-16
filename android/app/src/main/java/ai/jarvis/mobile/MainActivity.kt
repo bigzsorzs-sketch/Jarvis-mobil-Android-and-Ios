@@ -55,6 +55,7 @@ data class Invoice(val client: String, val amount: String, val stamp: String)
 class MainActivity : ComponentActivity() {
     private var assistantRequested = false
     private var launcherRequest by mutableStateOf<String?>(null)
+    private var authRedirect by mutableStateOf<Uri?>(null)
     private val assistantMicPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) startAssistantVoice()
     }
@@ -74,6 +75,7 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        if (intent.action == Intent.ACTION_VIEW) authRedirect = intent.data
         if (intent.action == Intent.ACTION_MAIN && intent.hasCategory(Intent.CATEGORY_LAUNCHER))
             launcherRequest = java.util.UUID.randomUUID().toString()
         assistantRequested = JarvisAssistantLaunch.consume(intent)
@@ -105,9 +107,12 @@ class MainActivity : ComponentActivity() {
         // and pushes the orb behind the system status bar on some OEM phones).
         window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
         assistantRequested = JarvisAssistantLaunch.consume(intent)
+        if (intent.action == Intent.ACTION_VIEW) authRedirect = intent.data
         // Quiet daily research scheduling; does not change speech or navigation.
         runCatching { JarvisBackgroundBrain.schedule(applicationContext) }
-        setContent { JarvisApp(this, launcherRequest) }
+        setContent {
+            JarvisAuthRoot(this, launcherRequest, authRedirect) { authRedirect = null }
+        }
     }
 }
 

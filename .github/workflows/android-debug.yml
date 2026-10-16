@@ -45,6 +45,8 @@ jobs:
         env:
           # Public HTTPS server origin, NOT the OpenRouter secret.
           JARVIS_GATEWAY_ORIGIN: ${{ vars.JARVIS_GATEWAY_ORIGIN }}
+          JARVIS_SUPABASE_URL: ${{ vars.JARVIS_SUPABASE_URL }}
+          JARVIS_SUPABASE_PUBLISHABLE_KEY: ${{ vars.JARVIS_SUPABASE_PUBLISHABLE_KEY }}
         run: |
           # The PR runner has no signing keys. Verify release compilation and
           # AAB creation without publishing unsigned artifacts as production.

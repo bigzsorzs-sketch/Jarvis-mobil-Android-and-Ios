@@ -7,6 +7,23 @@ plugins {
 // Without them developer builds remain unsigned; never generate a new release key.
 val releaseStore = System.getenv("ANDROID_SIGNING_STORE_FILE")?.takeIf { it.isNotBlank() }
 val jarvisGatewayOrigin = (System.getenv("JARVIS_GATEWAY_ORIGIN") ?: "").trim().trimEnd('/')
+val jarvisSupabaseOrigin = (System.getenv("JARVIS_SUPABASE_URL") ?: "").trim().trimEnd('/')
+val jarvisSupabasePublicKey = (System.getenv("JARVIS_SUPABASE_PUBLISHABLE_KEY") ?: "").trim()
+require(jarvisSupabaseOrigin.isEmpty() ||
+    jarvisSupabaseOrigin.matches(Regex("""https://[A-Za-z0-9.-]+"""))) {
+    "JARVIS_SUPABASE_URL must be a public HTTPS origin"
+}
+require(jarvisSupabasePublicKey.isEmpty() ||
+    jarvisSupabasePublicKey.matches(Regex("""sb_publishable_[A-Za-z0-9_-]+"""))) {
+    "Use only a Supabase PUBLISHABLE key, never a secret/service_role key"
+}
+require(jarvisSupabaseOrigin.isEmpty() == jarvisSupabasePublicKey.isEmpty()) {
+    "Set both public Supabase URL and publishable key together"
+}
+require(jarvisSupabaseOrigin.isEmpty() || jarvisGatewayOrigin.isNotEmpty()) {
+    "A Supabase-enabled Jarvis build also needs JARVIS_GATEWAY_ORIGIN"
+}
+
 // A public origin is configuration, NEVER an embedded shared API credential.
 require(jarvisGatewayOrigin.isEmpty() ||
     jarvisGatewayOrigin.matches(Regex("""https://[A-Za-z0-9.-]+(?::[0-9]{2,5})?"""))) {
@@ -23,6 +40,9 @@ android {
         versionCode = 51
         versionName = "0.2.40"
         buildConfigField("String", "JARVIS_GATEWAY_ORIGIN", "\"$jarvisGatewayOrigin\"")
+        // Public identifiers only. Google Client Secret and OpenRouter remain SERVER-ONLY.
+        buildConfigField("String", "JARVIS_SUPABASE_URL", "\"$jarvisSupabaseOrigin\"")
+        buildConfigField("String", "JARVIS_SUPABASE_PUBLISHABLE_KEY", "\"$jarvisSupabasePublicKey\"")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     signingConfigs {

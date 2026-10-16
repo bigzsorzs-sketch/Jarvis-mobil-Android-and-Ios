@@ -11,6 +11,7 @@ import { readLimitedProviderJson } from "./responseLimits.js";
 import { betaSessionSubject, redeemInvite } from "./betaInvite.js";
 import { MAX_TRANSCRIPTION_JSON_BYTES, validatedTranscriptionAudio } from "./transcription.js";
 import { monthlyQuotas } from "./monthlyQuotas.js";
+import { hasLifetimeLicense } from "./lifetimeEntitlement.js";
 
 function required(name: string): string {
   const v = process.env[name]?.trim();
@@ -29,7 +30,7 @@ const oidcParts = oidcNames.map((name) => process.env[name]?.trim() || "");
 if (oidcParts.some(Boolean) && !oidcParts.every(Boolean)) {
   throw new Error("Incomplete OIDC configuration");
 }
-const issuer = oidcParts[0];
+const issuer = oidcParts[0] ?? "";
 const audience = oidcParts[1];
 const jwks = oidcParts.every(Boolean) ? createRemoteJWKSet(new URL(oidcParts[2]!)) : null;
 
@@ -50,6 +51,21 @@ if (testerRecords.length > 10 || (!jwks && testerRecords.length === 0 && !betaIn
   throw new Error("Configure OIDC, 1–10 legacy tester tokens, or explicit beta invitations");
 }
 // Production/public access cannot silently inherit the private-beta token bypass.
+// Private founder/family lifetime grants are keyed ONLY by the identity provider's
+// verified immutable JWT subject (UUID), never an arbitrary email string.
+// These grants override the billing requirement, NOT auth or per-user quotas.
+const ENTITLEMENT_ID = /^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i;
+function lifetimeIds(variable: string): Set<string> {
+  const raw = (process.env[variable] || "").trim();
+  if (!raw) return new Set();
+  const ids = raw.split(",").map((x) => x.trim().toLowerCase());
+  if (ids.length > 20 || ids.some((id) => !ENTITLEMENT_ID.test(id)))
+    throw new Error("Invalid UUID list for " + variable);
+  return new Set(ids);
+}
+const founderIds = lifetimeIds("JARVIS_OWNER_USER_IDS");
+const familyIds = lifetimeIds("JARVIS_FAMILY_LIFETIME_USER_IDS");
+
 const publicLaunch = process.env.PUBLIC_LAUNCH_ENABLED === "true";
 if (publicLaunch && (!jwks || testerRecords.length > 0 || betaInvites)) {
   throw new Error("Public launch requires complete OIDC and no beta tester bypass");
@@ -157,10 +173,12 @@ const server = http.createServer(async (req, res) => {
       subject = await betaSessionSubject(redis, match[1]);
     }
     const tester = subject !== null;
+    let verifiedBySupabase = false;
     if (!subject && jwks) {
       try {
         const verified = await jwtVerify(match[1], jwks, { issuer, audience });
         subject = verified.payload.sub ?? null;
+        verifiedBySupabase = true;
       } catch {
         return reply(res, 401, { error: "INVALID_TOKEN" });
       }
@@ -171,7 +189,15 @@ const server = http.createServer(async (req, res) => {
     // Test accounts are explicitly enrolled by the server administrator.
     // Normal paid accounts still require server-verified billing state.
     if (!tester && await redis.get("subscription:" + subject) !== "active") {
-      return reply(res, 403, { error: "SUBSCRIPTION_REQUIRED" });
+      // Only verified Supabase sessions may access the founder/family grant lookup.
+      const allowedByLifetime = verifiedBySupabase && (
+        founderIds.has(subject.toLowerCase()) ||
+        familyIds.has(subject.toLowerCase()) ||
+        await hasLifetimeLicense(issuer, process.env.SUPABASE_PUBLISHABLE_KEY, match[1]!)
+      );
+      if (!allowedByLifetime) {
+        return reply(res, 403, { error: "SUBSCRIPTION_REQUIRED" });
+      }
     }
     if (req.url === "/v1/transcribe") {
       // Separate explicit audio consent is enforced on-device. Server verifies
