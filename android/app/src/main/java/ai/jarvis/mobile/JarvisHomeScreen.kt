@@ -351,6 +351,12 @@ internal fun JarvisHomeScreen(
                 }
             }
         }
+        JarvisAttachmentPreview(stagedAttachments) { selected ->
+            JarvisVideoInspector.removeCache(context, selected.id)
+            JarvisAttachments.delete(selected)
+            stagedAttachments.remove(selected)
+            issue = ""
+        }
         Row(
             modifier = Modifier.fillMaxWidth()
                 .padding(start = 13.dp, end = 13.dp,
