@@ -36,7 +36,7 @@ internal fun HandsFreePanel(context: Context) {
             if (HandsFreeStatus.audioError.isNotBlank()) {
                 Text("Hanghiba: " + HandsFreeStatus.audioError, color = Color(0xFFFFAAAA))
             }
-            Text("A hangos válasz működését az AI-agy hangellenőrzésében tesztelheted. A beállítások itt nem indítanak újabb beszédfelismerőt.",
+            Text("A hangos választ a főoldalon tesztelheted. A hangbeállítások itt nem indítanak újabb beszédfelismerőt.",
                 color = JarvisPalette.subtleText, style = MaterialTheme.typography.bodySmall)
         }
     }
