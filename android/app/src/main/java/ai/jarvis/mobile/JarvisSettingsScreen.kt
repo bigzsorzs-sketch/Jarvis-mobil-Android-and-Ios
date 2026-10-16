@@ -96,24 +96,9 @@ internal fun JarvisSettingsScreen(
             "Home Assistant: eszközök, lámpák, TV és háztartási gépek állapota", onSmartHome)
     }
     Spacer(Modifier.height(16.dp))
-    SettingsSectionTitle("AI-kapcsolat")
-    JarvisSettingsGroup {
-        JarvisSettingsRow("✧", "AI-agy",
-            when {
-                JarvisAiGateway.configured(context) -> "AI-kapcsolat beállítva"
-                JarvisAiGateway.hasSavedConnection(context) -> "Kulcs mentve · hozzájárulás szükséges"
-                else -> "Csatlakoztatás szükséges"
-            }, onAi)
-    }
     Spacer(Modifier.height(20.dp))
     // GitHub updates remain explicitly user-controlled and never wipe local data.
     JarvisUpdatePanel(context, language)
-    Spacer(Modifier.height(18.dp))
-    JarvisSettingsGroup {
-        JarvisSettingsRow("🎙", JarvisCommandTexts.text(language, "assistant"), JarvisCommandTexts.text(language, "assistantHelp")) {
-            openSystemIntent(context, JarvisAssistantSelection.intent(context))
-        }
-    }
     Spacer(Modifier.height(16.dp))
     SettingsSectionTitle("Telefon-hozzáférés")
     PermissionCenter(context, onDone = {}, showContinue = false, showHeading = false)
@@ -138,9 +123,31 @@ internal fun JarvisSettingsScreen(
             // deletes the Keystore-linked local data; never claim to wipe remotely.
             openJarvisAppSettings(context)
         }
+        SettingsDivider()
+        // Settings may not advertise legacy API-key entry, but a user must be
+        // able to withdraw consent or recover an expired server connection.
+        val privacyTitle = when (language) {
+            JarvisLanguage.HUNGARIAN -> "AI-adatvédelem és hozzáférés"
+            JarvisLanguage.ENGLISH -> "AI privacy and access"
+            JarvisLanguage.GERMAN -> "KI-Datenschutz und Zugriff"
+            JarvisLanguage.FRENCH -> "Confidentialité et accès IA"
+            JarvisLanguage.SPANISH -> "Privacidad y acceso a IA"
+            JarvisLanguage.ITALIAN -> "Privacy e accesso all'IA"
+            JarvisLanguage.POLISH -> "Prywatność i dostęp do AI"
+        }
+        val privacyDetail = when (language) {
+            JarvisLanguage.HUNGARIAN -> "Hozzájárulás, leválasztás vagy kapcsolat helyreállítása"
+            JarvisLanguage.ENGLISH -> "Consent, disconnect or restore AI access"
+            JarvisLanguage.GERMAN -> "Einwilligung, Trennung oder KI-Zugang wiederherstellen"
+            JarvisLanguage.FRENCH -> "Consentement, déconnexion ou restauration de l'accès IA"
+            JarvisLanguage.SPANISH -> "Consentimiento, desconexión o restaurar acceso a IA"
+            JarvisLanguage.ITALIAN -> "Consenso, disconnessione o ripristino accesso IA"
+            JarvisLanguage.POLISH -> "Zgoda, rozłączenie lub przywrócenie dostępu AI"
+        }
+        JarvisSettingsRow("◈", privacyTitle, privacyDetail, onAi)
     }
     Spacer(Modifier.height(8.dp))
-    Text("A Jarvis AI-kérdések felhőbe küldését az AI-agy beállításainál " +
+    Text("A Jarvis AI-kérdések felhőbe küldését az AI-adatvédelem és hozzáférés menüpontban " +
         "engedélyezheted vagy a Leválasztás gombbal visszavonhatod. " +
         "Az alkalmazás adatainak törlését az Android Alkalmazásadatok / Tárhely " +
         "menüjében indíthatod; ez visszavonhatatlanul törli a helyi adatokat.",
