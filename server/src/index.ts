@@ -193,7 +193,7 @@ const server = http.createServer(async (req, res) => {
       const allowedByLifetime = verifiedBySupabase && (
         founderIds.has(subject.toLowerCase()) ||
         familyIds.has(subject.toLowerCase()) ||
-        await hasLifetimeLicense(issuer, process.env.SUPABASE_PUBLISHABLE_KEY, match[1])
+        await hasLifetimeLicense(issuer, process.env.SUPABASE_PUBLISHABLE_KEY, match[1]!)
       );
       if (!allowedByLifetime) {
         return reply(res, 403, { error: "SUBSCRIPTION_REQUIRED" });
