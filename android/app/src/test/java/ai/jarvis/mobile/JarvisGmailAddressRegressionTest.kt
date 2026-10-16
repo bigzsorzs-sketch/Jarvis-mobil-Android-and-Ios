@@ -15,14 +15,17 @@ class JarvisGmailAddressRegressionTest {
         assertNull(VoiceEmail.parse("example+test@gmail.com"))
     }
 
-    @Test fun wakeWordCannotAccidentallyBecomeEmailSubjectOrRecipient() {
+    @Test fun wakeWordIsOnlySubjectWhenUserIsExplicitlyFillingAnEmailDraft() {
         assertTrue(GmailDraftConversationFlow.isWakeWord("Jarvis"))
         assertTrue(GmailDraftConversationFlow.isWakeWord("Hey Jarvis!"))
         assertFalse(GmailDraftConversationFlow.isWakeWord("Jarvis írj emailt"))
+        // A previously initiated Gmail draft is awaiting a SUBJECT here.
+        // Outside this draft, "Jarvis" remains an ordinary wake word.
         val pending = GmailDraftConversation(
             "recipient@example.com", false, expiresAtMs = Long.MAX_VALUE)
-        assertEquals(GmailDraftNext.NotRelated,
-            GmailDraftConversationFlow.advance(pending, "Jarvis"))
+        val subject = GmailDraftConversationFlow.advance(pending, "Jarvis")
+        assertTrue(subject is GmailDraftNext.Updated)
+        assertEquals("Jarvis", (subject as GmailDraftNext.Updated).draft.subject)
         assertEquals(GmailDraftNext.NotRelated,
             GmailDraftConversationFlow.advance(pending, "other@example.com"))
     }
