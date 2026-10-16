@@ -111,6 +111,8 @@ internal object JarvisMoreTranslations {
         "Hívás" to listOf("Anruf", "Appel", "Llamada", "Chiamata", "Połączenie"),
         "Névjegyek" to listOf("Kontakte", "Contacts", "Contactos", "Contatti", "Kontakty"),
         "Naptár" to listOf("Kalender", "Calendrier", "Calendario", "Calendario", "Kalendarz"),
+        "Átadtam a naptár megnyitását az Androidnak." to listOf("Ich habe das Öffnen des Telefonkalenders angefordert.", "J’ai demandé l’ouverture du calendrier du téléphone.", "Solicité abrir el calendario del teléfono.", "Ho richiesto di aprire il calendario del telefono.", "Poprosiłem o otwarcie kalendarza w telefonie."),
+        "Nem sikerült elindítani a naptárat." to listOf("Die Kalender-App konnte nicht geöffnet werden.", "Impossible d’ouvrir une application de calendrier.", "No pude abrir la aplicación de calendario.", "Non sono riuscito ad aprire l’app Calendario.", "Nie udało się otworzyć aplikacji kalendarza."),
         "Jegyzetek" to listOf("Notizen", "Notes", "Notas", "Note", "Notatki"),
         "Ébresztő" to listOf("Wecker", "Alarme", "Alarma", "Sveglia", "Budzik"),
         "Beállítások" to listOf("Einstellungen", "Paramètres", "Configuración", "Impostazioni", "Ustawienia"),
