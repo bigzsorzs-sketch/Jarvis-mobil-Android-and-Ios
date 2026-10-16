@@ -1,361 +1,124 @@
 package ai.jarvis.mobile
 
-import ai.jarvis.mobile.LocalizedText as Text
-
 import android.content.Context
 import androidx.compose.foundation.layout.*
-import androidx.compose.material3.*
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.launch
+import ai.jarvis.mobile.LocalizedText as Text
 
-/** Temporary device-local OpenRouter testing without a hosted Jarvis server. */
+/**
+ * Privacy/permissions only. The old manual OpenRouter key and gateway-mode
+ * settings are intentionally absent. Existing encrypted credentials remain
+ * untouched; this screen never provisions new credentials or bundles keys.
+ */
 @Composable
 internal fun JarvisAiSettings(context: Context) {
-    var selectedMode by remember { mutableStateOf(JarvisAiGateway.mode(context)) }
-    var savedMode by remember { mutableStateOf(JarvisAiGateway.mode(context)) }
-    var endpoint by remember { mutableStateOf(JarvisAiGateway.baseUrl(context)) }
-    var credential by remember { mutableStateOf("") }
-    var invitation by remember { mutableStateOf("") }
-    var status by remember { mutableStateOf("") }
-    var busy by remember { mutableStateOf(false) }
-    var paired by remember { mutableStateOf(JarvisAiGateway.hasSavedConnection(context)) }
+    val language = LocalJarvisLanguage.current
+    fun label(hu: String, en: String, de: String, fr: String, es: String, it: String, pl: String) =
+        listOf(hu, en, de, fr, es, it, pl)[language.ordinal]
+
     var cloudConsent by remember { mutableStateOf(JarvisAiGateway.cloudConsent(context)) }
     var voiceConsent by remember { mutableStateOf(JarvisAiGateway.voiceConsent(context)) }
-    var transcriptionConsent by remember { mutableStateOf(JarvisAiGateway.transcriptionConsent(context)) }
-    val selectedLanguage = LocalJarvisLanguage.current
-    val scope = rememberCoroutineScope()
-    var audioTestRunning by remember { mutableStateOf(false) }
-    var audioTestStatus by remember { mutableStateOf("") }
-    val voiceTester = remember(context) { JarvisCloudVoicePlayer(context) }
-    DisposableEffect(voiceTester) {
-        onDispose { voiceTester.release() }
+    var transcriptionConsent by remember {
+        mutableStateOf(JarvisAiGateway.transcriptionConsent(context))
     }
+    val paired = JarvisAiGateway.hasSavedConnection(context)
 
-    Text("AI-agy",
-        style = MaterialTheme.typography.titleLarge)
+    Text(label("AI-adatvédelem és hozzáférés", "AI privacy and access",
+        "KI-Datenschutz und Zugriff", "Confidentialité et accès IA",
+        "Privacidad y acceso a IA", "Privacy e accesso all'IA",
+        "Prywatność i dostęp do AI"),
+        color = JarvisPalette.mainText, style = MaterialTheme.typography.titleLarge)
     Spacer(Modifier.height(12.dp))
-    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        ControlledFilterChip(
-            selected = selectedMode == JarvisAiGateway.DIRECT_TEST,
-            onClick = {
-                selectedMode = JarvisAiGateway.DIRECT_TEST
-                credential = ""
-                status = ""
-            },
-            label = { Text("Közvetlen OpenRouter") }
-        , commandLabel = "Közvetlen OpenRouter")
-        ControlledFilterChip(
-            selected = selectedMode == JarvisAiGateway.SERVER,
-            onClick = {
-                selectedMode = JarvisAiGateway.SERVER
-                credential = ""
-                status = ""
-            },
-            label = { Text("Saját szerver") }
-        , commandLabel = "Saját szerver")
-    }
-    Spacer(Modifier.height(8.dp))
-    Text(
-        "Jelenleg mentett kapcsolat: " +
-            if (savedMode == JarvisAiGateway.DIRECT_TEST)
-                "Közvetlen OpenRouter (modell: " + JarvisAiGateway.TEST_MODEL + ")"
-            else "Saját Jarvis AI-szerver (/v1/chat)",
-        style = MaterialTheme.typography.bodySmall
-    )
-    if (selectedMode != savedMode) {
-        Text("A módváltás csak Mentés után lép életbe.",
-            style = MaterialTheme.typography.bodySmall)
-    }
-    Spacer(Modifier.height(8.dp))
+    Text(if (paired)
+        label("Az ezen a telefonon mentett AI-kapcsolat megmaradt.",
+            "The existing AI connection on this phone has been preserved.",
+            "Die bestehende KI-Verbindung auf diesem Gerät bleibt erhalten.",
+            "La connexion IA existante sur ce téléphone est conservée.",
+            "Se ha conservado la conexión de IA de este teléfono.",
+            "La connessione IA esistente su questo telefono è stata mantenuta.",
+            "Istniejące połączenie AI na tym telefonie zostało zachowane.")
+    else
+        label("Nincs aktív AI-hozzáférés ezen a telefonon. Új hozzáféréshez biztonságos aktiválás szükséges.",
+            "No AI access is configured on this phone. Secure activation is required for new access.",
+            "Auf diesem Gerät ist kein KI-Zugang eingerichtet. Für einen neuen Zugang ist eine sichere Aktivierung erforderlich.",
+            "Aucun accès IA n'est configuré sur ce téléphone. Une activation sécurisée est nécessaire.",
+            "No hay acceso a IA configurado en este teléfono. Hace falta una activación segura.",
+            "Non è configurato alcun accesso IA su questo telefono. Serve un'attivazione sicura.",
+            "Na tym telefonie nie skonfigurowano dostępu do AI. Wymagana jest bezpieczna aktywacja."),
+        color = JarvisPalette.subtleText, style = MaterialTheme.typography.bodySmall)
+    Spacer(Modifier.height(12.dp))
 
-    if (selectedMode == JarvisAiGateway.DIRECT_TEST) {
-        Text("Saját OpenRouter-kapcsolat: nincs szükség Jarvis-szervercímre. Az API-kulcsodat a telefon titkosított tárhelyére mentjük.")
-        Spacer(Modifier.height(8.dp))
-        ControlledOutlinedTextField(
-            value = credential,
-            onValueChange = { credential = it },
-            singleLine = true,
-            label = { Text(if (paired && selectedMode == savedMode)
-                "Új OpenRouter-kulcs (csak cseréhez)" else "OpenRouter API-kulcs") },
-            visualTransformation = PasswordVisualTransformation(),
-            modifier = Modifier.fillMaxWidth()
-        , commandLabel = if (paired && selectedMode == savedMode)
-                "Új OpenRouter-kulcs (csak cseréhez)" else "OpenRouter API-kulcs")
-        Spacer(Modifier.height(8.dp))
-        Text(
-            "A kulcs nem kerül az APK-ba vagy a GitHubra. Teszteléshez korlátozott keretű, visszavonható kulcsot használj. " +
-                "Mindkét telefonra külön meg kell adni a saját kulcsot.",
-            style = MaterialTheme.typography.bodySmall
-        )
-        if (paired && selectedMode == savedMode) {
-            Text("A korábban mentett kulcsot megtartjuk. A hozzájárulás mentéséhez nem kell újra beírnod.",
-                style = MaterialTheme.typography.bodySmall)
-        }
-    } else {
-        Text("Privát Jarvis AI-szerver: a tesztelőnek nem kell OpenRouter API-kulcs. " +
-            "A szervert először üzembe kell helyezni; csak ezután működik a meghívós aktiválás.")
-        Spacer(Modifier.height(8.dp))
-        ControlledOutlinedTextField(
-            value = endpoint, onValueChange = { endpoint = it },
-            singleLine = true, label = { Text("AI-szerver HTTPS-címe") },
-            modifier = Modifier.fillMaxWidth()
-        , commandLabel = "AI-szerver HTTPS-címe")
-        Spacer(Modifier.height(8.dp))
-        if (!paired || selectedMode != savedMode) {
-            ControlledOutlinedTextField(
-                value = invitation, onValueChange = { invitation = it.take(48) },
-                singleLine = true, label = { Text("Egyszer használatos Jarvis meghívó") },
-                visualTransformation = PasswordVisualTransformation(),
-                modifier = Modifier.fillMaxWidth()
-            , commandLabel = "Egyszer használatos Jarvis meghívó")
-            Spacer(Modifier.height(8.dp))
-            ControlledButton(enabled = !busy, onClick = {
-                if (!cloudConsent) {
-                    status = "A külső AI-feldolgozáshoz először jelöld be a hozzájárulást."
-                } else {
-                    scope.launch {
-                        busy = true
-                        try {
-                            val error = JarvisAiGateway.activateInvitation(
-                                context, endpoint, invitation)
-                            if (error == null) {
-                                JarvisAiGateway.setCloudConsent(context, true)
-                                invitation = ""
-                                credential = ""
-                                savedMode = JarvisAiGateway.SERVER
-                                selectedMode = savedMode
-                                paired = JarvisAiGateway.hasSavedConnection(context)
-                            }
-                            status = error ?: "Jarvis AI sikeresen aktiválva ezen a telefonon."
-                        } finally { busy = false }
-                    }
-                }
-            }, commandLabel = "Jarvis aktiválása") { Text("Jarvis aktiválása") }
-        } else {
-            Text("Ezen a telefonon már aktív a privát Jarvis-hozzáférés. " +
-                "A szerver a hozzáférést visszavonhatja.",
-                style = MaterialTheme.typography.bodySmall)
-        }
-    }
+    Text(label(
+        "Az AI-kérdéseket és a kiválasztott beszélgetési előzményeket külső szolgáltató dolgozza fel. A helyi névjegyek, fájlok és vércukoradatok nem kerülnek automatikusan a kéréshez.",
+        "An external provider processes AI questions and selected conversation history. Local contacts, files and glucose data are not attached automatically.",
+        "Ein externer Anbieter verarbeitet KI-Fragen und ausgewählte Chatverläufe. Kontakte, Dateien und Blutzuckerdaten werden nicht automatisch angehängt.",
+        "Un fournisseur externe traite les questions IA et l'historique choisi. Contacts, fichiers et données glycémiques ne sont pas joints automatiquement.",
+        "Un proveedor externo procesa preguntas IA y el historial elegido. Los contactos, archivos y datos de glucosa no se adjuntan automáticamente.",
+        "Un fornitore esterno elabora domande IA e cronologia selezionata. Contatti, file e glicemia non vengono allegati automaticamente.",
+        "Zewnętrzny dostawca przetwarza pytania AI i wybraną historię rozmowy. Kontakty, pliki i glukoza nie są dodawane automatycznie."),
+        color = JarvisPalette.subtleText, style = MaterialTheme.typography.bodySmall)
 
     Spacer(Modifier.height(12.dp))
-    Text(
-        "Az AI-nak küldött kérdésed szövege a kiválasztott külső AI-szolgáltatóhoz " +
-            "vagy a privát Jarvis szerveren keresztül a modellszolgáltatóhoz kerül. " +
-            "Ne írj be jelszót, API-kulcsot, orvosi adatot vagy más személyek bizalmas adatait. " +
-            "A helyi névjegyek, üzenetértesítések, fájlok és vércukornapló nem részei " +
-            "automatikusan az AI-kérésnek.",
-        style = MaterialTheme.typography.bodySmall
-    )
-    CheckboxRowCloudConsent(cloudConsent) { approved ->
-        cloudConsent = approved
-        if (!approved) {
-            // Revocation takes effect immediately, even if the user does not
-            // press Save. Any new cloud AI request is refused by the gateway.
-            JarvisAiGateway.setCloudConsent(context, false)
-            status = "Az AI-kérdések továbbításához adott hozzájárulást visszavontam."
-        }
-    }
-    Spacer(Modifier.height(8.dp))
+    RegisterJarvisControl("AI-kérdések felhőbe küldése", click = {
+        cloudConsent = !cloudConsent
+        JarvisAiGateway.setCloudConsent(context, cloudConsent)
+    })
     Row(verticalAlignment = Alignment.CenterVertically) {
-        RegisterJarvisControl("AI-hang használata", click = {
-            voiceConsent = !voiceConsent
-            JarvisAiGateway.setVoiceConsent(context, voiceConsent)
+        Checkbox(checked = cloudConsent, onCheckedChange = { enabled ->
+            cloudConsent = enabled
+            JarvisAiGateway.setCloudConsent(context, enabled)
         })
+        Text(label("AI-kérdések felhőbe küldése", "Send AI questions to the cloud",
+            "KI-Fragen an die Cloud senden", "Envoyer les questions IA au cloud",
+            "Enviar preguntas de IA a la nube", "Inviare domande IA al cloud",
+            "Wysyłanie pytań AI do chmury"),
+            color = JarvisPalette.mainText, modifier = Modifier.weight(1f))
+    }
+    Spacer(Modifier.height(8.dp))
+    RegisterJarvisControl("AI-hang használata", click = {
+        voiceConsent = !voiceConsent
+        JarvisAiGateway.setVoiceConsent(context, voiceConsent)
+    })
+    Row(verticalAlignment = Alignment.CenterVertically) {
         Checkbox(checked = voiceConsent, onCheckedChange = { enabled ->
             voiceConsent = enabled
             JarvisAiGateway.setVoiceConsent(context, enabled)
         })
-        androidx.compose.material3.Text(
-            listOf(
-                "AI-hang használata (felhő, külön engedély)",
-                "Use AI voice (cloud, separate consent)",
-                "KI-Stimme verwenden (Cloud, gesonderte Zustimmung)",
-                "Utiliser la voix IA (cloud, accord séparé)",
-                "Usar voz de IA (nube, permiso separado)",
-                "Usa la voce IA (cloud, consenso separato)",
-                "Używaj głosu AI (chmura, osobna zgoda)"
-            )[selectedLanguage.ordinal],
-            style = MaterialTheme.typography.bodyMedium
-        )
+        Text(label("Felhős AI-hang engedélyezése", "Allow cloud AI voice",
+            "Cloud-KI-Stimme erlauben", "Autoriser la voix IA cloud",
+            "Permitir voz IA en la nube", "Consenti voce IA cloud",
+            "Zezwalaj na głos AI w chmurze"),
+            color = JarvisPalette.mainText, modifier = Modifier.weight(1f))
     }
-    androidx.compose.material3.Text(
-        listOf(
-            "A felolvasott szöveg (akár személyes üzenet, névjegy vagy egészségügyi adat) az AI-hang szolgáltatójához kerül. Nincs Android TTS-tartalék, internet nélkül a hang nem működik.",
-            "Spoken text (possibly messages, contact details or health information) is sent to the AI voice provider. There is no Android TTS fallback; voice requires internet.",
-            "Der gesprochene Text (auch private Nachrichten, Kontaktdaten oder Gesundheitsdaten) wird an den KI-Sprachanbieter gesendet. Ohne Internet keine Sprachausgabe.",
-            "Le texte lu (messages privés, contacts ou données médicales compris) est transmis au fournisseur vocal IA. Sans Internet, pas de voix.",
-            "El texto leído (incluso mensajes, contactos o datos de salud) se envía al proveedor de voz de IA. Sin internet no hay voz.",
-            "Il testo letto (anche messaggi, contatti o dati sanitari) viene inviato al fornitore della voce IA. Senza internet niente voce.",
-            "Odczytywany tekst (także wiadomości, kontakty lub dane zdrowotne) jest przesyłany dostawcy głosu AI. Bez internetu głos nie działa."
-        )[selectedLanguage.ordinal],
-        style = MaterialTheme.typography.bodySmall
-    )
-    Spacer(Modifier.height(12.dp))
+    Spacer(Modifier.height(8.dp))
+    RegisterJarvisControl("GPT beszédfelismerés engedélyezése", click = {
+        transcriptionConsent = !transcriptionConsent
+        JarvisAiGateway.setTranscriptionConsent(context, transcriptionConsent)
+    })
     Row(verticalAlignment = Alignment.CenterVertically) {
-        RegisterJarvisControl("GPT beszédfelismerés engedélyezése", click = {
-            transcriptionConsent = !transcriptionConsent
-            JarvisAiGateway.setTranscriptionConsent(context, transcriptionConsent)
-        })
         Checkbox(checked = transcriptionConsent, onCheckedChange = { enabled ->
             transcriptionConsent = enabled
             JarvisAiGateway.setTranscriptionConsent(context, enabled)
         })
-        androidx.compose.material3.Text(
-            listOf(
-                "Felhős hangfelismerés (OpenRouter, GPT Transcribe)",
-                "Cloud speech recognition (OpenRouter, GPT Transcribe)",
-                "Cloud-Spracherkennung (OpenRouter, GPT Transcribe)",
-                "Reconnaissance vocale cloud (OpenRouter, GPT Transcribe)",
-                "Reconocimiento de voz en la nube (OpenRouter, GPT Transcribe)",
-                "Riconoscimento vocale cloud (OpenRouter, GPT Transcribe)",
-                "Rozpoznawanie mowy w chmurze (OpenRouter, GPT Transcribe)"
-            )[selectedLanguage.ordinal], style = MaterialTheme.typography.bodyMedium
-        )
+        Text(label("Felhős beszédfelismerés engedélyezése",
+            "Allow cloud speech recognition", "Cloud-Spracherkennung erlauben",
+            "Autoriser la reconnaissance vocale cloud", "Permitir reconocimiento de voz en la nube",
+            "Consenti riconoscimento vocale cloud", "Zezwalaj na rozpoznawanie mowy w chmurze"),
+            color = JarvisPalette.mainText, modifier = Modifier.weight(1f))
     }
-    androidx.compose.material3.Text(
-        listOf(
-            "Ha bekapcsolod, a főoldali mikrofon által rögzített rövid hangminták az OpenRouterhez kerülnek szövegfelismerésre. A GPT-5.2 a felismert szöveget kapja. A hang nem kerül a Jarvis tárhelyére. Kikapcsolva az Android beszédfelismerése marad. Közvetlen OpenRouterrel és saját Jarvis-szerverrel is használható.",
-            "When enabled, short audio clips from the Home microphone are sent to OpenRouter for transcription. GPT-5.2 receives the text. Audio is not saved by Jarvis. Disabled: Android recognition remains. Direct OpenRouter or a configured private Jarvis server.",
-            "Kurze Mikrofonaufnahmen werden zur Transkription an OpenRouter gesendet. GPT-5.2 erhält den Text. Keine lokale Speicherung. Direkter OpenRouter- oder privater Jarvis-Servermodus.",
-            "Les courts enregistrements sont transmis à OpenRouter pour transcription, puis le texte à GPT-5.2. Sans stockage local. OpenRouter direct ou serveur Jarvis privé.",
-            "Se envían clips breves a OpenRouter para transcripción y el texto a GPT-5.2. Sin almacenamiento local. OpenRouter directo o servidor privado Jarvis.",
-            "Brevi clip audio vanno a OpenRouter per la trascrizione e il testo a GPT-5.2. Nessun salvataggio locale. OpenRouter diretto o server Jarvis privato.",
-            "Krótkie nagrania są wysyłane do OpenRouter w celu transkrypcji, a tekst do GPT-5.2. Bez zapisu lokalnego. Bezpośredni OpenRouter lub prywatny serwer Jarvis."
-        )[selectedLanguage.ordinal], style = MaterialTheme.typography.bodySmall
-    )
     Spacer(Modifier.height(12.dp))
-    Text("Hangellenőrzés: " + (JarvisVoiceReadiness.reason(context)
-        ?: "Az AI-hang beállításai rendben vannak."),
-        style = MaterialTheme.typography.bodySmall)
-    Text(JarvisVoiceReadiness.mediaVolumeMessage(context),
-        style = MaterialTheme.typography.bodySmall)
-    ControlledOutlinedButton(
-        enabled = !audioTestRunning,
-        onClick = {
-            val unavailable = JarvisVoiceReadiness.reason(context)
-            if (unavailable != null) {
-                audioTestStatus = unavailable
-            } else {
-                audioTestRunning = true
-                audioTestStatus = "Kapcsolódás a felhős AI-hanghoz…"
-                val testPhrase = when (selectedLanguage) {
-                    JarvisLanguage.HUNGARIAN -> "Jarvis hangteszt. Ha ezt hallod, az AI-hang és a lejátszás működik."
-                    JarvisLanguage.ENGLISH -> "Jarvis voice test. If you hear this, AI speech playback is working."
-                    JarvisLanguage.GERMAN -> "Jarvis Sprachtest. Wenn du mich hörst, funktioniert die Sprachausgabe."
-                    JarvisLanguage.FRENCH -> "Test vocal Jarvis. Si vous entendez ceci, le son fonctionne."
-                    JarvisLanguage.SPANISH -> "Prueba de voz Jarvis. Si me escuchas, la voz funciona."
-                    JarvisLanguage.ITALIAN -> "Test voce Jarvis. Se mi senti, la voce funziona."
-                    JarvisLanguage.POLISH -> "Test głosu Jarvis. Jeśli mnie słyszysz, dźwięk działa."
-                }
-                val started = voiceTester.speak(testPhrase, selectedLanguage,
-                    onStart = {
-                        audioTestStatus = "Az Android elindította a médiahang lejátszását. " +
-                            JarvisVoiceReadiness.mediaVolumeMessage(context)
-                    },
-                    completed = { success ->
-                        audioTestRunning = false
-                        audioTestStatus = if (success)
-                            "Az MP3 lejátszása technikailag befejeződött. Ha nem hallottad, ellenőrizd a médiahangot és a Bluetooth-kimenetet."
-                        else voiceTester.lastFailure.ifBlank {
-                            "Az AI-hang nem játszható le. Ellenőrizd a kapcsolatot és a telefon hangkimenetét."
-                        }
-                    })
-                if (!started) {
-                    audioTestRunning = false
-                    audioTestStatus = voiceTester.lastFailure.ifBlank {
-                        "AI-hang nem indult el; ellenőrizd a hozzájárulást és a beállításokat."
-                    }
-                }
-            }
-        },
-        commandLabel = "AI-hang tesztelése"
-    ) { Text(if (audioTestRunning) "AI-hang teszt folyamatban…" else "AI-hang tesztelése") }
-    if (audioTestStatus.isNotBlank())
-        Text(audioTestStatus, style = MaterialTheme.typography.bodySmall)
-    Spacer(Modifier.height(12.dp))
-    Text(
-        if (paired && selectedMode == savedMode) "AI-hozzáférés mentve ezen a telefonon."
-        else "Ehhez a módhoz még nincs beállított AI-hozzáférés."
-    )
-    Spacer(Modifier.height(10.dp))
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        ControlledButton(onClick = {
-            if (!cloudConsent) {
-                status = "Az AI-szöveg továbbításához külön, önkéntes hozzájárulás szükséges."
-            } else {
-                val error = if (selectedMode == JarvisAiGateway.DIRECT_TEST)
-                    JarvisAiGateway.saveDirect(context, credential)
-                else if (paired && selectedMode == savedMode &&
-                    endpoint == JarvisAiGateway.baseUrl(context)) null
-                else "Előbb aktiváld a Jarvist a meghívóval."
-                if (error == null) {
-                    JarvisAiGateway.setCloudConsent(context, true)
-                    credential = ""
-                    savedMode = selectedMode
-                    paired = JarvisAiGateway.hasSavedConnection(context)
-                }
-                status = error ?: "Hozzáférés és hozzájárulás mentve. Teszteld az AI-kapcsolatot!"
-            }
-        }, commandLabel = "Mentés") { Text("Mentés") }
-        ControlledOutlinedButton(onClick = {
-            JarvisAiGateway.clear(context)
-            credential = ""
-            invitation = ""
-            endpoint = JarvisAiGateway.baseUrl(context)
-            selectedMode = JarvisAiGateway.mode(context)
-            savedMode = JarvisAiGateway.mode(context)
-            cloudConsent = false
-            transcriptionConsent = false
-            voiceConsent = false
-            paired = false
-            status = "A helyben tárolt hozzáférést töröltem."
-        }, commandLabel = "Leválasztás") { Text("Leválasztás") }
-    }
-
-    Spacer(Modifier.height(10.dp))
-    ControlledButton(
-        onClick = {
-            scope.launch {
-                busy = true
-                try {
-                    status = JarvisAiGateway.ask(
-                        context,
-                        if (JarvisLanguageSettings.load(context) == JarvisLanguage.ENGLISH)
-                            "In one brief sentence, confirm that the Jarvis AI connection works."
-                        else "Válaszolj röviden magyarul: működik a Jarvis AI-kapcsolat?"
-                    )
-                } finally { busy = false }
-            }
-        },
-        enabled = paired && selectedMode == savedMode &&
-            JarvisAiGateway.cloudConsent(context) && !busy
-    , commandLabel = if (busy) "Kapcsolódás..." else "AI-próbakérdés") { Text(if (busy) "Kapcsolódás..." else "AI-próbakérdés") }
-
-    if (status.isNotEmpty()) {
-        Spacer(Modifier.height(10.dp))
-        Text(status)
-    }
-    Spacer(Modifier.height(10.dp))
-    Text(
-        "A felismert hangszöveget GPT-5.2 értelmezheti. Az Android a hívások, címzettek és jogosultságok tényleges végrehajtását külön ellenőrzi.",
-        style = MaterialTheme.typography.bodySmall
-    )
+    Text(label(
+        "A felhős AI-hanghoz a felolvasott szöveg, a felhős beszédfelismeréshez a mikrofonhang külön engedéllyel kerül a szolgáltatóhoz. A hozzáférést a Beállítások → Kijelentkezés menüben bontod; a helyi adatok megmaradnak.",
+        "Cloud voice sends spoken text, while cloud transcription sends microphone audio, each with separate consent. Settings → Log out disconnects AI access while keeping local data.",
+        "Cloud-Stimme sendet Text, Cloud-Transkription Mikrofonaufnahmen – jeweils nur mit gesonderter Zustimmung. Einstellungen → Abmelden trennt den KI-Zugang bei Erhalt lokaler Daten.",
+        "La voix cloud transmet le texte et la transcription cloud l'audio, avec des accords distincts. Paramètres → Déconnexion conserve les données locales.",
+        "La voz cloud envía texto y la transcripción cloud envía audio, con permisos separados. Ajustes → Cerrar sesión conserva los datos locales.",
+        "La voce cloud invia testo e la trascrizione cloud invia audio, con consensi separati. Impostazioni → Esci conserva i dati locali.",
+        "Głos AI wysyła tekst, a transkrypcja nagrania mikrofonowe, za osobną zgodą. Ustawienia → Wyloguj zachowuje dane lokalne."),
+        color = JarvisPalette.subtleText, style = MaterialTheme.typography.bodySmall)
 }
-
-@Composable
-private fun CheckboxRowCloudConsent(checked: Boolean, onChange: (Boolean) -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        RegisterJarvisControl("AI-kérdések felhőbe küldése", click = { onChange(!checked) })
-        Checkbox(checked = checked, onCheckedChange = onChange)
-        Text("Hozzájárulok ahhoz, hogy a saját AI-kérdéseimet és az adott beszélgetés " +
-            "korábbi AI-üzeneteit a kiválasztott külső AI-szolgáltató feldolgozza. " +
-            "A helyi telefonműveletek és a régi, csak helyben tárolt napló nem kerülnek bele.",
-            style = MaterialTheme.typography.bodySmall)
-    }
-}
-
