@@ -14,7 +14,7 @@ internal data class JarvisAttachment(
 
 /** Scoped Android content, copied to app-private cache, not to any cloud. */
 internal object JarvisAttachments {
-    const val MAX_IMAGES = 20
+    const val MAX_IMAGES = 10
     const val MAX_TOTAL_BYTES = 1_073_741_824L // 1 GiB, aggregate not per file
 
     // OpenMultipleDocuments("*/*") offers every available provider file, not
@@ -120,7 +120,7 @@ internal object JarvisAttachments {
         val displayName = (name ?: if (forceImage) "Kép.jpg" else "Fájl").take(120)
         val (mime, image) = determineType(displayName, resolver.getType(uri), forceImage)
         if (image && imageCount(previous) >= MAX_IMAGES)
-            error("Legfeljebb 20 képet választhatsz.")
+            error("Legfeljebb 10 képet csatolhatsz.")
         val limit = MAX_TOTAL_BYTES - total(previous)
         if (limit <= 0L) error("Elérted az 1 GB összméretű csatolási korlátot.")
         val dir = File(context.cacheDir, "jarvis_attachments").apply { mkdirs() }
