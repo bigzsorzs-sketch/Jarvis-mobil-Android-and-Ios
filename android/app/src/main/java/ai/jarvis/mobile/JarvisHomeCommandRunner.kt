@@ -1,5 +1,6 @@
 package ai.jarvis.mobile
 
+import android.app.KeyguardManager
 import android.content.Context
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -42,6 +43,8 @@ internal object JarvisHomeCommandRunner {
     /** I/O never runs on Android's UI or microphone callback thread. */
     suspend fun execute(context: Context, command: String): String =
         withContext(Dispatchers.IO) {
+            val keyguard = context.getSystemService(KeyguardManager::class.java)
+            if (keyguard.isDeviceLocked) return@withContext "A telefon lezárva; a Smart Home kérés nem futott le."
             if (!handles(command)) return@withContext "Nem ismert Smart Home parancs."
             val config = try {
                 JarvisHomeConnect.load(context)
@@ -55,7 +58,9 @@ internal object JarvisHomeCommandRunner {
                 try {
                     val devices = JarvisHomeConnect.discover(config)
                     evaluate(command, devices) { entity, on ->
-                        JarvisHomeConnect.toggle(config, entity.id, on)
+                        if (keyguard.isDeviceLocked)
+                            "A telefon időközben lezárult; a Smart Home művelet nem indult el."
+                        else JarvisHomeConnect.toggle(config, entity.id, on)
                     }
                 } catch (cancelled: CancellationException) {
                     throw cancelled
