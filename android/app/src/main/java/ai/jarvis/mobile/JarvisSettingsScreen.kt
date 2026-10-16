@@ -138,10 +138,9 @@ internal fun JarvisSettingsScreen(
             android.net.Uri.parse("https://github.com/bigzsorzs-sketch/Jarvis-mobil-Android-and-Ios/blob/main/docs/PRIVACY_POLICY.md")))
     }
     Spacer(Modifier.height(8.dp))
-    Text("A Jarvis AI-kérdések felhőbe küldését az AI-adatvédelem és hozzáférés menüpontban " +
-        "engedélyezheted vagy a Leválasztás gombbal visszavonhatod. " +
-        "Az alkalmazás adatainak törlését az Android Alkalmazásadatok / Tárhely " +
-        "menüjében indíthatod; ez visszavonhatatlanul törli a helyi adatokat.",
+    Text("A korábban engedélyezett AI-kapcsolatot és a hozzájárulásokat a Mentés és fiók → " +
+        "Kijelentkezés művelettel vonhatod vissza. A helyi adatok megmaradnak. " +
+        "Az összes helyi adat végleges törlését az Android Alkalmazásadatok / Tárhely menüjében indíthatod.",
         color = JarvisPalette.subtleText, style = MaterialTheme.typography.bodySmall,
         modifier = Modifier.padding(12.dp))
     val version = try {
