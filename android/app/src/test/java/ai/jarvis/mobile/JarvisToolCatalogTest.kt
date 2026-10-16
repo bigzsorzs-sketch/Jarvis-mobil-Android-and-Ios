@@ -13,6 +13,8 @@ class JarvisToolCatalogTest {
         assertTrue(routes.containsAll(setOf("Főoldal", "Vércukor", "Számlák",
             "Üzenetek", "Email", "Beállítások", "Jegyzetek")))
         assertFalse(routes.contains("Navigáció"))
+        assertFalse((JarvisToolCatalog.all + JarvisToolCatalog.subpages)
+            .any { it.route == "AI-agy" })
         assertFalse(JarvisToolCatalog.all.any { it.name == "Navigáció" })
         assertFalse(routes.contains("Névjegyek"))
         assertFalse(JarvisToolCatalog.all.any { it.name == "Hívás" })
