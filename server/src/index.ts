@@ -30,7 +30,7 @@ const oidcParts = oidcNames.map((name) => process.env[name]?.trim() || "");
 if (oidcParts.some(Boolean) && !oidcParts.every(Boolean)) {
   throw new Error("Incomplete OIDC configuration");
 }
-const issuer = oidcParts[0];
+const issuer = oidcParts[0] ?? "";
 const audience = oidcParts[1];
 const jwks = oidcParts.every(Boolean) ? createRemoteJWKSet(new URL(oidcParts[2]!)) : null;
 
