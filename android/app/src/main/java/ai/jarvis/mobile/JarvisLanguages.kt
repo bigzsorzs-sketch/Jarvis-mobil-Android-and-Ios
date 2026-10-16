@@ -83,6 +83,8 @@ internal object JarvisTranslations {
         "Hívás" to "Call",
         "Névjegyek" to "Contacts",
         "Naptár" to "Calendar",
+        "Átadtam a naptár megnyitását az Androidnak." to "I requested your phone calendar to open.",
+        "Nem sikerült elindítani a naptárat." to "I could not open a calendar app.",
         "Jegyzetek" to "Notes",
         "Ébresztő" to "Alarm",
         "Beállítások" to "Settings",
