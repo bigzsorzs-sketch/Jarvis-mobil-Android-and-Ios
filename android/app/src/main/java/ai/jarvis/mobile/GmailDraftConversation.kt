@@ -82,7 +82,7 @@ internal object GmailDraftConversationFlow {
             )) else GmailDraftNext.NotRelated
         }
         if (isExplicitSend(raw)) return GmailDraftNext.NotRelated
-        if (isWakeWord(raw) || recipientAddress(raw) != null) return GmailDraftNext.NotRelated
+        if (recipientAddress(raw) != null) return GmailDraftNext.NotRelated
         if (raw.length !in 2..4000 || raw.contains('\n') && raw.length > 3500)
             return GmailDraftNext.NotRelated
         // These are new independent commands, not answer text for the pending
@@ -100,9 +100,8 @@ internal object GmailDraftConversationFlow {
         }
         val value = raw.replace(Regex("""(?iu)^(?:sz[oö]veg|[uü]zenet|message|body)\s*[:=-]?\s*"""), "").trim()
         if (value.isEmpty() || value.length > 4000) return GmailDraftNext.NotRelated
-        return if (draft.actuallySend) GmailDraftNext.Complete(GmailOperation.Send(
-            recipient = draft.recipient, subject = draft.subject,
-            body = value, actuallySend = true
-        )) else GmailDraftNext.Ready(draft.copy(body = value))
+        // Even an initial "send" request must confirm the exact composed draft
+        // in a separate turn. Never send as a side effect of entering the body.
+        return GmailDraftNext.Ready(draft.copy(body = value))
     }
 }
