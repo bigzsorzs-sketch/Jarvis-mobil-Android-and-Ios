@@ -166,6 +166,63 @@ internal class JarvisChatStore(context: Context, databaseName: String = "jarvis_
         return result
     }
 
+    /** Decrypt locally only after an explicit, password-protected backup request. */
+    @Synchronized fun backupEntries(limit: Int): List<JarvisChatEntry> {
+        require(limit in 1..10_000)
+        require(count() <= limit) {
+            "Túl sok beszélgetés a mentéshez; semmit nem mentettünk részlegesen."
+        }
+        val result = ArrayList<JarvisChatEntry>()
+        readableDatabase.rawQuery(
+            "SELECT created_at, request, response, conversation_id, ai_context FROM chat ORDER BY id ASC",
+            null
+        ).use { cursor ->
+            while (cursor.moveToNext()) {
+                result.add(JarvisChatEntry(
+                    createdAtMs = cursor.getLong(0),
+                    request = decrypt(cursor.getBlob(1)),
+                    answer = decrypt(cursor.getBlob(2)),
+                    conversationId = cursor.getString(3),
+                    aiContext = cursor.getInt(4) == 1
+                ))
+            }
+        }
+        return result
+    }
+
+    /** Append restored conversations atomically without deleting existing ones. */
+    @Synchronized fun importBackupEntries(entries: List<JarvisChatEntry>) {
+        require(entries.size <= 10_000)
+        entries.forEach {
+            require(it.request.isNotBlank() && it.request.length <= 8000 &&
+                it.answer.isNotBlank() &&
+                it.answer.length <= JarvisNetworkSafety.MAX_AI_TEXT_CHARACTERS &&
+                it.conversationId.isNotBlank() && it.conversationId.length <= 64 &&
+                it.createdAtMs > 0)
+        }
+        val mappedIds = mutableMapOf<String, String>()
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            for (entry in entries) {
+                val targetId = mappedIds.getOrPut(entry.conversationId) {
+                    java.util.UUID.randomUUID().toString()
+                }
+                val values = android.content.ContentValues().apply {
+                    put("created_at", entry.createdAtMs)
+                    put("request", encrypt(entry.request))
+                    put("response", encrypt(entry.answer))
+                    put("conversation_id", targetId)
+                    put("ai_context", if (entry.aiContext) 1 else 0)
+                }
+                db.insertOrThrow("chat", null, values)
+            }
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
+        }
+    }
+
     @Synchronized fun count(): Long =
         android.database.DatabaseUtils.longForQuery(readableDatabase,
             "SELECT COUNT(*) FROM chat", null)
