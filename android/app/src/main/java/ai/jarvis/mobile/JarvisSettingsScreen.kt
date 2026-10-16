@@ -146,6 +146,9 @@ internal fun JarvisSettingsScreen(
         }
         JarvisSettingsRow("◈", privacyTitle, privacyDetail, onAi)
     }
+    Spacer(Modifier.height(16.dp))
+    // Explicit user-chosen cloud destination, never a background export.
+    JarvisBackupSettings(context, language)
     Spacer(Modifier.height(8.dp))
     Text("A Jarvis AI-kérdések felhőbe küldését az AI-adatvédelem és hozzáférés menüpontban " +
         "engedélyezheted vagy a Leválasztás gombbal visszavonhatod. " +
