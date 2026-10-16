@@ -18,6 +18,16 @@ class JarvisAgentActionsTest {
             steps[1]))
     }
 
+    @Test fun calendarHandoffMustBeTheLastStep() {
+        val after = JarvisAgentActions.eligible(
+            "Kapcsold be a sötét módot, majd nyisd meg a Naptár oldalt")
+        assertNotNull(after)
+        assertEquals(AgentKind.PHONE_APP, after!!.last().kind)
+        assertEquals("calendar", after.last().target)
+        assertNull(JarvisAgentActions.eligible(
+            "Nyisd meg a Naptár oldalt, majd kapcsold be a sötét módot"))
+    }
+
     @Test fun navigationIsOnlyAllowedAtEndOfPlan() {
         val safe = JarvisAgentActions.eligible(
             "Kapcsold be a sötét módot, majd navigálj Leedsbe")
