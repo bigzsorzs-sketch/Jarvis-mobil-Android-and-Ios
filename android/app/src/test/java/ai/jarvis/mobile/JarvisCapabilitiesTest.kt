@@ -10,7 +10,9 @@ class JarvisCapabilitiesTest {
             assertEquals(request, tool.route, JarvisCapabilities.localPageToOpen(request))
             assertFalse(request, JarvisAiRouting.shouldAskAi(request))
         }
-        assertEquals("AI-agy", JarvisCapabilities.localPageToOpen("Nyisd meg a beállítások AI-agy oldalát"))
+        assertNull(JarvisCapabilities.localPageToOpen("Nyisd meg a beállítások AI-agy oldalát"))
+        assertNull(JarvisCapabilities.localPageToOpen("Open the AI brain page"))
+        assertFalse(JarvisToolCatalog.subpages.any { it.route == "AI-agy" })
         assertEquals("Hangbeállítások", JarvisCapabilities.localPageToOpen("Nyisd meg a hangvezérlést"))
         assertEquals("Továbbiak", JarvisCapabilities.localPageToOpen("Nyisd meg az otthoni cím beállítását"))
         assertEquals("Továbbiak", JarvisCapabilities.localPageToOpen("Nyisd meg a mentett helyek importálását"))
