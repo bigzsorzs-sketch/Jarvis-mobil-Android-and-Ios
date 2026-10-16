@@ -46,6 +46,11 @@ internal object JarvisToolCatalog {
     val more = all.filter { it.route !in primary.map { tool -> tool.route } &&
         it.route !in setOf("Főoldal", "Előzmények", "Beállítások") }
     // Actual destinations reachable from tool pages and Settings.
+    /** Direct phone-app handoff without a duplicate Jarvis subpage. */
+    fun phoneAppFor(route: String): String? = when (route) {
+        "Naptár" -> "calendar"
+        else -> null
+    }
     val subpages = listOf(
         JarvisTool("Hangbeállítások", "Hangbeállítások", "≋"),
         JarvisTool("Engedélyek", "Engedélyek", "✓"),
@@ -199,11 +204,6 @@ internal fun JarvisToolLanding(context: Context, page: String, onOpen: (String) 
                 color = JarvisPalette.subtleText)
             ControlledButton(onClick = { message = if (openEmail(context)) "Megnyitottam az emailírást."
                 else "Nincs kompatibilis levelezőalkalmazás." }, commandLabel = "Email írása") { Text("Email írása") }
-        }
-        "Naptár" -> {
-            ControlledButton(onClick = { message = if (openCalendar(context)) "Naptár megnyitva."
-                else "Nem találok naptáralkalmazást." }, commandLabel = "Naptár megnyitása") { Text("Naptár megnyitása") }
-            ControlledOutlinedButton(onClick = { onOpen("Továbbiak") }, commandLabel = "Esemény hozzáadása") { Text("Esemény hozzáadása") }
         }
         "Ébresztő" -> {
             val next = JarvisAlarms.current(context)
