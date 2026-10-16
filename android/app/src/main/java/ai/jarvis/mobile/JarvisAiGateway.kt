@@ -575,10 +575,6 @@ internal object JarvisAiGateway {
         }
         val prefs = SecurePrefs(context.applicationContext)
         val direct = mode(context) == DIRECT_TEST
-        if (attachments.isNotEmpty() && !direct) {
-            return@withContext JarvisAiOutcome(
-                "Fájlok, képek és videó-képkockák AI-elemzése jelenleg közvetlen OpenRouter-kapcsolattal használható. Nem küldtem fájlt.")
-        }
         val credential = if (direct) prefs.read(KEY_DIRECT, "") else prefs.read(KEY_TOKEN, "")
         val base = if (direct) null else normalizedBaseUrl(baseUrl(context))
         if ((direct && !isValidOpenRouterKey(credential)) ||
@@ -626,12 +622,18 @@ internal object JarvisAiGateway {
                     return@withContext JarvisAiOutcome(
                         e.message?.take(250) ?: "A csatolmányokat nem sikerült biztonságosan előkészíteni.")
                 }
-                payload.getJSONArray("messages").let { messages ->
-                    messages.getJSONObject(messages.length() - 1).put("content", parts)
+                if (direct) {
+                    payload.getJSONArray("messages").let { messages ->
+                        messages.getJSONObject(messages.length() - 1).put("content", parts)
+                    }
+                    // Selected files cannot execute device tools.
+                    payload.remove("tools")
+                    payload.remove("tool_choice")
+                } else {
+                    // Authenticated private gateway performs a second strict validation
+                    // before forwarding data; the provider key stays on the server.
+                    payload.put("parts", parts)
                 }
-                // Attachments are untrusted content, NEVER a device-control request.
-                payload.remove("tools")
-                payload.remove("tool_choice")
             }
 
             connection.outputStream.use { it.write(payload.toString().toByteArray(Charsets.UTF_8)) }
