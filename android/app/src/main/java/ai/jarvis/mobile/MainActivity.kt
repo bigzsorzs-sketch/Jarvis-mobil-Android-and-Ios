@@ -917,33 +917,12 @@ fun JarvisApp(context: Context, launcherRequest: String? = null) {
             addHistory(command to JarvisScreenControl.execute(context, action))
             return
         }
-        // First-party Smart Home: exactly matched, explicitly named entities.
-        // No arbitrary AI tools, remote appliance starts, or optimistic success.
-        val homeToggle = JarvisHomeCommands.parse(command)
-        val homeStatus = if (homeToggle == null) JarvisHomeCommands.statusTarget(command) else null
-        if (homeToggle != null || homeStatus != null) {
-            val config = runCatching { JarvisHomeConnect.load(context) }.getOrNull()
-            if (config == null) {
-                addHistory(command to "A Smart Home még nincs csatlakoztatva. " +
-                    "Nyisd meg a Smart Home oldalt és állítsd be a Home Assistant HTTPS kapcsolatot.")
-                return
-            }
+        // Chat and background voice share exactly the same validated Home
+        // Assistant adapter. Never claim success without state read-back.
+        if (JarvisHomeCommandRunner.handles(command)) {
             val startedInChat = currentChat.id
             drawerScope.launch {
-                val response = withContext(Dispatchers.IO) {
-                    runCatching {
-                        val devices = JarvisHomeConnect.discover(config)
-                        val device = JarvisHomeCommands.match(
-                            homeToggle ?: JarvisHomeCommands.Toggle(homeStatus.orEmpty(), true), devices)
-                        when {
-                            device == null -> "Nem találtam egyetlen egyértelműen egyező Smart Home eszközt."
-                            homeToggle == null -> "Home Assistant szerint: " +
-                                device.name + " – " + device.state + "."
-                            !device.canToggle -> "Ez az eszköz csak állapotlekérdezésre használható."
-                            else -> JarvisHomeConnect.toggle(config, device.id, homeToggle.on)
-                        }
-                    }.getOrElse { "Smart Home hiba: " + (it.message ?: "A vezérlés nem igazolt.") }
-                }
+                val response = JarvisHomeCommandRunner.execute(context, command)
                 if (requestRevision == commandRevision && currentChat.id == startedInChat)
                     addHistory(command to response)
             }

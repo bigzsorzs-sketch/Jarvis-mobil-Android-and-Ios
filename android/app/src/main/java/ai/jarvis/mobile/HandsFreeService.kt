@@ -516,12 +516,10 @@ class HandsFreeService : Service(), RecognitionListener {
             JarvisLanguageSettings.load(applicationContext), key, name, number)
 
     private fun privateVoiceAllowed(): Boolean {
-        val guard = getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager
-        val locked = guard.isDeviceLocked
-        val enabled = if (locked)
-            SecurePrefs(this).read("voice_private_on_lock", "false") == "true"
-        else false
-        return VoicePrivacyPolicy.mayUsePrivateData(locked, enabled)
+        val locked = getSystemService(KeyguardManager::class.java).isDeviceLocked
+        // UNKNOWN until real audio-based speaker verification is consented to
+        // and integrated; the old lock-screen switch is NOT authentication.
+        return JarvisSpeakerSecurityPolicy.permitted(locked, JarvisVoiceRisk.PERSONAL)
     }
 
     private fun clearProposal() { proposed = null; confirmUntil = 0L }
@@ -572,6 +570,19 @@ class HandsFreeService : Service(), RecognitionListener {
         // All foreground speech, including follow-ups on typed calls, uses the
         // SAME Activity session. Only microphone transport belongs to this service.
         val wake = VoiceIntentParser.afterWakeWord(heard)
+        // Speech recognition cannot authenticate the speaker. Even an
+        // explicitly enabled legacy preference must not override Android lock.
+        // Stop requests were handled above so stopping voice always works.
+        if (getSystemService(KeyguardManager::class.java).isDeviceLocked) {
+            clearProposal()
+            proposedCall = null
+            proposedSequence = null
+            externalProposal = null
+            awaitingExternalDraft = null
+            speak("A hangalapú műveletekhez oldd fel a telefont. " +
+                "Hangazonosítás még nincs beállítva.")
+            return
+        }
         if ((tapActivated || awaitingCommand || wake != null) && privateVoiceAllowed()) {
             val sharedCommand = (wake ?: heard).trim()
             if (sharedCommand.isNotBlank()) {
@@ -883,11 +894,26 @@ class HandsFreeService : Service(), RecognitionListener {
             speak("Gmail-művelethez nyisd meg Jarvist a feloldott telefonon, és ismételd meg a parancsot.")
             return
         }
-        // Smart Home requires the Activity-owned, encrypted account configuration
-        // and verified device read-back. A background service never fabricates success.
-        if (JarvisHomeCommands.parse(command) != null ||
-            JarvisHomeCommands.statusTarget(command) != null) {
-            speak("Smart Home művelethez hozd előtérbe Jarvist a feloldott telefonon.")
+        // Run only an exact, user-named and allowlisted Home Assistant action.
+        // Recheck lock immediately before execution: phone state can change
+        // while an earlier voice command is awaiting the coroutine dispatcher.
+        if (JarvisHomeCommandRunner.handles(command)) {
+            if (!JarvisSpeakerSecurityPolicy.permitted(
+                    getSystemService(KeyguardManager::class.java).isDeviceLocked,
+                    JarvisVoiceRisk.LIGHTING)) {
+                speak("Smart Home vezérléshez oldd fel a telefont.")
+            } else {
+                aiJob = captureScope.launch {
+                    if (!JarvisSpeakerSecurityPolicy.permitted(
+                            getSystemService(KeyguardManager::class.java).isDeviceLocked,
+                            JarvisVoiceRisk.LIGHTING)) {
+                        if (running) speak("A telefon időközben lezárult; nem hajtottam végre a parancsot.")
+                        return@launch
+                    }
+                    val response = JarvisHomeCommandRunner.execute(applicationContext, command)
+                    if (running) speak(response)
+                }
+            }
             return
         }
         // Existing authorized notification/glucose/billing readers take priority.

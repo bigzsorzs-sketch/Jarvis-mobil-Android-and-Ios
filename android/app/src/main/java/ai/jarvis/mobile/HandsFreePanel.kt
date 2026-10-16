@@ -15,9 +15,6 @@ import androidx.compose.ui.unit.dp
 @Composable
 internal fun HandsFreePanel(context: Context) {
     val status = HandsFreeStatus.status
-    var allowWhileLocked by remember(context) {
-        mutableStateOf(SecurePrefs(context).read("voice_private_on_lock", "false") == "true")
-    }
     Card(colors = CardDefaults.cardColors(containerColor = JarvisPalette.panel)) {
         Column(
             Modifier.fillMaxWidth().padding(16.dp),
@@ -31,22 +28,11 @@ internal fun HandsFreePanel(context: Context) {
                 color = JarvisPalette.subtleText,
                 style = MaterialTheme.typography.bodySmall)
             Text("Állapot: $status", color = JarvisPalette.accent)
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Column(Modifier.weight(1f)) {
-                    Text("Privát üzenetek felolvasása lezárt képernyőn",
-                        color = JarvisPalette.mainText, style = MaterialTheme.typography.bodyMedium)
-                    Text("Alapértelmezés: kikapcsolva. Mások is hallhatják a felolvasást.",
-                        color = JarvisPalette.subtleText, style = MaterialTheme.typography.bodySmall)
-                }
-                RegisterJarvisControl("Privát üzenetek felolvasása lezárt képernyőn", click = {
-                    allowWhileLocked = !allowWhileLocked
-                    SecurePrefs(context).write("voice_private_on_lock", allowWhileLocked.toString())
-                })
-                Switch(checked = allowWhileLocked, onCheckedChange = { enabled ->
-                    SecurePrefs(context).write("voice_private_on_lock", enabled.toString())
-                    allowWhileLocked = enabled
-                })
-            }
+            Text("Biztonság: hangazonosítás még nincs beépítve. " +
+                "Lezárt telefonon a hangutasítások nem indítanak hívást, nem olvasnak " +
+                "személyes adatot és nem vezérelnek Smart Home eszközt. " +
+                "Oldd fel a telefont a hangvezérléshez.",
+                color = JarvisPalette.subtleText, style = MaterialTheme.typography.bodySmall)
             if (HandsFreeStatus.audioError.isNotBlank()) {
                 Text("Hanghiba: " + HandsFreeStatus.audioError, color = Color(0xFFFFAAAA))
             }

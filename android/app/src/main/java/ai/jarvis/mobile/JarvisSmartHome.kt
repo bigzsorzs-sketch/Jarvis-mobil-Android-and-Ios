@@ -168,6 +168,8 @@ internal object JarvisHomeCommands {
         if (input.startsWith("kerlek ")) input = input.removePrefix("kerlek ")
         val prefixes = listOf(
             "kapcsold be " to true, "kapcsold ki " to false,
+            "kapcsold fel " to true, "kapcsold le " to false,
+            "oltsd le " to false,
             "turn on " to true, "turn off " to false,
             "switch on " to true, "switch off " to false,
             "schalte ein " to true, "schalte aus " to false,
@@ -199,11 +201,17 @@ internal object JarvisHomeCommands {
         return target.takeIf { it.length in 2..90 }
     }
     fun match(action: Toggle, devices: List<JarvisHomeEntity>): JarvisHomeEntity? {
+        // Hungarian users naturally use accusative endings when naming a device
+        // (e.g. "mosógépet" for "Mosógép"). Keep matching exact and unique:
+        // never fall back to fuzzy/substring selection of a different device.
         val matched = devices.filter {
             val label = normalize(it.name)
             val idLabel = normalize(it.id.substringAfter('.').replace('_', ' '))
-            action.target == label || action.target == idLabel ||
-                action.target.endsWith("t") && action.target.dropLast(1) == label
+            listOf(label, idLabel).any { name ->
+                action.target == name || listOf("t", "at", "et", "ot").any { suffix ->
+                    action.target == name + suffix
+                }
+            }
         }
         return matched.singleOrNull()
     }
