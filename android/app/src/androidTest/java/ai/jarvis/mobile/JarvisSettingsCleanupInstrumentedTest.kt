@@ -17,7 +17,7 @@ import org.junit.runner.RunWith
 class JarvisSettingsCleanupInstrumentedTest {
     @get:Rule val composeRule = createAndroidComposeRule<MainActivity>()
 
-    @Test fun legacyAssistantAndAiKeyTilesAreHiddenButConsentRemainsAccessible() {
+    @Test fun obsoleteAiSetupPageIsAbsentButLocalSettingsRemainAvailable() {
         val prefs = composeRule.activity.getSharedPreferences(
             "jarvis_onboarding_v1", Context.MODE_PRIVATE)
         if (!prefs.getBoolean("permissions_reviewed", false)) {
@@ -31,15 +31,13 @@ class JarvisSettingsCleanupInstrumentedTest {
 
             composeRule.onNodeWithText("AI brain").assertDoesNotExist()
             composeRule.onNodeWithText("Default assistant").assertDoesNotExist()
-            composeRule.onNodeWithText("AI privacy and access").assertExists()
+            composeRule.onNodeWithText("AI privacy and access").assertDoesNotExist()
             composeRule.onNodeWithText("Smart Home").assertExists()
             composeRule.onNodeWithTag("jarvis-update-check").assertExists()
 
-            // Consent withdrawal/connection recovery must stay reachable,
-            // even though the legacy top-level AI-key setup tile is hidden.
-            composeRule.onNodeWithText("AI privacy and access")
-                .performScrollTo().performClick()
-            composeRule.onNodeWithTag("jarvis-subpage-header").assert(hasText("AI brain"))
+            // Account and backup controls remain reachable; removing the old
+            // AI-key screen never revokes an already-consented connection.
+            composeRule.onNodeWithText("Log out").assertExists()
         } finally {
             composeRule.runOnIdle {
                 JarvisLanguageSettings.save(composeRule.activity, JarvisLanguage.HUNGARIAN)
