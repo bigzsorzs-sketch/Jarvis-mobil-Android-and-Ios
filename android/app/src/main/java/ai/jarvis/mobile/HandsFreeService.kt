@@ -883,11 +883,20 @@ class HandsFreeService : Service(), RecognitionListener {
             speak("Gmail-művelethez nyisd meg Jarvist a feloldott telefonon, és ismételd meg a parancsot.")
             return
         }
-        // Smart Home requires the Activity-owned, encrypted account configuration
-        // and verified device read-back. A background service never fabricates success.
-        if (JarvisHomeCommands.parse(command) != null ||
-            JarvisHomeCommands.statusTarget(command) != null) {
-            speak("Smart Home művelethez hozd előtérbe Jarvist a feloldott telefonon.")
+        // Explicitly started voice can operate an already configured Home
+        // Assistant even if the Jarvis Activity is not foreground. The phone
+        // must be unlocked; there is no unattended control from a lock screen.
+        // This uses the same exact-name/allowlist/read-back path as chat.
+        if (JarvisHomeCommandRunner.handles(command)) {
+            val keyguard = getSystemService(KeyguardManager::class.java)
+            if (keyguard.isDeviceLocked) {
+                speak("Oldd fel a telefont a Smart Home vezérléshez, majd ismételd meg a parancsot.")
+            } else {
+                aiJob = captureScope.launch {
+                    val response = JarvisHomeCommandRunner.execute(applicationContext, command)
+                    if (running) speak(response)
+                }
+            }
             return
         }
         // Existing authorized notification/glucose/billing readers take priority.
