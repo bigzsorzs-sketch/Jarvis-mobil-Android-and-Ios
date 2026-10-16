@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <!-- Play Store installs/updates packages; never grant side-loaded APK installation. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" tools:node="remove" />
+    <!-- Background departure geofencing requires a dedicated Play approval.
+         Leave manual foreground Smart Home controls available. -->
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" tools:node="remove" />
+    <!-- Precise alarms are optional and are not an advertised core feature in Play. -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" tools:node="remove" />
+    <!-- GPT-assisted cross-app UI automation must not be distributed as a Play accessibility tool. -->
+    <application android:allowBackup="false" android:usesCleartextTraffic="false">
+        <!-- Re-declare the existing microphone FGS type in this manifest overlay
+             so Android Lint and manifest merger both validate the Play variant. -->
+        <service android:name=".HandsFreeService"
+            android:exported="false"
+            android:foregroundServiceType="microphone"
+            tools:node="merge" />
+        <service android:name=".JarvisAccessibilityService" tools:node="remove" />
+    </application>
+</manifest>

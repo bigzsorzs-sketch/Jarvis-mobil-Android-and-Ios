@@ -120,12 +120,14 @@ internal fun PermissionCenter(
                 openJarvisAppSettings(context)
         }
         SettingsDivider()
-        JarvisSettingsRow("◷", "Pontos ébresztés",
-            if (JarvisAlarms.canSchedule(context)) "Engedélyezve" else "Nincs engedély") {
-            if (Build.VERSION.SDK_INT >= 31) JarvisAlarms.requestExactPermission(context)
-            else openJarvisAppSettings(context)
+        if (!BuildConfig.IS_PLAY_DISTRIBUTION) {
+            JarvisSettingsRow("◷", "Pontos ébresztés",
+                if (JarvisAlarms.canSchedule(context)) "Engedélyezve" else "Nincs engedély") {
+                if (Build.VERSION.SDK_INT >= 31) JarvisAlarms.requestExactPermission(context)
+                else openJarvisAppSettings(context)
+            }
+            SettingsDivider()
         }
-        SettingsDivider()
         JarvisSettingsRow("⚙", "Android-engedélyek", "Kezelés a telefon beállításaiban") {
             openJarvisAppSettings(context)
         }

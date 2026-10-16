@@ -20,9 +20,10 @@ android {
         applicationId = "ai.jarvis.mobile"
         minSdk = 26
         targetSdk = 36
-        versionCode = 53
-        versionName = "0.2.42"
+        versionCode = 54
+        versionName = "0.2.43"
         buildConfigField("String", "JARVIS_GATEWAY_ORIGIN", "\"$jarvisGatewayOrigin\"")
+        buildConfigField("boolean", "IS_PLAY_DISTRIBUTION", "false")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     signingConfigs {
@@ -43,6 +44,13 @@ android {
         release {
             isMinifyEnabled = false
             if (releaseStore != null) signingConfig = signingConfigs.getByName("upload")
+        }
+        // Separate Play Store App Bundle: the GitHub signed APK retains its
+        // original manifest, updater, background location and optional controls.
+        create("play") {
+            initWith(getByName("release"))
+            matchingFallbacks.add("release")
+            buildConfigField("boolean", "IS_PLAY_DISTRIBUTION", "true")
         }
     }
     buildFeatures {

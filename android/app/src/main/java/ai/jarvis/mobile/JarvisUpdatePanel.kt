@@ -15,6 +15,35 @@ import java.io.File
 /** An on-demand, foreground-only update with an OS-owned install confirmation. */
 @Composable
 internal fun JarvisUpdatePanel(context: Context, language: JarvisLanguage) {
+    // Play installs/updates are owned by the Play Store, never an app APK installer.
+    if (BuildConfig.IS_PLAY_DISTRIBUTION) {
+        SettingsSectionTitle(if (language == JarvisLanguage.HUNGARIAN)
+            "Frissítések a Google Playen" else "Updates via Google Play")
+        JarvisSettingsGroup {
+            Column(Modifier.fillMaxWidth().padding(14.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text((if (language == JarvisLanguage.HUNGARIAN) "Telepített verzió: " else "Installed: ") +
+                    JarvisAppUpdater.currentVersion(context))
+                Text(if (language == JarvisLanguage.HUNGARIAN)
+                    "A Google Play-verzió frissítését a Play Áruház kezeli. Az alkalmazás nem tölt le vagy telepít saját APK-t."
+                    else "Google Play manages this version. The app does not download or install APK updates.",
+                    style = MaterialTheme.typography.bodySmall)
+                ControlledButton(onClick = {
+                    val market = android.content.Intent(android.content.Intent.ACTION_VIEW,
+                        android.net.Uri.parse("market://details?id=" + context.packageName))
+                    if (!openSystemIntent(context, market)) {
+                        openSystemIntent(context, android.content.Intent(android.content.Intent.ACTION_VIEW,
+                            android.net.Uri.parse("https://play.google.com/store/apps/details?id=" + context.packageName)))
+                    }
+                }, commandLabel = if (language == JarvisLanguage.HUNGARIAN)
+                    "Google Play megnyitása" else "Open Google Play",
+                    modifier = Modifier.fillMaxWidth().testTag("jarvis-play-store-update")) {
+                    Text(if (language == JarvisLanguage.HUNGARIAN) "Google Play megnyitása" else "Open Google Play")
+                }
+            }
+        }
+        return
+    }
     val t = { key: String -> JarvisUpdateTexts.get(language, key) }
     val scope = rememberCoroutineScope()
     var busy by remember { mutableStateOf(false) }
