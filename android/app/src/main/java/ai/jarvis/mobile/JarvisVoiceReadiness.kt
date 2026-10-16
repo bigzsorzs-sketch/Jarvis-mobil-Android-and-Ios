@@ -22,11 +22,11 @@ internal object JarvisVoiceReadiness {
         connectionConfigured: Boolean
     ): String? = when {
         !cloudTextApproved ->
-            "Az AI-szöveg feldolgozása nincs engedélyezve. Beállítások → AI-agy."
+            "Az AI-szöveg feldolgozása nincs engedélyezve. Beállítások → AI-adatvédelem és hozzáférés."
         !cloudVoiceApproved ->
-            "Az AI-hang külön hozzájárulása ki van kapcsolva. Beállítások → AI-agy → AI-hang használata."
+            "Az AI-hang külön hozzájárulása ki van kapcsolva. Beállítások → AI-adatvédelem és hozzáférés → AI-hang használata."
         !connectionSaved ->
-            "Nincs elmentett AI-kapcsolat. Beállítások → AI-agy alatt ellenőrizd az OpenRouter-kulcsot vagy a Jarvis-szervert."
+            "Nincs elmentett AI-kapcsolat. Beállítások → AI-adatvédelem és hozzáférés alatt ellenőrizd az OpenRouter-kulcsot vagy a Jarvis-szervert."
         !connectionConfigured ->
             "Az AI-hang kapcsolata nincs megfelelően beállítva."
         else -> null
