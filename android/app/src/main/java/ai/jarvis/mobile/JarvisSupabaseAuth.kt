@@ -3,7 +3,7 @@ package ai.jarvis.mobile
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
-import android.util.Base64
+import java.util.Base64
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.setValue
@@ -49,13 +49,12 @@ internal object JarvisSupabaseAuth {
 
     private fun randomVerifier(): String {
         val bytes = ByteArray(32).also { SecureRandom().nextBytes(it) }
-        return Base64.encodeToString(bytes, Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING)
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes)
     }
 
     internal fun challenge(verifier: String): String =
-        Base64.encodeToString(
-            MessageDigest.getInstance("SHA-256").digest(verifier.toByteArray(Charsets.US_ASCII)),
-            Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING
+        Base64.getUrlEncoder().withoutPadding().encodeToString(
+            MessageDigest.getInstance("SHA-256").digest(verifier.toByteArray(Charsets.US_ASCII))
         )
 
     /** Open the system browser, never a WebView. OAuth state is protected by PKCE. */
