@@ -516,14 +516,10 @@ class HandsFreeService : Service(), RecognitionListener {
             JarvisLanguageSettings.load(applicationContext), key, name, number)
 
     private fun privateVoiceAllowed(): Boolean {
-        val guard = getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager
-        val locked = guard.isDeviceLocked
-        val enabled = if (locked)
-            SecurePrefs(this).read("voice_private_on_lock", "false") == "true"
-        else false
-        return VoicePrivacyPolicy.mayUsePrivateData(locked, enabled) &&
-            JarvisSpeakerSecurityPolicy.permitted(
-                locked, JarvisVoiceRisk.PERSONAL)
+        val locked = getSystemService(KeyguardManager::class.java).isDeviceLocked
+        // UNKNOWN until real audio-based speaker verification is consented to
+        // and integrated; the old lock-screen switch is NOT authentication.
+        return JarvisSpeakerSecurityPolicy.permitted(locked, JarvisVoiceRisk.PERSONAL)
     }
 
     private fun clearProposal() { proposed = null; confirmUntil = 0L }
@@ -590,7 +586,7 @@ class HandsFreeService : Service(), RecognitionListener {
             JarvisHomeCommandRunner.handles(incomingVoiceCommand) &&
             !JarvisSpeakerSecurityPolicy.permitted(
                 true, JarvisVoiceRisk.LIGHTING,
-                lightingOptIn = SecurePrefs(this).read("voice_private_on_lock", "false") == "true")) {
+                lightingOptIn = SecurePrefs(this).read("voice_lights_on_lock", "false") == "true")) {
             speak("A lezárt képernyős Smart Home vezérléshez előbb adj engedélyt " +
                 "a Jarvis hangbeállításaiban.")
             return
@@ -912,7 +908,7 @@ class HandsFreeService : Service(), RecognitionListener {
         // This uses the same exact-name/allowlist/read-back path as chat.
         if (JarvisHomeCommandRunner.handles(command)) {
             val locked = getSystemService(KeyguardManager::class.java).isDeviceLocked
-            val consent = SecurePrefs(this).read("voice_private_on_lock", "false") == "true"
+            val consent = SecurePrefs(this).read("voice_lights_on_lock", "false") == "true"
             if (!JarvisSpeakerSecurityPolicy.permitted(
                     locked, JarvisVoiceRisk.LIGHTING, lightingOptIn = consent)) {
                 speak("A lezárt képernyős Smart Home vezérlés nincs engedélyezve a hangbeállításokban.")
