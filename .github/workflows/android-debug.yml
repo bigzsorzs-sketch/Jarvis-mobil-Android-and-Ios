@@ -60,8 +60,18 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          apk="android/app/build/outputs/apk/play/app-play.apk"
-          test -s "$apk"
+          # PR builders have no release signing secrets: Gradle names their
+          # Play smoke output app-play-unsigned.apk. The signed variant is
+          # checked separately during an authorized release workflow.
+          apk="android/app/build/outputs/apk/play/app-play-unsigned.apk"
+          if ! test -s "$apk"; then
+            apk="android/app/build/outputs/apk/play/app-play.apk"
+          fi
+          if ! test -s "$apk"; then
+            echo "::error::Missing assembled Play APK"
+            ls -la android/app/build/outputs/apk/play || true
+            exit 1
+          fi
           "$ANDROID_HOME/build-tools/36.0.0/aapt" dump permissions "$apk" > "$RUNNER_TEMP/play-permissions.txt"
           for permission in REQUEST_INSTALL_PACKAGES ACCESS_BACKGROUND_LOCATION SCHEDULE_EXACT_ALARM; do
             if grep -Fq "android.permission.$permission" "$RUNNER_TEMP/play-permissions.txt"; then
