@@ -61,7 +61,7 @@ internal fun JarvisSettingsRow(icon: String, title: String, detail: String, onCl
 @Composable
 internal fun JarvisSettingsScreen(
     context: Context, isDark: Boolean, onToggleTheme: () -> Unit, onVoice: () -> Unit,
-    onAi: () -> Unit, onMore: () -> Unit, onSmartHome: () -> Unit,
+    onMore: () -> Unit, onSmartHome: () -> Unit,
     language: JarvisLanguage
 ) {
     SettingsSectionTitle("Általános")
@@ -125,28 +125,7 @@ internal fun JarvisSettingsScreen(
             // deletes the Keystore-linked local data; never claim to wipe remotely.
             openJarvisAppSettings(context)
         }
-        SettingsDivider()
-        // Settings may not advertise legacy API-key entry, but a user must be
-        // able to withdraw consent or recover an expired server connection.
-        val privacyTitle = when (language) {
-            JarvisLanguage.HUNGARIAN -> "AI-adatvédelem és hozzáférés"
-            JarvisLanguage.ENGLISH -> "AI privacy and access"
-            JarvisLanguage.GERMAN -> "KI-Datenschutz und Zugriff"
-            JarvisLanguage.FRENCH -> "Confidentialité et accès IA"
-            JarvisLanguage.SPANISH -> "Privacidad y acceso a IA"
-            JarvisLanguage.ITALIAN -> "Privacy e accesso all'IA"
-            JarvisLanguage.POLISH -> "Prywatność i dostęp do AI"
-        }
-        val privacyDetail = when (language) {
-            JarvisLanguage.HUNGARIAN -> "Hozzájárulás, leválasztás vagy kapcsolat helyreállítása"
-            JarvisLanguage.ENGLISH -> "Consent, disconnect or restore AI access"
-            JarvisLanguage.GERMAN -> "Einwilligung, Trennung oder KI-Zugang wiederherstellen"
-            JarvisLanguage.FRENCH -> "Consentement, déconnexion ou restauration de l'accès IA"
-            JarvisLanguage.SPANISH -> "Consentimiento, desconexión o restaurar acceso a IA"
-            JarvisLanguage.ITALIAN -> "Consenso, disconnessione o ripristino accesso IA"
-            JarvisLanguage.POLISH -> "Zgoda, rozłączenie lub przywrócenie dostępu AI"
-        }
-        JarvisSettingsRow("◈", privacyTitle, privacyDetail, onAi)
+
     }
     Spacer(Modifier.height(16.dp))
     // Explicit user-chosen cloud destination, never a background export.
