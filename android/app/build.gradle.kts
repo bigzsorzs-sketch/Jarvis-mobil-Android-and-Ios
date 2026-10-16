@@ -20,6 +20,9 @@ require(jarvisSupabasePublicKey.isEmpty() ||
 require(jarvisSupabaseOrigin.isEmpty() == jarvisSupabasePublicKey.isEmpty()) {
     "Set both public Supabase URL and publishable key together"
 }
+require(jarvisSupabaseOrigin.isEmpty() || jarvisGatewayOrigin.isNotEmpty()) {
+    "A Supabase-enabled Jarvis build also needs JARVIS_GATEWAY_ORIGIN"
+}
 
 // A public origin is configuration, NEVER an embedded shared API credential.
 require(jarvisGatewayOrigin.isEmpty() ||
