@@ -52,6 +52,7 @@ jobs:
             echo "::group::Android lint details"
             cat android/app/build/reports/lint-results-debug.txt 2>/dev/null || true
             cat android/app/build/intermediates/lint_intermediate_text_report/debug/lintReportDebug/lint-results-debug.txt 2>/dev/null || true
+            cat android/app/build/intermediates/lint_intermediate_text_report/play/lintReportPlay/lint-results-play.txt 2>/dev/null || true
             echo "::endgroup::"
             exit 1
           fi
