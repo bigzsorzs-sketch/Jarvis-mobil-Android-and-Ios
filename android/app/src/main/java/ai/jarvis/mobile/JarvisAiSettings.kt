@@ -39,7 +39,7 @@ internal fun JarvisAiSettings(context: Context) {
         style = MaterialTheme.typography.titleLarge)
     Spacer(Modifier.height(12.dp))
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        ControlledFilterChip(
+        if (!JarvisSupabaseAuth.enabled()) ControlledFilterChip(
             selected = selectedMode == JarvisAiGateway.DIRECT_TEST,
             onClick = {
                 selectedMode = JarvisAiGateway.DIRECT_TEST
@@ -105,7 +105,15 @@ internal fun JarvisAiSettings(context: Context) {
             modifier = Modifier.fillMaxWidth()
         , commandLabel = "AI-szerver HTTPS-címe")
         Spacer(Modifier.height(8.dp))
-        if (!paired || selectedMode != savedMode) {
+        if (JarvisSupabaseAuth.enabled()) {
+            Text("Supabase-fiókkal bejelentkezve. A szerver a bejelentkezési tokent ellenőrzi, " +
+                "nem kell OpenRouter-kulcs vagy meghívókód.",
+                style = MaterialTheme.typography.bodySmall)
+            Spacer(Modifier.height(8.dp))
+            ControlledButton(onClick = {
+                JarvisSupabaseAuth.signOut(context)
+            }, commandLabel = "Kijelentkezés") { Text("Kijelentkezés") }
+        } else if (!paired || selectedMode != savedMode) {
             ControlledOutlinedTextField(
                 value = invitation, onValueChange = { invitation = it.take(48) },
                 singleLine = true, label = { Text("Egyszer használatos Jarvis meghívó") },
