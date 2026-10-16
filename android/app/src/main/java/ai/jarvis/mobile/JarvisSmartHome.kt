@@ -199,11 +199,17 @@ internal object JarvisHomeCommands {
         return target.takeIf { it.length in 2..90 }
     }
     fun match(action: Toggle, devices: List<JarvisHomeEntity>): JarvisHomeEntity? {
+        // Hungarian users naturally use accusative endings when naming a device
+        // (e.g. "mosógépet" for "Mosógép"). Keep matching exact and unique:
+        // never fall back to fuzzy/substring selection of a different device.
         val matched = devices.filter {
             val label = normalize(it.name)
             val idLabel = normalize(it.id.substringAfter('.').replace('_', ' '))
-            action.target == label || action.target == idLabel ||
-                action.target.endsWith("t") && action.target.dropLast(1) == label
+            listOf(label, idLabel).any { name ->
+                action.target == name || listOf("t", "at", "et", "ot").any { suffix ->
+                    action.target == name + suffix
+                }
+            }
         }
         return matched.singleOrNull()
     }
