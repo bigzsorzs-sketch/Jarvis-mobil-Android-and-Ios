@@ -55,11 +55,9 @@ internal fun JarvisAttachmentPicker(
             }
             sourceFile?.delete()
             busy = false
-            onStatus(
-                (if (accepted > 0) "Helyben előkészítve: " + accepted + " csatolmány. " +
-                    JarvisMediaUploadCopy.staged(JarvisLanguageSettings.load(context)) else "") +
-                    (if (errors.isNotBlank()) " " + errors else "")
-            )
+            // Selected items are already visible in the composer preview;
+            // a long red technical notice is not an error or an upload receipt.
+            onStatus(errors)
         }
     }
 
@@ -185,7 +183,7 @@ internal fun JarvisAttachmentPicker(
                 Spacer(Modifier.height(12.dp))
                 val mb = JarvisAttachments.total(items).toDouble() / 1_048_576.0
                 Text(
-                    JarvisAttachments.imageCount(items).toString() + "/20 kép · " +
+                    JarvisAttachments.imageCount(items).toString() + "/10 kép · " +
                         String.format(Locale.UK, "%.1f", mb) + " / 1024 MB",
                     color = JarvisPalette.accent
                 )
