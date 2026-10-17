@@ -21,7 +21,8 @@ internal object JarvisAiAttachments {
     const val MAX_FRAME_BYTES = 650_000L
     private val videoMime = setOf("video/mp4", "video/webm", "video/quicktime")
 
-    private val imageMime = setOf("image/jpeg", "image/png", "image/webp", "image/gif")
+    private val imageMime = setOf("image/jpeg", "image/png", "image/webp", "image/gif",
+        "image/heic", "image/heif")
     private val textMime = setOf("text/plain", "text/markdown", "text/csv",
         "application/json", "application/xml", "text/html")
 
@@ -51,13 +52,24 @@ internal object JarvisAiAttachments {
             if (mime in videoMime) {
                 if (item.sizeBytes !in 1..MAX_VIDEO_SOURCE_BYTES)
                     return "Videóból csak képkocka-elemezés támogatott, legfeljebb 128 MB forrásfájlból."
-            } else if (item.sizeBytes !in 1..MAX_FILE_BYTES)
-                return "Az AI-nak egy fájl legfeljebb 5 MB lehet: ${item.displayName.take(100)}."
+            } else if (mime in imageMime && item.sizeBytes !in 1..JarvisAiImageUpload.MAX_SOURCE_BYTES)
+                return "Az AI legfeljebb 128 MB-os eredeti képet tud előkészíteni: ${item.displayName.take(100)}."
+            else if (mime !in imageMime && item.sizeBytes !in 1..MAX_FILE_BYTES)
+                return "Az AI-nak egy nem képfájl legfeljebb 5 MB lehet: ${item.displayName.take(100)}."
             if (mime in textMime && item.sizeBytes > 256 * 1024L)
                 return "Szövegfájl AI-elemzéséhez legfeljebb 256 KB támogatott: ${item.displayName.take(100)}."
         }
-        if (items.filterNot { it in videos }.sumOf { it.sizeBytes } > MAX_SEND_BYTES)
-            return "AI-elemzésre egyszerre legfeljebb 20 MB küldhető. A fájljaid megmaradtak."
+        // Original photo sizes are not cloud sizes: photos are normalized to
+        // the remaining upload budget immediately before the explicit send.
+        val nonImageBytes = items.filterNot { it in videos }.filterNot {
+            it.mimeType.substringBefore(';').trim().lowercase(java.util.Locale.ROOT) in imageMime
+        }.sumOf { it.sizeBytes }
+        val reservedFrames = if (videos.isEmpty()) 0L
+            else MAX_VIDEO_FRAMES * MAX_FRAME_BYTES
+        if (nonImageBytes + reservedFrames + items.count {
+            it.mimeType.substringBefore(';').trim().lowercase(java.util.Locale.ROOT) in imageMime
+        } * 32_000L > MAX_SEND_BYTES)
+            return "AI-elemzésre egyszerre legfeljebb 20 MB feldolgozott adat küldhető. A fájlok megmaradtak."
         return null
     }
 
@@ -66,6 +78,18 @@ internal object JarvisAiAttachments {
             rejectionReason(items) ?: "Az AI-csatolmány nem támogatott."
         }
         var sentBytes = 0L
+        val imageCount = items.count {
+            it.mimeType.substringBefore(';').trim().lowercase(java.util.Locale.ROOT) in imageMime
+        }
+        val otherBytes = items.filter {
+            val type = it.mimeType.substringBefore(';').trim().lowercase(java.util.Locale.ROOT)
+            type !in imageMime && type !in videoMime
+        }.sumOf { it.sizeBytes }
+        val reservedVideo = if (items.any {
+            it.mimeType.substringBefore(';').trim().lowercase(java.util.Locale.ROOT) in videoMime
+        }) MAX_VIDEO_FRAMES * MAX_FRAME_BYTES else 0L
+        val perImageBytes = if (imageCount > 0)
+            JarvisAiImageUpload.allowance(imageCount, otherBytes + reservedVideo) else 0
         val cache = context.cacheDir.canonicalFile.path + File.separator
         val parts = JSONArray().put(JSONObject()
             .put("type", "text").put("text", message.take(8000)))
@@ -116,19 +140,28 @@ internal object JarvisAiAttachments {
                 }
                 continue
             }
+            if (mime in imageMime) {
+                // The submitted original may be much larger than 5 MB.
+                // The original private cache file remains untouched.
+                val (encodedMime, bytes) = JarvisAiImageUpload.prepare(file, mime, perImageBytes)
+                sentBytes += bytes.size
+                require(sentBytes <= MAX_SEND_BYTES) {
+                    "A csatolmányok túllépik a 20 MB-os AI-limitet."
+                }
+                val encoded = Base64.encodeToString(bytes, Base64.NO_WRAP)
+                parts.put(JSONObject().put("type", "image_url").put("image_url",
+                    JSONObject().put("url", "data:$encodedMime;base64,$encoded")))
+                continue
+            }
             require(item.sizeBytes in 1..MAX_FILE_BYTES) {
-                "Az AI-nak küldött fájl legfeljebb 5 MB lehet: ${item.displayName}"
+                "Az AI-nak küldött nem képfájl legfeljebb 5 MB lehet: ${item.displayName}"
             }
             val bytes = file.readBytes()
             sentBytes += bytes.size
             require(sentBytes <= MAX_SEND_BYTES) {
                 "A csatolmányok túllépik a 20 MB-os AI-limitet."
             }
-            if (mime in imageMime) {
-                val encoded = Base64.encodeToString(bytes, Base64.NO_WRAP)
-                parts.put(JSONObject().put("type", "image_url").put("image_url",
-                    JSONObject().put("url", "data:$mime;base64,$encoded")))
-            } else if (mime == "application/pdf") {
+            if (mime == "application/pdf") {
                 val encoded = Base64.encodeToString(bytes, Base64.NO_WRAP)
                 parts.put(JSONObject().put("type", "file").put("file",
                     JSONObject().put("filename", item.displayName)
