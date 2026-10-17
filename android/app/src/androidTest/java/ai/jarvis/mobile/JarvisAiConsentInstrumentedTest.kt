@@ -40,7 +40,8 @@ class JarvisAiConsentInstrumentedTest {
         assertTrue(JarvisAiGateway.hasSavedConnection(context))
         assertFalse(JarvisAiGateway.configured(context))
         val refused = JarvisAiGateway.askStructured(context, "Magyarázd el a napfogyatkozást")
-        assertTrue(refused.message.contains("engedélyezd"))
+        assertTrue("Cloud permission must be required before any request is sent",
+            refused.message.contains("hozzájárulás szükséges"))
         assertNull(refused.deviceAction)
 
         // Saving an empty replacement field preserves the original key.
