@@ -393,7 +393,7 @@ const server = http.createServer(async (req, res) => {
           if (used !== null) await redis.incrBy("tokens:" + subject + ":" + month, used);
         } catch {
           if (!res.destroyed && !res.writableEnded)
-            res.write("data: " + JSON.stringify({ error: "STREAM_INTERRUPTED" }) + "\\n\\n");
+            res.write("data: " + JSON.stringify({ error: "STREAM_INTERRUPTED" }) + "\n\n");
         } finally {
           if (!res.destroyed && !res.writableEnded) res.end();
         }
