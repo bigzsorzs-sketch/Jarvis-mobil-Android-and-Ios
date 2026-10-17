@@ -411,8 +411,14 @@ fun JarvisApp(context: Context, launcherRequest: String? = null) {
         page = destination
         return "Megnyitottam a Jarvis $destination oldalát."
     }
-    fun submitAttachments(question: String, attachments: List<JarvisAttachment>) {
-        if (attachments.isEmpty() || currentChat.loading) return
+    fun submitAttachments(
+        question: String, attachments: List<JarvisAttachment>,
+        completed: (Boolean) -> Unit
+    ) {
+        if (attachments.isEmpty() || currentChat.loading) {
+            completed(false)
+            return
+        }
         // Upload only as a consequence of explicit Send. No contacts or phone
         // state in payload; never execute any tools returned by attachment AI.
         clearCallFlow()
@@ -425,9 +431,17 @@ fun JarvisApp(context: Context, launcherRequest: String? = null) {
         drawerScope.launch {
             val result = try {
                 JarvisAiGateway.askStructured(context, question, selectedLanguage, attachments, aiHistory)
-            } finally {
-                // Selected files are temporary private cache files, not durable
-                // chat history. Delete after the attempt, including HTTP errors.
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                completed(false)
+                throw cancelled
+            } catch (_: Exception) {
+                JarvisAiOutcome("A csatolmányok küldése megszakadt; próbáld újra.")
+            }
+            val uploaded = result.conversationReply && result.route == null &&
+                result.deviceAction == null && result.nativeAction == null &&
+                result.callTarget == null && result.messageDraft == null
+            completed(uploaded)
+            if (uploaded) {
                 withContext(Dispatchers.IO) {
                     attachments.forEach { JarvisAttachments.delete(it) }
                 }
@@ -1520,8 +1534,8 @@ fun JarvisApp(context: Context, launcherRequest: String? = null) {
                             onSelectLanguage = selectLanguage,
                             onMenu = { drawerScope.launch { drawerState.open() } },
                             onCommand = { command -> executeTyped(command) },
-                            onAttachmentsSubmit = { question, selected ->
-                                submitAttachments(question, selected)
+                            onAttachmentsSubmit = { question, selected, completed ->
+                                submitAttachments(question, selected, completed)
                             },
                             history = conversation,
                             hasOlderHistory = currentChat.hasOlder,
