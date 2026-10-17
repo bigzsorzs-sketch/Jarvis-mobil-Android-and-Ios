@@ -57,8 +57,8 @@ internal object VoiceNavigation {
     fun destinationFrom(command: String): String? {
         // Spoken politeness is not a destination. Strip at most two prefixes.
         // A negative request is still rejected by the action parser.
-        var initial = command.trim().replace(spokenPrefix, "").trim()
-        repeat(2) { initial = initial.replace(pleasePrefix, "").trim() }
+        if (!JarvisCommandSafety.isSafeDeviceRequest(command)) return null
+        val initial = JarvisCommandSafety.stripPrefixes(command)
         // Keep legacy named-contact address navigation before removing the
         // "open Maps and" prefix used by direct city navigation.
         personDestination.matchEntire(initial)?.let { return "PERSON:" + it.groupValues[1].trim() }

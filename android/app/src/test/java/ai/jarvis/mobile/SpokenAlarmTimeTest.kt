@@ -76,6 +76,13 @@ class SpokenAlarmTimeTest {
         assertNull(AlarmCommands.parseAlarmTime("Ébresztő 27:99"))
     }
 
+    @Test fun politeQuestionRemainsExplicitAndNotAnInformationalAlarmQuestion() {
+        assertEquals(AlarmTime(7, 30),
+            AlarmCommands.parseAlarmTime("Be tudnád állítani az ébresztőt 7:30-ra?"))
+        assertNull(AlarmCommands.parseAlarmTime("Can you set an alarm at seven?"))
+        assertNull(AlarmCommands.parseAlarmTime("Ne állíts ébresztőt 7:30-ra?"))
+    }
+
     @Test fun noBareAlarmKeywordOpensAFalseTime() {
         for (command in listOf("Ébresztő", "Open the alarms", "Alarm app",
             "What is an alarm?", "Set an alarm", "Imposta una sveglia")) {
