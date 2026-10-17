@@ -6,13 +6,14 @@ import org.junit.Test
 class JarvisAiAttachmentsTest {
     @Test fun acceptOnlySupportedMultimodalMimeTypesForExplicitCloudSend() {
         for (mime in listOf("image/jpeg", "image/png", "image/webp", "image/gif",
+            "image/heic", "image/heif",
             "application/pdf", "text/plain", "text/markdown",
             "text/csv", "application/json", "application/xml", "text/html",
             "video/mp4", "video/webm", "video/quicktime")) {
             assertTrue(mime, JarvisAiAttachments.acceptedMime(mime))
         }
         for (mime in listOf("application/zip", "application/vnd.microsoft.portable-executable",
-            "video/x-matroska", "audio/mpeg", "image/heic", "application/octet-stream")) {
+            "video/x-matroska", "audio/mpeg", "application/octet-stream")) {
             assertFalse(mime, JarvisAiAttachments.acceptedMime(mime))
         }
     }
@@ -52,8 +53,17 @@ class JarvisAiAttachmentsTest {
             item("large.pdf", "application/pdf", 6L * 1024 * 1024)))!!.contains("5 MB"))
         assertTrue(JarvisAiAttachments.rejectionReason(listOf(
             item("long.txt", "text/plain", 300_000)))!!.contains("256 KB"))
-        assertTrue(JarvisAiAttachments.rejectionReason(
-            (0..4).map { item("picture$it.jpg", "image/jpeg", 5L * 1024 * 1024) }
-        )!!.contains("20 MB"))
+        // Original photos are safely compressed, not rejected based on raw size.
+        assertNull(JarvisAiAttachments.rejectionReason(
+            (0..9).map { item("picture$it.jpg", "image/jpeg", 25L * 1024 * 1024) }
+        ))
+        assertTrue(JarvisAiAttachments.rejectionReason(listOf(
+            item("huge.jpg", "image/jpeg", 129L * 1024 * 1024)))!!.contains("128 MB"))
+        assertEquals(2 * 1024 * 1024, JarvisAiImageUpload.allowance(1, 0L))
+        assertTrue(JarvisAiImageUpload.allowance(10, 5L * 1024 * 1024) <
+            2 * 1024 * 1024)
+        assertTrue(JarvisAiAttachments.rejectionReason((0..4).map {
+            item("doc$it.pdf", "application/pdf", 5L * 1024 * 1024)
+        })!!.contains("20 MB"))
     }
 }
