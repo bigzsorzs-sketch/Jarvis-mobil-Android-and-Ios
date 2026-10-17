@@ -128,6 +128,9 @@ internal fun JarvisSettingsScreen(
 
     }
     Spacer(Modifier.height(16.dp))
+    // A private invitation can reactivate server AI without exposing provider secrets.
+    JarvisAiRecoverySettings(context, language)
+    Spacer(Modifier.height(16.dp))
     // Explicit user-chosen cloud destination, never a background export.
     JarvisBackupSettings(context, language)
     SettingsDivider()
