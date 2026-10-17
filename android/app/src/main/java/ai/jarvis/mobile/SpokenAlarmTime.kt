@@ -118,7 +118,7 @@ internal object SpokenAlarmTime {
 
     fun isSetIntent(raw: String): Boolean {
         val n = normalize(raw).removePrefix("jarvis ").removePrefix("hey jarvis ")
-        if (n.length !in 8..250 || '?' in raw) return false
+        if (n.length !in 8..250 || !JarvisCommandSafety.isSafeDeviceRequest(raw)) return false
         val spokenTimeCue = Regex(
             """\b(?:reggel|este|delutan|hajnal|fel|halb|morning|evening|afternoon|morgens|abends|matin|soir|manana|tarde|noche|mattina|sera|rano|uhr|heures?|horas?|ore|godzin[a-z]*|\d{1,2}(?::\d\d)?)\b"""
         ).containsMatchIn(n)
@@ -131,7 +131,7 @@ internal object SpokenAlarmTime {
     /** Safety: avoid silently scheduling every day or interpreting date requests as next occurrence. */
     fun unsupported(raw: String): Boolean {
         val s = normalize(raw)
-        if ('?' in raw) return true
+        if ('?' in raw && !JarvisCommandSafety.explicitCommand(raw)) return true
         val negations = Regex(
             """\b(?:ne|nem|don t|dont|do not|never|without|nicht|kein|keine|pas|jamais|no|nunca|non|senza|nie|bez)\b"""
         )

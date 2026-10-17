@@ -16,7 +16,8 @@ internal object AlarmCommands {
     /** Android's generic clock intent cannot schedule a specific calendar date. */
     fun parseAlarmTime(command: String): AlarmTime? {
         val text = normal(command)
-        if (SpokenAlarmTime.unsupported(command)) return null
+        if (!JarvisCommandSafety.isSafeDeviceRequest(command) ||
+            SpokenAlarmTime.unsupported(command)) return null
         // Never schedule an alarm from a negation, question or a partial
         // multi-step instruction. A verified workflow parses each step alone.
         if (Regex("""\b(ne|nem|dont|never|soha|do not)\b""").containsMatchIn(text) ||
@@ -46,12 +47,14 @@ internal object AlarmCommands {
             else -> return SpokenAlarmTime.parse(command)
         }
         if (hour !in 0..23 || minute !in 0..59) return null
-        if ("este" in text || "delutan" in text) {
-            if (hour in 1..11) hour += 12
-        }
-        if ("reggel" in text || "hajnal" in text) {
-            if (hour == 12) hour = 0
-        }
+        // Numeric HH:mm takes this fast path. Honor all explicit AM/PM
+        // markers here too; otherwise "7:30 pm" becomes 07:30.
+        val pm = Regex("""\b(este|delutan|pm|evening|afternoon|abends|soir|tarde|noche|sera|pomeriggio|wieczorem)\b""").containsMatchIn(text)
+        val am = Regex("""\b(reggel|hajnal|am|morning|morgens|matin|manana|mattina|rano)\b""").containsMatchIn(text)
+        if (pm && am) return null
+        if (pm && hour in 1..11) hour += 12
+        if (pm && hour == 0) hour = 12
+        if (am && hour == 12) hour = 0
         return AlarmTime(hour, minute)
     }
 

@@ -23,16 +23,14 @@ internal object JarvisNativeActions {
             .replace(Regex("\\p{M}+"), "")
             .trim().replace(Regex("\\s+"), " ")
 
-    fun stripped(raw: String): String = raw.trim()
-        .replace(Regex("""(?iu)^(?:(?:hey|hej|szia|ok|okay)\s+)?jarvis\s*[,!:]?\s*"""), "")
-        .replace(Regex("""(?iu)^k[eé]rlek\s+"""), "")
-        .trim()
+    fun stripped(raw: String): String = JarvisCommandSafety.stripPrefixes(raw)
 
     /** Strict original-intent gate. Do not silently pick one side effect from a batch. */
     fun identify(original: String): String? {
         val command = stripped(original)
         val n = normalized(command)
-        if (command.isEmpty() || command.length > 8000 ||
+        if (!JarvisCommandSafety.isSafeDeviceRequest(original) ||
+            command.isEmpty() || command.length > 8000 ||
             listOf("ne ", "nem ", "dont ", "don't ", "never ", "can ", "tudsz ",
                 "hogyan ", "mit ", "miert ").any { n.startsWith(it) }) return null
         if (Regex("""(?iu)\s+(?:és|and|then|majd)\s+(?:nyisd|hívd|hivd|küldj|írj|irj|töröld|torold|állítsd|allitsd|navigálj|navigalj)\b""")

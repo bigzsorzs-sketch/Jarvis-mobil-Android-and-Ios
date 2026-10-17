@@ -17,6 +17,19 @@ class JarvisNativeActionsTest {
         assertNull(JarvisNativeActions.identify("Ne töröld az ébresztőt"))
     }
 
+    @Test fun naturalRequestsAndPmAlarmsStaySafe() {
+        assertEquals("set_alarm",
+            JarvisNativeActions.identify("Kérlek szépen, állítsd be az ébresztőt 7:30-ra"))
+        assertEquals("set_alarm",
+            JarvisNativeActions.identify("Be tudnád állítani az ébresztőt 7:30-ra?"))
+        assertNull(JarvisNativeActions.identify("Kérlek, ne állítsd be az ébresztőt 7:30-ra"))
+        assertEquals("navigate", JarvisNativeActions.identify("Szia, navigálj Leedsbe"))
+        assertEquals(AlarmTime(19, 30), AlarmCommands.parseAlarmTime("Set an alarm at 7:30 pm"))
+        assertEquals(AlarmTime(0, 0), AlarmCommands.parseAlarmTime("Set an alarm at 12:00 am"))
+        assertEquals(AlarmTime(12, 0), AlarmCommands.parseAlarmTime("Set an alarm at 12:00 pm"))
+        assertNull(VoiceCalling.extractRequest("Kérlek, ne hívd fel Esztert"))
+    }
+
     @Test fun otherCommandsAreStrictlyLimited() {
         assertEquals("compose_email", JarvisNativeActions.identify(
             "Írj emailt teszt@example.com címre tárgy: Próba szöveg: Szia"))
