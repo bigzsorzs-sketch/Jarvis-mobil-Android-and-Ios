@@ -128,6 +128,9 @@ internal fun JarvisSettingsScreen(
 
     }
     Spacer(Modifier.height(16.dp))
+    // Reconnect by private server invitation; never ask for a shared provider API key.
+    JarvisAiRecoverySettings(context, language)
+    Spacer(Modifier.height(16.dp))
     // Explicit user-chosen cloud destination, never a background export.
     JarvisBackupSettings(context, language)
     SettingsDivider()

@@ -191,11 +191,10 @@ internal class JarvisChatStore(context: Context, databaseName: String = "jarvis_
     }
 
     /** Append restored conversations atomically without deleting existing ones. */
-    @Synchronized fun importBackupEntries(entries: List<JarvisChatEntry>) {
+    @Synchronized fun importBackupEntries(entries: List<JarvisChatEntry>, beforeCommit: () -> Unit = {}) {
         require(entries.size <= 10_000)
         entries.forEach {
             require(it.request.isNotBlank() && it.request.length <= 8000 &&
-                it.answer.isNotBlank() &&
                 it.answer.length <= JarvisNetworkSafety.MAX_AI_TEXT_CHARACTERS &&
                 it.conversationId.isNotBlank() && it.conversationId.length <= 64 &&
                 it.createdAtMs > 0)
@@ -217,6 +216,8 @@ internal class JarvisChatStore(context: Context, databaseName: String = "jarvis_
                 }
                 db.insertOrThrow("chat", null, values)
             }
+            // If this fails, SQLite rolls back imported chats as well.
+            beforeCommit()
             db.setTransactionSuccessful()
         } finally {
             db.endTransaction()

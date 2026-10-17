@@ -24,7 +24,7 @@ internal object JarvisSecureBackup {
     private const val IV_BYTES = 12
     private const val KEY_ITERATIONS = 250_000
     private const val MAX_PLAINTEXT = 16_000_000
-    private const val MAX_ARCHIVE = MAX_PLAINTEXT + 1024
+    internal const val MAX_ARCHIVE = MAX_PLAINTEXT + 1024
     internal const val MAX_CHAT_RECORDS = 10_000
 
     internal val DATA_FIELDS = listOf(
@@ -102,12 +102,20 @@ internal object JarvisSecureBackup {
             .put("version", 1)
             .put("fields", fields)
             .put("chats", chats)
-        return encrypt(doc.toString().toByteArray(Charsets.UTF_8), password)
+        val plaintext = doc.toString().toByteArray(Charsets.UTF_8)
+        // Only emit backups that this same version's restore parser accepts.
+        // This also rejects unreadable legacy chat records before a file is saved.
+        validateContents(plaintext)
+        return encrypt(plaintext, password)
     }
 
-    /** Parse and validate everything before any local data is changed. */
-    fun inspect(archive: ByteArray, password: CharArray): Snapshot {
-        val doc = JSONObject(decrypt(archive, password).toString(Charsets.UTF_8))
+    /** Validate before any local mutation; supports all archives create() can emit. */
+    fun inspect(archive: ByteArray, password: CharArray): Snapshot =
+        validateContents(decrypt(archive, password))
+
+    private fun validateContents(plaintext: ByteArray): Snapshot {
+        require(plaintext.size in 1..MAX_PLAINTEXT) { "Túl nagy a biztonsági mentés." }
+        val doc = JSONObject(plaintext.toString(Charsets.UTF_8))
         require(doc.getInt("version") == 1) { "Ismeretlen mentési verzió." }
         val obj = doc.getJSONObject("fields")
         val fields = mutableMapOf<String, String>()
@@ -116,7 +124,8 @@ internal object JarvisSecureBackup {
             val name = keys.next()
             require(name in DATA_FIELDS) { "Ismeretlen mező a mentésben." }
             val value = obj.getString(name)
-            require(value.length <= 2_000_000) { "Túl nagy adatmező." }
+            // Legacy releases created valid 2–16 MB fields; do not reject them on restore.
+            require(value.length <= MAX_PLAINTEXT) { "Túl nagy adatmező." }
             fields[name] = value
         }
         val arr = doc.getJSONArray("chats")
@@ -130,7 +139,7 @@ internal object JarvisSecureBackup {
             val stamp = item.getLong("timestamp")
             require(conversation.isNotBlank() && conversation.length <= 64 &&
                 question.isNotBlank() && question.length <= 8000 &&
-                answer.isNotBlank() && answer.length <= JarvisNetworkSafety.MAX_AI_TEXT_CHARACTERS &&
+                answer.length <= JarvisNetworkSafety.MAX_AI_TEXT_CHARACTERS &&
                 stamp > 0L && stamp < System.currentTimeMillis() + 86_400_000L) {
                 "Érvénytelen beszélgetési adat."
             }
@@ -144,13 +153,18 @@ internal object JarvisSecureBackup {
 
     /** Caller must explicitly confirm overwrite of the listed local records. */
     fun restore(context: Context, snapshot: Snapshot) {
-        // Chat restore runs as one transaction; imported threads receive new IDs
-        // and never delete any existing conversation rows.
-        JarvisChatStore(context).use { it.importBackupEntries(snapshot.conversations) }
+        require(snapshot.fields.keys.all { it in DATA_FIELDS }) { "Ismeretlen mentési mező." }
+        require(snapshot.fields.values.all { it.length <= MAX_PLAINTEXT }) { "Túl nagy mező." }
+        require(snapshot.conversations.size <= MAX_CHAT_RECORDS)
         val prefs = SecurePrefs(context.applicationContext)
-        snapshot.fields.forEach { (name, value) ->
-            require(name in DATA_FIELDS)
-            prefs.write(name, value)
+        // Encrypt every preference before committing a single preferences edit.
+        // Commit it only after all chat inserts are prepared in one SQLite transaction.
+        // Android's SharedPreferences and SQLite are distinct stores, so a device power
+        // loss during the final cross-store commit cannot be guaranteed fully atomic.
+        JarvisChatStore(context).use {
+            it.importBackupEntries(snapshot.conversations) {
+                prefs.writeAll(snapshot.fields)
+            }
         }
     }
 }
