@@ -430,12 +430,11 @@ internal object JarvisAiGateway {
 
 
     /**
-     * Stream only ordinary text in direct OpenRouter mode. Commands and web
-     * requests continue to require the fully validated non-streaming handler.
+     * Stream ordinary text in both direct and hosted modes. Device commands and
+     * web requests retain the fully validated non-streaming handler.
      */
     fun canStreamText(context: Context, question: String): Boolean =
-        mode(context) == DIRECT_TEST &&
-            question.isNotBlank() && question.length <= MAX_MESSAGE &&
+        question.isNotBlank() && question.length <= MAX_MESSAGE &&
             JarvisAiToolPolicy.selectedTools(question).length() == 0 &&
             !JarvisAiToolPolicy.needsLiveWeb(question) &&
             !JarvisGlucoseVoice.isQuery(question)
@@ -455,16 +454,22 @@ internal object JarvisAiGateway {
             return askStructured(context, message, responseLanguageTag, history = history)
         }
         return withContext(Dispatchers.IO) {
-            val credential = SecurePrefs(context.applicationContext).read(KEY_DIRECT, "")
-            if (!isValidOpenRouterKey(credential)) {
-                return@withContext JarvisAiOutcome("Az OpenRouter-kulcs nincs beállítva.")
+            val direct = mode(context) == DIRECT_TEST
+            val prefs = SecurePrefs(context.applicationContext)
+            val credential = prefs.read(if (direct) KEY_DIRECT else KEY_TOKEN, "")
+            val base = if (direct) null else normalizedBaseUrl(baseUrl(context))
+            if ((direct && !isValidOpenRouterKey(credential)) ||
+                (!direct && (base == null || !isValidTesterToken(credential))) {
+                return@withContext JarvisAiOutcome("Az AI-kapcsolat nincs megfelelően beállítva.")
             }
             val languageTag = responseLanguageTag
                 ?.let { JarvisLanguage.fromSpeechTag(it)?.tag }
                 ?: JarvisLanguageSettings.load(context.applicationContext).tag
-            val payload = JarvisAiToolPolicy.providerPayload(message.trim(), languageTag,
-                JarvisBackgroundBrain.relevantNote(context.applicationContext, message), history)
-            if (payload.has("tools")) {
+            val note = JarvisBackgroundBrain.relevantNote(context.applicationContext, message)
+            val payload = if (direct) JarvisAiToolPolicy.providerPayload(
+                message.trim(), languageTag, note, history)
+            else serverChatPayload(message.trim(), languageTag, note, history)
+            if (direct && payload.has("tools")) {
                 return@withContext askStructured(context, message, languageTag, history = history)
             }
             payload.put("stream", true)
@@ -472,7 +477,8 @@ internal object JarvisAiGateway {
             val decoder = JarvisSseDecoder()
             val phrases = JarvisIncrementalPhrases()
             try {
-                connection = URL(OPENROUTER_ENDPOINT).openConnection() as HttpURLConnection
+                val endpoint = if (direct) OPENROUTER_ENDPOINT else "$base/v1/chat"
+                connection = URL(endpoint).openConnection() as HttpURLConnection
                 cancellation.bind(connection)
                 if (cancellation.isCancelled()) {
                     throw kotlinx.coroutines.CancellationException("Voice turn cancelled")
@@ -480,7 +486,7 @@ internal object JarvisAiGateway {
                 connection.requestMethod = "POST"
                 connection.instanceFollowRedirects = false
                 connection.connectTimeout = 10000
-                connection.readTimeout = 90000
+                connection.readTimeout = maxOf(90000, JarvisResponseDeadline.socketReadMs(message))
                 connection.doOutput = true
                 connection.setRequestProperty("Content-Type", "application/json; charset=utf-8")
                 connection.setRequestProperty("Accept", "text/event-stream")
@@ -491,10 +497,11 @@ internal object JarvisAiGateway {
                 val status = connection.responseCode
                 if (status != 200) {
                     return@withContext JarvisAiOutcome(when (status) {
-                        401 -> "Az OpenRouter-kulcs érvénytelen vagy visszavonták."
+                        401 -> if (direct) "Az OpenRouter-kulcs érvénytelen vagy visszavonták."
+                            else "A szerver-hozzáférési kód érvénytelen."
                         402 -> "Az OpenRouter-egyenleg nem elegendő."
                         403 -> "Az AI-hozzáférés nincs engedélyezve."
-                        404 -> http404Message(true)
+                        404 -> http404Message(direct)
                         429 -> "Az OpenRouter használati limitet jelzett."
                         301, 302, 303, 307, 308 ->
                             "Az AI-szerver átirányított; biztonsági okból megszakítottam."
@@ -509,8 +516,11 @@ internal object JarvisAiGateway {
                         val fullBody = connection.inputStream.use {
                             JarvisNetworkSafety.readUtf8Limited(it)
                         }
-                        val parsed = JarvisAiTools.fromProvider(JSONObject(fullBody), message)
-                        return@withContext JarvisAiOutcome(parsed.message, conversationReply = parsed.conversationReply)
+                        val body = JSONObject(fullBody)
+                        val parsed = if (direct) JarvisAiTools.fromProvider(body, message)
+                            else JarvisAiTools.fromServer(body, message)
+                        return@withContext JarvisAiOutcome(parsed.message,
+                            conversationReply = parsed.conversationReply)
                     }
                     return@withContext JarvisAiOutcome(
                         "Az AI-szolgáltató nem küldött folyamatos szöveget. Próbáld újra.")
