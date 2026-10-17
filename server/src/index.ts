@@ -1,5 +1,6 @@
 import { CONVERSATION_PROMPT, conversationHistory, responseBudget, needsLiveWeb } from "./conversation.js";
 import { responseDeadlineMs } from "./responseDeadline.js";
+import { relayTextOnlySse } from "./chatStream.js";
 import http, { type IncomingMessage, type ServerResponse } from "node:http";
 import { createHash, timingSafeEqual } from "node:crypto";
 import { createRemoteJWKSet, jwtVerify } from "jose";
@@ -319,6 +320,10 @@ const server = http.createServer(async (req, res) => {
       rawDeveloperNote.length >= 100 && rawDeveloperNote.length <= 1800 &&
       /kotlin|swift|android|ios|code|debug|k[oó]d|programoz|hibakeres|jav[ií]t/i.test(message)
         ? rawDeveloperNote : "";
+    // Hosted SSE is restricted to plain, media-free chat. Tool proposals,
+    // web searches and attachments use the existing validated JSON path.
+    const plainStreaming = (data as { stream?: unknown } | null)?.stream === true &&
+      mediaParts === null && !toolsRequested && !needsLiveWeb(message);
     const budget = responseBudget(message, toolsRequested);
     const controller = new AbortController();
     // If the Android user presses STOP or starts another voice turn, the
@@ -355,7 +360,10 @@ const server = http.createServer(async (req, res) => {
             : !mediaParts && needsLiveWeb(message) ? { tools: [{ type: "openrouter:web_search", parameters: {
                   max_uses: 2, max_results: 4, max_total_results: 8
                 } }], tool_choice: "auto" } : {}),
-          stream: false,
+          stream: plainStreaming,
+          ...(plainStreaming ? { stream_options: { include_usage: true } } : {}),
+          ...(!toolsRequested && !needsLiveWeb(message) && !mediaParts
+            ? { provider: { sort: "latency" } } : {}),
           max_tokens: budget.maxTokens,
           ...(model === "openai/gpt-5.2" ? {
             reasoning: { effort: budget.effort, exclude: true }
@@ -367,6 +375,31 @@ const server = http.createServer(async (req, res) => {
         return reply(res, 502, { error: upstream.status === 404 && toolsRequested
           ? "PROVIDER_TOOL_ENDPOINT_UNAVAILABLE" : "PROVIDER_ERROR" });
       }
+      if (plainStreaming && upstream.body &&
+          upstream.headers.get("content-type")?.toLowerCase().includes("text/event-stream")) {
+        res.writeHead(200, {
+          "content-type": "text/event-stream; charset=utf-8",
+          "cache-control": "no-store",
+          "x-content-type-options": "nosniff",
+          "x-accel-buffering": "no"
+        });
+        try {
+          const used = await relayTextOnlySse(upstream.body, frame => {
+            // Do not buffer unlimited text for a disconnected/slow phone.
+            if (res.destroyed || res.writableLength > 256 * 1024)
+              throw new Error("CLIENT_DISCONNECTED_OR_SLOW");
+            res.write(frame);
+          });
+          if (used !== null) await redis.incrBy("tokens:" + subject + ":" + month, used);
+        } catch {
+          if (!res.destroyed && !res.writableEnded)
+            res.write("data: " + JSON.stringify({ error: "STREAM_INTERRUPTED" }) + "\\n\\n");
+        } finally {
+          if (!res.destroyed && !res.writableEnded) res.end();
+        }
+        return;
+      }
+      // Retain backward compatibility when a provider ignores stream=true.
       modelReply = await readLimitedProviderJson(upstream) as typeof modelReply;
     } finally {
       // Release the disconnect listener after the provider request has ended.
@@ -395,7 +428,8 @@ const server = http.createServer(async (req, res) => {
       reply(res, 200, { reply: answer, ai: true });
     }
   } catch {
-    reply(res, 503, { error: "SERVICE_UNAVAILABLE" });
+    if (!res.headersSent) reply(res, 503, { error: "SERVICE_UNAVAILABLE" });
+    else if (!res.destroyed && !res.writableEnded) res.end();
   }
 });
 
