@@ -38,6 +38,7 @@ class JarvisSettingsCleanupInstrumentedTest {
             // Account and backup controls remain reachable; removing the old
             // AI-key screen never revokes an already-consented connection.
             composeRule.onNodeWithText("Log out").assertExists()
+            composeRule.onNodeWithTag("jarvis-ai-connection-state").assertExists()
         } finally {
             composeRule.runOnIdle {
                 JarvisLanguageSettings.save(composeRule.activity, JarvisLanguage.HUNGARIAN)
