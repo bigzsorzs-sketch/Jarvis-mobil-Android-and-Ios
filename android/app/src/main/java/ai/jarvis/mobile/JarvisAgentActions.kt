@@ -29,7 +29,10 @@ internal object JarvisAgentActions {
             val input = part.trim().trimEnd('.', '!', ',').trim()
             if (input.isEmpty() || dangerous.containsMatchIn(input)) return null
             val setting = JarvisLocalPreferences.parse(input)
-            val page = JarvisCapabilities.localPageToOpen(input)
+            // A calendar tile is a native app handoff, not a verifiable Jarvis page.
+            val page = JarvisCapabilities.localPageToOpen(input)?.takeUnless {
+                JarvisToolCatalog.phoneAppFor(it) != null
+            }
             val app = JarvisPhoneActions.requestedAction(input)
             val navigation = VoiceNavigation.destinationFrom(input)
             if (listOf(setting != null, page != null, app != null, navigation != null)

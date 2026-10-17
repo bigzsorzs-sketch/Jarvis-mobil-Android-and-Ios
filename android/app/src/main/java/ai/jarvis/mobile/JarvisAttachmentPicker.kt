@@ -55,11 +55,9 @@ internal fun JarvisAttachmentPicker(
             }
             sourceFile?.delete()
             busy = false
-            onStatus(
-                (if (accepted > 0) "Helyben előkészítve: " + accepted + " csatolmány. " +
-                    JarvisMediaUploadCopy.staged(JarvisLanguageSettings.load(context)) else "") +
-                    (if (errors.isNotBlank()) " " + errors else "")
-            )
+            // Selected items are already visible in the composer preview;
+            // a long red technical notice is not an error or an upload receipt.
+            onStatus(errors)
         }
     }
 
@@ -185,12 +183,12 @@ internal fun JarvisAttachmentPicker(
                 Spacer(Modifier.height(12.dp))
                 val mb = JarvisAttachments.total(items).toDouble() / 1_048_576.0
                 Text(
-                    JarvisAttachments.imageCount(items).toString() + "/20 kép · " +
+                    JarvisAttachments.imageCount(items).toString() + "/10 kép · " +
                         String.format(Locale.UK, "%.1f", mb) + " / 1024 MB",
                     color = JarvisPalette.accent
                 )
                 Text(
-                    "Az 1 GB helyi fájl-előkészítési keret, nem AI-feltöltési limit. AI: max. 20 MB összesen, 5 MB/fájl; videó csak helyi előnézet.",
+                    "1 GB: helyi fájlelőnézet. AI: 10 kép, max. 128 MB/kép kiindulási méretből automatikusan tömörítve, 20 MB összesen. Egyéb AI-fájl: max. 5 MB; videóból csak mintaképkockák.",
                     color = JarvisPalette.subtleText,
                     style = MaterialTheme.typography.bodySmall
                 )

@@ -70,8 +70,9 @@ internal fun JarvisHomeScreen(
     onMessageDismiss: () -> Unit,
     onCallConfirm: () -> Unit,
     onCallDismiss: () -> Unit,
-    onAttachmentsSubmit: (String, List<JarvisAttachment>) -> Unit = { command, _ ->
+    onAttachmentsSubmit: (String, List<JarvisAttachment>, (Boolean) -> Unit) -> Unit = { command, _, completed ->
         onCommand(command)
+        completed(true)
     }
 ) {
     // Retain unsent writing if Android recreates this screen while the IME changes.
@@ -83,6 +84,7 @@ internal fun JarvisHomeScreen(
     val density = LocalDensity.current
     val keyboardVisible = WindowInsets.ime.getBottom(density) > 0
     var issue by remember { mutableStateOf("") }
+    var sendingAttachments by remember { mutableStateOf(false) }
     val keyboard = LocalSoftwareKeyboardController.current
     val handsFree = HandsFreeStatus.running
     val chatListState = rememberLazyListState()
@@ -97,7 +99,7 @@ internal fun JarvisHomeScreen(
         }
     }
     fun submit(value: String) {
-        if (loadingConversation) return
+        if (loadingConversation || sendingAttachments) return
         val selectedFiles = stagedAttachments.toList()
         val command = value.trim().ifBlank {
             if (selectedFiles.isNotEmpty()) "Elemezd a csatolt fájlokat." else ""
@@ -113,25 +115,31 @@ internal fun JarvisHomeScreen(
                 issue = "AI-feltöltéshez aktív, engedélyezett AI-kapcsolat szükséges. A fájlok és az üzenet megmaradtak."
                 return
             }
-            if (JarvisAiGateway.mode(context) != JarvisAiGateway.DIRECT_TEST) {
-                issue = "Fájlok AI-elemzése jelenleg csak közvetlen OpenRouter-kapcsolattal működik. A kiválasztott fájlok megmaradtak."
-                return
-            }
         }
         keyboard?.hide()
-        text = ""
         issue = ""
         // The existing Chat command executor handles the actual operation;
         // the home does not invent a second, divergent command handler.
         val normalized = VoiceIntentParser.afterWakeWord(command)?.takeIf { it.isNotBlank() } ?: command
-        if (selectedFiles.isEmpty()) onCommand(normalized)
-        else {
-            // The user's SEND gesture is explicit cloud upload consent.
-            onAttachmentsSubmit(normalized, selectedFiles)
-            stagedAttachments.clear()
+        if (selectedFiles.isEmpty()) {
+            text = ""
+            onCommand(normalized)
+        } else {
+            // Preserve previews and text on provider/network failures for retry.
+            sendingAttachments = true
+            onAttachmentsSubmit(normalized, selectedFiles) { success ->
+                sendingAttachments = false
+                if (success) {
+                    selectedFiles.forEach { stagedAttachments.remove(it) }
+                    text = ""
+                } else {
+                    issue = "Az AI-feltöltés nem sikerült. A képek megmaradtak, próbáld újra."
+                }
+            }
         }
     }
-    RegisterJarvisControl("Küldés", text.isNotBlank() || stagedAttachments.isNotEmpty(), click = { submit(text) })
+    RegisterJarvisControl("Küldés", !sendingAttachments &&
+        (text.isNotBlank() || stagedAttachments.isNotEmpty()), click = { submit(text) })
     fun startVoice() {
         if (HandsFreeStatus.running) return
         try {
@@ -238,7 +246,8 @@ internal fun JarvisHomeScreen(
                 color = if (isDark) Color(0xFFFFB6B6) else Color(0xFFAA2732),
                 fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp))
         }
-        if (HandsFreeStatus.status != "Kikapcsolva") {
+        if (HandsFreeStatus.status != "Kikapcsolva" &&
+            !JarvisPendingTurn.isWaitingPlaceholder(HandsFreeStatus.status)) {
             Text(HandsFreeStatus.status, color = JarvisMuted, fontSize = 12.sp,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
         }
@@ -338,17 +347,28 @@ internal fun JarvisHomeScreen(
                                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp))
                         }
                     }
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
-                        Surface(
-                            color = if (isDark) Color(0xFF172741) else Color(0xFFF0F4FC),
-                            shape = RoundedCornerShape(17.dp),
-                            modifier = Modifier.fillMaxWidth(0.90f)
-                        ) {
-                            androidx.compose.material3.Text(answer, color = JarvisMuted, fontSize = 14.sp,
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp))
+                    if (!JarvisPendingTurn.isWaitingPlaceholder(answer)) {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
+                            Surface(
+                                color = if (isDark) Color(0xFF172741) else Color(0xFFF0F4FC),
+                                shape = RoundedCornerShape(17.dp),
+                                modifier = Modifier.fillMaxWidth(0.90f)
+                            ) {
+                                androidx.compose.material3.Text(answer, color = JarvisMuted, fontSize = 14.sp,
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp))
+                            }
                         }
                     }
                 }
+            }
+        }
+        JarvisAttachmentPreview(stagedAttachments) { selected ->
+            // Do not delete a private cache file while its upload is reading it.
+            if (!sendingAttachments) {
+                JarvisVideoInspector.removeCache(context, selected.id)
+                JarvisAttachments.delete(selected)
+                stagedAttachments.remove(selected)
+                issue = ""
             }
         }
         Row(
@@ -360,8 +380,12 @@ internal fun JarvisHomeScreen(
                 .padding(start = 3.dp, end = 5.dp, top = 5.dp, bottom = 5.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            JarvisAttachmentPicker(context, isDark, onStatus = { issue = it },
-                items = stagedAttachments)
+            if (!sendingAttachments) {
+                JarvisAttachmentPicker(context, isDark, onStatus = { issue = it },
+                    items = stagedAttachments)
+            } else {
+                Spacer(Modifier.width(48.dp))
+            }
             BasicTextField(
                 value = text,
                 onValueChange = { text = it },
@@ -384,6 +408,7 @@ internal fun JarvisHomeScreen(
             if (text.isNotBlank() || stagedAttachments.isNotEmpty()) {
                 IconButton(
                     modifier = Modifier.testTag("jarvis-home-send"),
+                    enabled = !sendingAttachments,
                     onClick = { submit(text) }
                 ) {
                     Text("➤", fontSize = 23.sp, color = JarvisInk)

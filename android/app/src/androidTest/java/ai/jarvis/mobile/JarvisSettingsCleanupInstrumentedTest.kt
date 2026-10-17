@@ -35,8 +35,10 @@ class JarvisSettingsCleanupInstrumentedTest {
             composeRule.onNodeWithText("Smart Home").assertExists()
             composeRule.onNodeWithTag("jarvis-update-check").assertExists()
 
-            // The removed AI screen must not be resurrected; account and backup controls remain.
+            // Account and backup controls remain reachable; removing the old
+            // AI-key screen never revokes an already-consented connection.
             composeRule.onNodeWithText("Log out").assertExists()
+            composeRule.onNodeWithTag("jarvis-ai-connection-state").assertExists()
         } finally {
             composeRule.runOnIdle {
                 JarvisLanguageSettings.save(composeRule.activity, JarvisLanguage.HUNGARIAN)

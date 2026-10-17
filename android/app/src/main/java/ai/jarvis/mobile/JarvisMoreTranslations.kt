@@ -7,6 +7,8 @@ package ai.jarvis.mobile
 internal object JarvisMoreTranslations {
     internal fun hasFixedText(key: String): Boolean = five.containsKey(key)
     private val five = mapOf(
+        "Adatvédelmi szabályzat" to listOf("Datenschutzerklärung", "Politique de confidentialité", "Política de privacidad", "Informativa sulla privacy", "Polityka prywatności"),
+        "Jarvis Mobile – Google Play és GitHub" to listOf("Jarvis Mobile – Google Play und GitHub", "Jarvis Mobile – Google Play et GitHub", "Jarvis Mobile – Google Play y GitHub", "Jarvis Mobile – Google Play e GitHub", "Jarvis Mobile – Google Play i GitHub"),
         "Új beszélgetés" to listOf("Neuer Chat", "Nouvelle discussion", "Nuevo chat", "Nuova chat", "Nowy czat"),
         "Legutóbbiak" to listOf("Zuletzt", "Récentes", "Recientes", "Recenti", "Ostatnie"),
         "Még nincs mentett beszélgetés" to listOf("Noch keine gespeicherten Chats", "Aucune discussion enregistrée", "Aún no hay conversaciones guardadas", "Nessuna conversazione salvata", "Brak zapisanych rozmów"),
@@ -109,6 +111,8 @@ internal object JarvisMoreTranslations {
         "Hívás" to listOf("Anruf", "Appel", "Llamada", "Chiamata", "Połączenie"),
         "Névjegyek" to listOf("Kontakte", "Contacts", "Contactos", "Contatti", "Kontakty"),
         "Naptár" to listOf("Kalender", "Calendrier", "Calendario", "Calendario", "Kalendarz"),
+        "Átadtam a naptár megnyitását az Androidnak." to listOf("Ich habe das Öffnen des Telefonkalenders angefordert.", "J’ai demandé l’ouverture du calendrier du téléphone.", "Solicité abrir el calendario del teléfono.", "Ho richiesto di aprire il calendario del telefono.", "Poprosiłem o otwarcie kalendarza w telefonie."),
+        "Nem sikerült elindítani a naptárat." to listOf("Die Kalender-App konnte nicht geöffnet werden.", "Impossible d’ouvrir une application de calendrier.", "No pude abrir la aplicación de calendario.", "Non sono riuscito ad aprire l’app Calendario.", "Nie udało się otworzyć aplikacji kalendarza."),
         "Jegyzetek" to listOf("Notizen", "Notes", "Notas", "Note", "Notatki"),
         "Ébresztő" to listOf("Wecker", "Alarme", "Alarma", "Sveglia", "Budzik"),
         "Beállítások" to listOf("Einstellungen", "Paramètres", "Configuración", "Impostazioni", "Ustawienia"),

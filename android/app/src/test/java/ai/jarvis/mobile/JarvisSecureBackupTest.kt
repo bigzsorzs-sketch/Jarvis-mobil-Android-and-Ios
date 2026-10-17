@@ -1,5 +1,7 @@
 package ai.jarvis.mobile
 
+import org.json.JSONArray
+import org.json.JSONObject
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -36,6 +38,31 @@ class JarvisSecureBackupTest {
             it.contains("password") || it.contains("token") ||
                 it.contains("api") || it.contains("secret") || it.contains("key")
         })
+    }
+
+    @Test fun previouslyCreatedLargeNotesArchiveCanBeRestored() {
+        val password = "test-password-unique-2026".toCharArray()
+        val notes = "n".repeat(2_100_000)
+        val plaintext = JSONObject()
+            .put("version", 1)
+            .put("fields", JSONObject().put("notes", notes))
+            .put("chats", JSONArray())
+            .toString().toByteArray(Charsets.UTF_8)
+        val archive = JarvisSecureBackup.encrypt(plaintext, password)
+        assertTrue(archive.size <= JarvisSecureBackup.MAX_ARCHIVE)
+        val recovered = JarvisSecureBackup.inspect(archive, password)
+        assertEquals(notes, recovered.fields["notes"])
+        assertTrue(recovered.conversations.isEmpty())
+    }
+
+    @Test fun malformedArchiveNeverReachesRestore() {
+        val password = "test-password-unique-2026".toCharArray()
+        val plaintext = JSONObject().put("version", 1)
+            .put("fields", JSONObject().put("ai_gateway_access_token", "not-allowed"))
+            .put("chats", JSONArray()).toString().toByteArray()
+        assertThrows(IllegalArgumentException::class.java) {
+            JarvisSecureBackup.inspect(JarvisSecureBackup.encrypt(plaintext, password), password)
+        }
     }
 
     @Test fun shortBackupPasswordRejected() {

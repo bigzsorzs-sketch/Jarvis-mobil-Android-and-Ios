@@ -73,6 +73,27 @@ class JarvisAiToolPolicyTest {
         }
     }
 
+    @Test fun negatedWebAndIncidentalInternetMentionsNeverOfferSearch() {
+        for (text in listOf("Ne keress a neten", "Nem az interneten olvastam",
+                "Kérlek, ne nézz utána az aktuális árnak", "Don't search the web")) {
+            assertFalse(text, JarvisAiToolPolicy.needsLiveWeb(text))
+            assertFalse(text, JarvisAiToolPolicy.providerPayload(text).has("tools"))
+        }
+        assertTrue(JarvisAiToolPolicy.needsLiveWeb("Keress a neten friss híreket"))
+    }
+
+    @Test fun politeCommandsAreDistinctFromNegatedAndInformationalQuestions() {
+        for (text in listOf("Szia, nyisd meg a naptárat", "Nyisd meg a naptárat?",
+                "Kérlek szépen, nyisd meg a naptárat?")) {
+            assertEquals(text, 1, JarvisAiToolPolicy.selectedTools(text).length())
+        }
+        for (text in listOf("Kérlek, ne nyisd meg a naptárat",
+                "Nyisd meg a naptárat majd hívd fel Esztert",
+                "Meg tudod nyitni a naptárat?")) {
+            assertEquals(text, 0, JarvisAiToolPolicy.selectedTools(text).length())
+        }
+    }
+
     @Test fun simpleChatGetsCompactPromptButCapabilitiesAndActionsKeepFullRules() {
         val greeting = JarvisAiToolPolicy.providerPayload("Halló, jó estét")
         val brief = greeting.getJSONArray("messages").getJSONObject(0).getString("content")

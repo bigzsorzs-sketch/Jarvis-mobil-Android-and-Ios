@@ -1,6 +1,8 @@
 package ai.jarvis.mobile
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class JarvisPendingTurnTest {
@@ -17,6 +19,14 @@ class JarvisPendingTurnTest {
         assertEquals("first answer", turns[0].second)
         assertEquals("second answer", turns[1].second)
         assertEquals(-1, JarvisPendingTurn.findIndex(turns, first))
+    }
+
+    @Test fun waitingPlaceholderIsHiddenButStreamingAndCompletedAnswersRemainVisible() {
+        assertTrue(JarvisPendingTurn.isWaitingPlaceholder("AI-válaszra várok…"))
+        assertTrue(JarvisPendingTurn.isWaitingPlaceholder("AI-válaszra várok"))
+        assertFalse(JarvisPendingTurn.isWaitingPlaceholder("Szia, miben segíthetek?"))
+        assertFalse(JarvisPendingTurn.isWaitingPlaceholder("Szia"))
+        assertFalse(JarvisPendingTurn.isWaitingPlaceholder("Kapcsolódás / feldolgozás..."))
     }
 
     @Test fun historyPrependPreservesPendingReferenceAndCompletedPairIsNotPending() {

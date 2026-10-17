@@ -60,7 +60,10 @@ class JarvisSharedCommandsInstrumentedTest {
     }
     @Test fun everyPageUsesTheSameActualVoiceExecutor() {
         ready()
-        for (tool in JarvisToolCatalog.all + JarvisToolCatalog.subpages) {
+        // Native phone-app routes such as Calendar leave Jarvis by design;
+        // UI page assertions apply only to screens rendered by Jarvis Compose.
+        for (tool in (JarvisToolCatalog.all + JarvisToolCatalog.subpages)
+            .filter { JarvisToolCatalog.phoneAppFor(it.route) == null }) {
             voice("Nyisd meg a ${tool.name} oldalt")
             if (tool.route == "Főoldal") ui.onNodeWithTag("jarvis-home-input").assertExists()
             else ui.onNodeWithTag("jarvis-subpage-header").assertTextContains(tool.route)
