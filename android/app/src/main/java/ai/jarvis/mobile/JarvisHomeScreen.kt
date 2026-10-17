@@ -70,8 +70,9 @@ internal fun JarvisHomeScreen(
     onMessageDismiss: () -> Unit,
     onCallConfirm: () -> Unit,
     onCallDismiss: () -> Unit,
-    onAttachmentsSubmit: (String, List<JarvisAttachment>) -> Unit = { command, _ ->
+    onAttachmentsSubmit: (String, List<JarvisAttachment>, (Boolean) -> Unit) -> Unit = { command, _, completed ->
         onCommand(command)
+        completed(true)
     }
 ) {
     // Retain unsent writing if Android recreates this screen while the IME changes.
@@ -83,6 +84,7 @@ internal fun JarvisHomeScreen(
     val density = LocalDensity.current
     val keyboardVisible = WindowInsets.ime.getBottom(density) > 0
     var issue by remember { mutableStateOf("") }
+    var sendingAttachments by remember { mutableStateOf(false) }
     val keyboard = LocalSoftwareKeyboardController.current
     val handsFree = HandsFreeStatus.running
     val chatListState = rememberLazyListState()
@@ -97,7 +99,7 @@ internal fun JarvisHomeScreen(
         }
     }
     fun submit(value: String) {
-        if (loadingConversation) return
+        if (loadingConversation || sendingAttachments) return
         val selectedFiles = stagedAttachments.toList()
         val command = value.trim().ifBlank {
             if (selectedFiles.isNotEmpty()) "Elemezd a csatolt fájlokat." else ""
@@ -115,19 +117,29 @@ internal fun JarvisHomeScreen(
             }
         }
         keyboard?.hide()
-        text = ""
         issue = ""
         // The existing Chat command executor handles the actual operation;
         // the home does not invent a second, divergent command handler.
         val normalized = VoiceIntentParser.afterWakeWord(command)?.takeIf { it.isNotBlank() } ?: command
-        if (selectedFiles.isEmpty()) onCommand(normalized)
-        else {
-            // The user's SEND gesture is explicit cloud upload consent.
-            onAttachmentsSubmit(normalized, selectedFiles)
-            stagedAttachments.clear()
+        if (selectedFiles.isEmpty()) {
+            text = ""
+            onCommand(normalized)
+        } else {
+            // Preserve previews and text on provider/network failures for retry.
+            sendingAttachments = true
+            onAttachmentsSubmit(normalized, selectedFiles) { success ->
+                sendingAttachments = false
+                if (success) {
+                    selectedFiles.forEach { stagedAttachments.remove(it) }
+                    text = ""
+                } else {
+                    issue = "Az AI-feltöltés nem sikerült. A képek megmaradtak, próbáld újra."
+                }
+            }
         }
     }
-    RegisterJarvisControl("Küldés", text.isNotBlank() || stagedAttachments.isNotEmpty(), click = { submit(text) })
+    RegisterJarvisControl("Küldés", !sendingAttachments &&
+        (text.isNotBlank() || stagedAttachments.isNotEmpty()), click = { submit(text) })
     fun startVoice() {
         if (HandsFreeStatus.running) return
         try {
@@ -386,6 +398,7 @@ internal fun JarvisHomeScreen(
             if (text.isNotBlank() || stagedAttachments.isNotEmpty()) {
                 IconButton(
                     modifier = Modifier.testTag("jarvis-home-send"),
+                    enabled = !sendingAttachments,
                     onClick = { submit(text) }
                 ) {
                     Text("➤", fontSize = 23.sp, color = JarvisInk)
