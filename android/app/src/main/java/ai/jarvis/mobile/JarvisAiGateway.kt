@@ -68,8 +68,8 @@ internal object JarvisAiGateway {
         } else {
             "Jarvis AI-szerver HTTP 404: a beállított HTTPS-kiszolgáló nem találja " +
                 "a /v1/chat útvonalat. Az OpenRouter API-címe NEM saját Jarvis-szerver. " +
-                "Ha közvetlen OpenRouter-kulcsod van, a Beállítások → AI-adatvédelem és hozzáférés alatt " +
-                "válaszd a Közvetlen OpenRouter tesztmódot."
+                "A korábban mentett AI-kapcsolat nem módosult. " +
+                "Ellenőrizd, hogy az AI-szolgáltatás elérhető-e."
         }
 
     fun isValidTesterToken(input: String): Boolean =
@@ -243,7 +243,7 @@ internal object JarvisAiGateway {
         withContext(Dispatchers.IO) {
             lastTranscriptionError = ""
             if (!canTranscribe(context)) {
-                lastTranscriptionError = "A hangfelismeréshez engedélyezd a felhős hangfeltöltést az AI-adatvédelem és hozzáférés menüpontban."
+                lastTranscriptionError = "A felhős hangfelismerés jelenleg nincs engedélyezve. Új jóváhagyás szükséges."
                 return@withContext null
             }
             if (wav.size !in 44..550_000 ||
@@ -571,7 +571,7 @@ internal object JarvisAiGateway {
         }
         if (!cloudConsent(context.applicationContext)) {
             return@withContext JarvisAiOutcome(
-                "Az AI-kérdés elküldéséhez előbb engedélyezd a felhőalapú szövegfeldolgozást a Beállítások → AI-adatvédelem és hozzáférés oldalon.")
+                "Az AI-kérdés elküldéséhez felhőalapú szövegfeldolgozási hozzájárulás szükséges.")
         }
         val prefs = SecurePrefs(context.applicationContext)
         val direct = mode(context) == DIRECT_TEST
@@ -584,7 +584,7 @@ internal object JarvisAiGateway {
         if ((direct && !isValidOpenRouterKey(credential)) ||
             (!direct && (base == null || !isValidTesterToken(credential)))) {
             return@withContext JarvisAiOutcome(if (direct) {
-                "Az AI-agy nincs beállítva. Beállítások → AI-adatvédelem és hozzáférés alatt add meg a saját OpenRouter-kulcsodat."
+                "A közvetlen AI-kapcsolat nincs hitelesítve. Új AI-hozzáférés szükséges."
             } else {
                 "A szerverkapcsolat nincs beállítva. Add meg a HTTPS-címet és a tesztelői kódot."
             })

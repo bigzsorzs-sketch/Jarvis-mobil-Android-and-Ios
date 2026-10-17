@@ -146,7 +146,7 @@ internal object JarvisTranslations {
         "Adatvédelem és helyi adatok" to "Privacy and local data",
         "Saját adatok kezelése" to "Manage your data",
         "Android alkalmazásadatok: helyi jegyzetek, vércukornapló, mentett kapcsolat" to "Android app data: local notes, glucose readings, saved connection",
-        "A Jarvis AI-kérdések felhőbe küldését az AI-agy beállításainál engedélyezheted vagy a Leválasztás gombbal visszavonhatod. Az alkalmazás adatainak törlését az Android Alkalmazásadatok / Tárhely menüjében indíthatod; ez visszavonhatatlanul törli a helyi adatokat." to "You can allow sending AI questions in AI brain settings or revoke access by disconnecting. Clear app data using Android App info / Storage; this permanently deletes local data.",
+        "A Jarvis az AI-kérdéseket a korábban engedélyezett kapcsolaton keresztül dolgozza fel. A beállítóoldal eltávolítása nem módosítja a mentett hozzáférést vagy hozzájárulásokat. Az alkalmazás helyi adatainak végleges törlését az Android Alkalmazásadatok / Tárhely menüjében indíthatod." to "You've already authorised the AI connection. Removing the setup screen does not change saved access or consent. You can permanently clear the app's local data from Android App info / Storage.",
         "Hozzáférés a telefonhoz" to "Phone permissions",
         "Mikrofon" to "Microphone",
         "Helymeghatározás" to "Location",

@@ -91,6 +91,9 @@ internal object JarvisCapabilities {
     fun localPageToOpen(raw: String): String? {
         val command = VoiceIntentParser.afterWakeWord(raw)?.takeIf { it.isNotBlank() } ?: raw
         val n = normalized(command)
+        // Do not silently redirect removed AI setup requests to generic Settings.
+        if (Regex("""\b(?:ai agy|ai brain|ai adatvedelem|ai privacy)\b""")
+                .containsMatchIn(n)) return null
         if (!JarvisAiTools.userAskedToOpen(command) || isDiscoveryRequest(command) ||
             JarvisSystemPanels.identify(command) != null ||
             Regex("""\b(ne|nem|dont|never|not|torold|delete|kuldd|send|fizess|pay|es|and|majd|then|aztan)\b""")
@@ -121,7 +124,7 @@ internal object JarvisCapabilities {
             }
         }.map { it.route }.toMutableSet()
         // A named nested Settings page is more specific than its parent.
-        if (matches.any { it in setOf("AI-agy", "Hangbeállítások", "Engedélyek") }) {
+        if (matches.any { it in setOf("Hangbeállítások", "Engedélyek") }) {
             matches.remove("Beállítások")
         }
         if ("Továbbiak" in matches) matches.remove("Ébresztő")

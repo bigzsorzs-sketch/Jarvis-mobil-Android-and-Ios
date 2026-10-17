@@ -370,6 +370,12 @@ fun JarvisApp(context: Context, launcherRequest: String? = null) {
         pendingSequenceUntilMs = android.os.SystemClock.elapsedRealtime() + 40_000L
     }
     fun openTool(destination: String, asPage: Boolean = false): String {
+        // Legacy commands and delayed AI tool calls must not resurrect a
+        // removed credential/consent page. Keep the saved AI connection intact.
+        if (destination == "AI-agy") {
+            page = "Beállítások"
+            return "Az AI-agy beállítóoldal megszűnt."
+        }
         // Backward-compatible route guard for pending voice/AI requests from
         // before the Navigation page was removed. Real destination navigation
         // still executes earlier through VoiceNavigation, unchanged.
@@ -1599,13 +1605,11 @@ fun JarvisApp(context: Context, launcherRequest: String? = null) {
                                 "Beállítások" -> JarvisSettingsScreen(
                                     context, isDark, toggleTheme,
                                     onVoice = { page = "Hangbeállítások" },
-                                    onAi = { page = "AI-agy" },
                                     onMore = { page = "Továbbiak" },
                                     onSmartHome = { page = "Smart Home" },
                                     language = language
                                 )
                                 "Hangbeállítások" -> HandsFreePanel(context)
-                                "AI-agy" -> JarvisAiSettings(context)
                                 "Engedélyek" -> PermissionCenter(
                                     context,
                                     onDone = {
