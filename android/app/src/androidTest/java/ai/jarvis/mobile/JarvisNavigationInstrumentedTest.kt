@@ -39,7 +39,7 @@ class JarvisNavigationInstrumentedTest {
     @Test fun subpagesHaveNoDuplicatedJarvisComposerAndRemainReachableFromHome() {
         finishOnboarding()
         for (tool in (JarvisToolCatalog.all + JarvisToolCatalog.subpages)
-            .filter { it.route != "Főoldal" }) {
+            .filter { it.route != "Főoldal" && JarvisToolCatalog.phoneAppFor(it.route) == null }) {
             composeRule.onNodeWithTag("jarvis-home-input").performTextClearance()
             composeRule.onNodeWithTag("jarvis-home-input")
                 .performTextInput("Nyisd meg a " + tool.name + " oldalt")
@@ -60,7 +60,8 @@ class JarvisNavigationInstrumentedTest {
 
     @Test fun everyToolAndSubpageAcceptsTheSameForegroundVoiceDestination() {
         finishOnboarding()
-        for (tool in JarvisToolCatalog.all + JarvisToolCatalog.subpages) {
+        for (tool in (JarvisToolCatalog.all + JarvisToolCatalog.subpages)
+            .filter { JarvisToolCatalog.phoneAppFor(it.route) == null }) {
             val command = "Jarvis, nyisd meg a " + tool.name + " oldalt"
             val destination = JarvisCapabilities.localPageToOpen(command)!!
             composeRule.runOnIdle { HandsFreeNavigation.destination = destination }
@@ -68,6 +69,11 @@ class JarvisNavigationInstrumentedTest {
                 composeRule.onNodeWithTag("jarvis-home-input").assertExists()
             else composeRule.onNodeWithTag("jarvis-subpage-header").assert(hasText(displayedRoute(destination)))
         }
+    }
+
+    @Test fun calendarIsAnExplicitAndroidHandoffNotAnInternalComposePage() {
+        assertEquals("calendar", JarvisToolCatalog.phoneAppFor("Naptár"))
+        assertEquals("Naptár", JarvisCapabilities.localPageToOpen("Nyisd meg a Naptár oldalt"))
     }
 
     @Test fun graveAccentNavigationOpensMapsWithDestinationNotEmptyMap() {
