@@ -1,5 +1,12 @@
 # Jarvis Mobile — Android (Kotlin) & iOS (Swift)
 
+> **Current source of truth:** Android `versionName`, `versionCode` and
+> `applicationId` live in [android/app/build.gradle.kts](android/app/build.gradle.kts).
+> Sections below describe **historical milestones**, not the current installed
+> build or a promise that every feature is verified. Check the exact GitHub
+> release tag, source commit and [manual QA matrix](docs/ANDROID_SIGNED_RELEASE_QA_MATRIX.md)
+> before installing or publishing any update.
+
 ## Android 0.2.3-dev — guarded AI → native Android tool execution (test)
 
 Real function-calling now connects both the direct OpenRouter chat mode and the self-hosted server mode to the installed Jarvis Android UI. The AI can *propose* opening one existing menu page. The Android app independently checks that the original user explicitly requested opening something, rejects unsupported functions, extra parameters and multiple actions, and then navigates through its existing foreground handlers. Voice requests wait for the Jarvis foreground activity. Ordinary generated text cannot execute commands.
