@@ -37,6 +37,7 @@ class JarvisSettingsCleanupInstrumentedTest {
 
             // The removed AI screen must not be resurrected; account and backup controls remain.
             composeRule.onNodeWithText("Log out").assertExists()
+            composeRule.onNodeWithTag("jarvis-ai-connection-state").assertExists()
         } finally {
             composeRule.runOnIdle {
                 JarvisLanguageSettings.save(composeRule.activity, JarvisLanguage.HUNGARIAN)
