@@ -90,7 +90,7 @@ internal fun JarvisBackupSettings(context: Context, language: JarvisLanguage) {
                                 while (true) {
                                     val n = stream.read(buffer)
                                     if (n == -1) break
-                                    require(out.size() + n <= 16_001_024) { "Archive too large" }
+                                    require(out.size() + n <= JarvisSecureBackup.MAX_ARCHIVE) { "Archive too large" }
                                     out.write(buffer, 0, n)
                                 }
                                 out.toByteArray()
