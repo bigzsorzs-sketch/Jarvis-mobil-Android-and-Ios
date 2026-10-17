@@ -34,6 +34,16 @@ test("does not expose provider reasoning, metadata or account details", async ()
   assert.equal(result.join(""), textEvent("Answer") + "data: [DONE]\n\n");
 });
 
+test("accepts CRLF framing split between network reads", async () => {
+  const frames = textEvent("Hello").replace(/\n/g, "\r\n") +
+    "data: [DONE]\r\n\r\n";
+  const boundary = frames.indexOf("\r\n") + 1;
+  const collected: string[] = [];
+  await relayTextOnlySse(response([frames.slice(0, boundary), frames.slice(boundary)]),
+    item => collected.push(item));
+  assert.deepEqual(collected, [textEvent("Hello"), "data: [DONE]\n\n"]);
+});
+
 test("rejects unexpected tool calls and incomplete output", async () => {
   await assert.rejects(() => relayTextOnlySse(response([
     'data: {"choices":[{"delta":{"tool_calls":[{"id":"x"}]}}]}\n\n'
