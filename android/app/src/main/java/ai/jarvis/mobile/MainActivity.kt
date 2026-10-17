@@ -437,7 +437,8 @@ fun JarvisApp(context: Context, launcherRequest: String? = null) {
             } catch (_: Exception) {
                 JarvisAiOutcome("A csatolmányok küldése megszakadt; próbáld újra.")
             }
-            val uploaded = result.conversationReply && result.route == null &&
+            val uploaded = revision == commandRevision && result.conversationReply &&
+                result.route == null &&
                 result.deviceAction == null && result.nativeAction == null &&
                 result.callTarget == null && result.messageDraft == null
             completed(uploaded)
