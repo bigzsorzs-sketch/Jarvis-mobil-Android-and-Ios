@@ -58,7 +58,9 @@ export async function relayTextOnlySse(
       if (next.done) break;
       receivedBytes += next.value.byteLength;
       if (receivedBytes > MAX_PROVIDER_BYTES) throw new Error("PROVIDER_STREAM_TOO_LARGE");
-      pending += decoder.decode(next.value, { stream: true }).replace(/\r\n/g, "\n");
+      // Normalize after appending, including CRLF split between TCP chunks.
+      pending = (pending + decoder.decode(next.value, { stream: true }))
+        .replace(/\r\n/g, "\n");
       if (pending.length > MAX_SSE_FRAME * 2) throw new Error("PROVIDER_FRAME_TOO_LARGE");
       let end: number;
       while (!finished && (end = pending.indexOf("\n\n")) !== -1) {
