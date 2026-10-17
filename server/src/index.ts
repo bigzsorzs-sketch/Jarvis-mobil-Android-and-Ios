@@ -1,5 +1,6 @@
 import { CONVERSATION_PROMPT, conversationHistory, responseBudget, needsLiveWeb } from "./conversation.js";
 import { responseDeadlineMs } from "./responseDeadline.js";
+import { relayTextOnlySse } from "./chatStream.js";
 import http, { type IncomingMessage, type ServerResponse } from "node:http";
 import { createHash, timingSafeEqual } from "node:crypto";
 import { createRemoteJWKSet, jwtVerify } from "jose";
@@ -315,6 +316,11 @@ const server = http.createServer(async (req, res) => {
       rawDeveloperNote.length >= 100 && rawDeveloperNote.length <= 1800 &&
       /kotlin|swift|android|ios|code|debug|k[oó]d|programoz|hibakeres|jav[ií]t/i.test(message)
         ? rawDeveloperNote : "";
+    // Only plain conversations may stream. Never stream model-proposed tools
+    // or hosted web actions: those must be fully validated first.
+    const wantsStream = (data as { stream?: unknown } | null)?.stream === true;
+    const webRequested = needsLiveWeb(message);
+    const plainStreaming = wantsStream && !toolsRequested && !webRequested;
     const budget = responseBudget(message, toolsRequested);
     const controller = new AbortController();
     // If the Android user presses STOP or starts another voice turn, the
@@ -351,7 +357,9 @@ const server = http.createServer(async (req, res) => {
             : needsLiveWeb(message) ? { tools: [{ type: "openrouter:web_search", parameters: {
                   max_uses: 2, max_results: 4, max_total_results: 8
                 } }], tool_choice: "auto" } : {}),
-          stream: false,
+          stream: plainStreaming,
+          ...(plainStreaming ? { stream_options: { include_usage: true } } : {}),
+          ...(!toolsRequested && !webRequested ? { provider: { sort: "latency" } } : {}),
           max_tokens: budget.maxTokens,
           ...(model === "openai/gpt-5.2" ? {
             reasoning: { effort: budget.effort, exclude: true }
@@ -363,6 +371,35 @@ const server = http.createServer(async (req, res) => {
         return reply(res, 502, { error: upstream.status === 404 && toolsRequested
           ? "PROVIDER_TOOL_ENDPOINT_UNAVAILABLE" : "PROVIDER_ERROR" });
       }
+      if (plainStreaming &&
+          upstream.headers.get("content-type")?.toLowerCase().includes("text/event-stream") &&
+          upstream.body) {
+        // Respond as soon as the provider generates its first real text delta.
+        // Do not expose provider metadata or an unvalidated tool proposal.
+        res.writeHead(200, {
+          "content-type": "text/event-stream; charset=utf-8",
+          "cache-control": "no-cache, no-store",
+          "x-content-type-options": "nosniff",
+          "x-accel-buffering": "no"
+        });
+        try {
+          const used = await relayTextOnlySse(upstream.body, frame => {
+            if (res.destroyed || res.writableLength > 256 * 1024)
+              throw new Error("STREAM_CLIENT_DISCONNECTED_OR_SLOW");
+            res.write(frame);
+          });
+          if (used !== null) {
+            await redis.incrBy("tokens:" + subject + ":" + month, used);
+          }
+        } catch {
+          if (!res.destroyed && !res.writableEnded)
+            res.write('data: {"error":"STREAM_INTERRUPTED"}\\n\\n');
+        } finally {
+          if (!res.destroyed && !res.writableEnded) res.end();
+        }
+        return;
+      }
+      // Older clients and non-streaming tools retain the JSON route.
       modelReply = await readLimitedProviderJson(upstream) as typeof modelReply;
     } finally {
       // Release the disconnect listener after the provider request has ended.
@@ -391,7 +428,8 @@ const server = http.createServer(async (req, res) => {
       reply(res, 200, { reply: answer, ai: true });
     }
   } catch {
-    reply(res, 503, { error: "SERVICE_UNAVAILABLE" });
+    if (!res.headersSent) reply(res, 503, { error: "SERVICE_UNAVAILABLE" });
+    else if (!res.destroyed && !res.writableEnded) res.end();
   }
 });
 
