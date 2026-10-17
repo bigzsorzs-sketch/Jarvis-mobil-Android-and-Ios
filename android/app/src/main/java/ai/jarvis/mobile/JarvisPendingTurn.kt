@@ -11,4 +11,9 @@ package ai.jarvis.mobile
 internal object JarvisPendingTurn {
     fun findIndex(turns: List<Pair<String, String>>, placeholder: Pair<String, String>): Int =
         turns.indexOfFirst { it === placeholder }
+
+    /** A waiting turn stays in memory so streaming and completion can update its slot,
+     * but it should never be displayed as an assistant reply or speech status. */
+    fun isWaitingPlaceholder(text: String): Boolean =
+        text == "AI-válaszra várok…" || text == "AI-válaszra várok"
 }

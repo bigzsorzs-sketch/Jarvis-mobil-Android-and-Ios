@@ -57,12 +57,7 @@ internal object VoiceCalling {
         """(?iu)^(?:(?:a|az)\s+)?(?:adott|megadott|eml[ií]tett|el[oő]z[oő])?\s*(?:telefon)?sz[aá]m(?:ot|ot\s+most|ot\s+l[eé]gyszi)?$|^(?:a|az)\s+(?:telefonsz[aá]mot|sz[aá]mot|n[eé]vjegyet|kontaktot)$"""
     )
 
-    private fun cleanCommand(text: String): String =
-        text.trim()
-            .replace(Regex("""(?iu)^(?:(?:hey|hej|szia|ok|okay)\s+)?jarvis\s*[,!:]?\s*"""), "")
-            .replace(Regex("""(?iu)^(?:figyelj[,!]?\s+)?(?:k[eé]rlek|l[eé]gy\s+sz[ií]ves|please|bitte|s'il vous plaît|por favor|per favore|proszę)[,!\s]+"""), "")
-            .replace(Regex("""(?iu)^figyelj[,!]?\s+"""), "")
-            .trim()
+    private fun cleanCommand(text: String): String = JarvisCommandSafety.stripPrefixes(text)
 
     internal fun isUnspecifiedTarget(raw: String): Boolean {
         val v = raw.trim().trimEnd('.', '!', '?').trim()
@@ -70,6 +65,7 @@ internal object VoiceCalling {
     }
 
     fun extractRequest(text: String): String? {
+        if (!JarvisCommandSafety.isSafeDeviceRequest(text)) return null
         val clean = cleanCommand(text)
         val match = callPrefix.matchEntire(clean) ?: callSuffix.matchEntire(clean) ?: return null
         val rawTarget = match.groupValues[1].trim()

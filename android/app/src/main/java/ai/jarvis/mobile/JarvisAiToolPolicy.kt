@@ -13,10 +13,9 @@ internal object JarvisAiToolPolicy {
         val text = original.trim()
         val definitions = JSONArray()
         if (text.isBlank() || text.length > 8000) return definitions
-        // A question or negated/multi-step request must not become an
-        // imperative tool request solely because it mentions an app.
-        if ('?' in text || text.matches(Regex("""(?iu)^(?:ne|nem|don't|dont|never)\b.*""")))
-            return definitions
+        // Questions with an explicit command verb are allowed, but any
+        // negation or chained side effect blocks the tool proposal.
+        if (!JarvisCommandSafety.isSafeDeviceRequest(text)) return definitions
 
         val definition: JSONObject? = when {
             JarvisMessageIntent.parse(text) != null -> JarvisAiTools.messageToolDefinition()
@@ -40,13 +39,16 @@ internal object JarvisAiToolPolicy {
      * with a text-only provider. This prevents a text-capable model from failing
      * merely because its route does not support hosted web tools.
      */
-    fun needsLiveWeb(question: String): Boolean {
+    fun needsLiveWeb(question: String): Boolean =
+        needsLiveWeb(question, selectedTools(question).length() > 0)
+
+    private fun needsLiveWeb(question: String, localToolsOffered: Boolean): Boolean {
         val text = question.trim().lowercase(java.util.Locale.ROOT)
-        if (text.isBlank()) return false
-        if (selectedTools(question).length() > 0) return false
+        if (text.isBlank() || JarvisCommandSafety.hasNegation(question)) return false
+        if (localToolsOffered) return false
         val markers = listOf(
             "keress a neten", "keress rá", "keresd meg az interneten",
-            "interneten", "webes keres", "webkeres", "nézz utána",
+            "keress az interneten", "webes keres", "webkeres", "nézz utána",
             "legfrissebb", "friss hírek", "mai hírek", "aktuális ár",
             "aktuális információ", "jelenlegi árfolyam", "mostani ár",
             "mai időjárás", "holnapi időjárás", "időjárás ma",
@@ -86,7 +88,7 @@ internal object JarvisAiToolPolicy {
     fun providerPayload(question: String, languageTag: String = "hu-HU", backgroundNote: String? = null,
         history: List<Pair<String, String>> = emptyList()): JSONObject {
         val tools = selectedTools(question)
-        val web = needsLiveWeb(question)
+        val web = needsLiveWeb(question, tools.length() > 0)
         val identity = if (useFullIdentity(question, tools.length() > 0, web))
             JarvisIdentity.systemPrompt else JarvisIdentity.conversationPrompt
         val budget = JarvisReasoningPolicy.forQuestion(question, tools.length() > 0)

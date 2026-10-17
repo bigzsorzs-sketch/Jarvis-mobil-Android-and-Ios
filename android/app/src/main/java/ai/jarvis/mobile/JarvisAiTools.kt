@@ -148,9 +148,8 @@ internal object JarvisAiTools {
      * by the user's own input, not invented by model text or prompt injection.
      */
     fun userAskedToOpen(raw: String): Boolean {
-        val input = normal(raw).removePrefix("hey jarvis ")
-            .removePrefix("jarvis ").trim()
-            .removePrefix("kerlek ").removePrefix("please ").trim()
+        if (!JarvisCommandSafety.isSafeDeviceRequest(raw)) return false
+        val input = normal(JarvisCommandSafety.stripPrefixes(raw))
         return listOf(
             "nyisd ", "nyit ", "nyitnad ", "megnyit ", "megnyitnad ",
             "mutasd ", "mutatnad ", "lepj ", "menj ", "inditsd ",
