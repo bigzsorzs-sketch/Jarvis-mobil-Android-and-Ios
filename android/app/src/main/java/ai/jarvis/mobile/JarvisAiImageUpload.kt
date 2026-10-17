@@ -46,7 +46,7 @@ internal object JarvisAiImageUpload {
         }
         val decode = BitmapFactory.Options()
         var sample = 1
-        while (maxOf(bounds.outWidth / sample, bounds.outHeight / sample) > MAX_EDGE * 2)
+        while (maxOf(bounds.outWidth / sample, bounds.outHeight / sample) > MAX_EDGE)
             sample *= 2
         decode.inSampleSize = sample
         var bitmap = BitmapFactory.decodeFile(file.absolutePath, decode)
