@@ -195,7 +195,7 @@ jobs:
           cat > "$RUNNER_TEMP/notes.md" <<'EOF'
           # Jarvis Android 0.2.44 — aláírt TESZTFRISSÍTÉS
 
-          **0.2.44 / versionCode 54**; Android csomag: **ai.jarvis.mobile**.
+          **0.2.44 / versionCode 55**; Android csomag: **ai.jarvis.mobile**.
           **Ez TESZTkiadás, nem éles Google Play-verzió és nem teljesen tesztelt késztermék.**
 
           A korábbi 0.2.43-ra telepíthető Android tesztfrissítés:
