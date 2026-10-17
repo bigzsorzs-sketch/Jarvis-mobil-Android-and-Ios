@@ -35,10 +35,18 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Verify pinned release candidate and source
         shell: bash
+        env:
+          # Never splice workflow_dispatch inputs into executable Bash source.
+          REQUESTED_SOURCE_SHA: ${{ inputs.source_sha }}
         run: |
           set -euo pipefail
+          # Only a lowercase, full-length SHA-1 commit identifier is acceptable.
+          if [[ ! "$REQUESTED_SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::Expected a full 40-character lowercase commit SHA"
+            exit 1
+          fi
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
-          test "${{ inputs.source_sha }}" = "$GITHUB_SHA"
+          test "$REQUESTED_SOURCE_SHA" = "$GITHUB_SHA"
           grep -F 'applicationId = "ai.jarvis.mobile"' android/app/build.gradle.kts
           grep -F 'versionCode = 50' android/app/build.gradle.kts
           grep -F 'versionName = "0.2.39"' android/app/build.gradle.kts
