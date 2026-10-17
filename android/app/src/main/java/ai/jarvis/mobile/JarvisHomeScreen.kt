@@ -360,10 +360,13 @@ internal fun JarvisHomeScreen(
             }
         }
         JarvisAttachmentPreview(stagedAttachments) { selected ->
-            JarvisVideoInspector.removeCache(context, selected.id)
-            JarvisAttachments.delete(selected)
-            stagedAttachments.remove(selected)
-            issue = ""
+            // Do not delete a private cache file while its upload is reading it.
+            if (!sendingAttachments) {
+                JarvisVideoInspector.removeCache(context, selected.id)
+                JarvisAttachments.delete(selected)
+                stagedAttachments.remove(selected)
+                issue = ""
+            }
         }
         Row(
             modifier = Modifier.fillMaxWidth()
@@ -374,8 +377,12 @@ internal fun JarvisHomeScreen(
                 .padding(start = 3.dp, end = 5.dp, top = 5.dp, bottom = 5.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            JarvisAttachmentPicker(context, isDark, onStatus = { issue = it },
-                items = stagedAttachments)
+            if (!sendingAttachments) {
+                JarvisAttachmentPicker(context, isDark, onStatus = { issue = it },
+                    items = stagedAttachments)
+            } else {
+                Spacer(Modifier.width(48.dp))
+            }
             BasicTextField(
                 value = text,
                 onValueChange = { text = it },
