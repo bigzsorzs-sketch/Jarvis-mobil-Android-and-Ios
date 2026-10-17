@@ -10,7 +10,7 @@ import java.util.Locale
  */
 internal object JarvisCommandSafety {
     private val prefixes = Regex(
-        """(?iu)^(?:szia|sziasztok|jó\s+reggelt|jó\s+napot|jó\s+estét|hello|hi|hey|good\s+morning|good\s+afternoon|good\s+evening|bonjour|hola|ciao|hallo|cześć|jarvis|k[eé]rlek\s+sz[eé]pen|k[eé]rlek|l[eé]gy\s+sz[ií]ves|please|figyelj|bitte|por\s+favor|per\s+favore|prosz[eę])(?:[\s,:!]+|$)"""
+        """(?iu)^(?:szia|sziasztok|jó\s+reggelt|jó\s+napot|jó\s+estét|hello|hi|hey|hej|he|ok|okay|good\s+morning|good\s+afternoon|good\s+evening|bonjour|hola|ciao|hallo|cześć|jarvis|k[eé]rlek\s+sz[eé]pen|k[eé]rlek|l[eé]gy\s+sz[ií]ves|please|figyelj|bitte|s['’]il\s+vous\s+pla[iî]t|por\s+favor|per\s+favore|prosz[eę])(?:[\s,:!]+|$)"""
     )
     private val negations = Regex(
         """\b(?:ne|nem|soha|dont|don\s+t|do\s+not|not|never|without|nicht|kein|keine|pas|jamais|no|nunca|non|senza|nie|bez)\b"""
