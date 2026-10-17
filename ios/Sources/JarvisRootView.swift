@@ -281,8 +281,10 @@ struct JarvisRootView: View {
                     HStack {
                         Text(note).frame(maxWidth: .infinity, alignment: .leading)
                         Button("Törlés", role: .destructive) {
-                            notes.remove(at: i)
-                            LocalStore.save(notes, key: "notes")
+                            if notes.indices.contains(i) {
+                                notes.remove(at: i)
+                                LocalStore.save(notes, key: "notes")
+                            }
                         }
                     }
                 }

@@ -25,7 +25,7 @@ internal object PeopleDirectory {
         if (a == b) return true
         // Hungarian accusative, e.g. "a drágámat" -> "a drágám";
         // "Ferenc Várnait" -> "Ferenc Várnai". Exact user aliases only.
-        return listOf("nak", "nek", "hoz", "hez", "hoz", "at", "et", "ot", "t")
+        return listOf("nak", "nek", "hoz", "hez", "höz", "at", "et", "ot", "t")
             .any { a.endsWith(it) && a.dropLast(it.length) == b }
     }
 
