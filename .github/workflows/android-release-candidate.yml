@@ -61,7 +61,12 @@ jobs:
         run: |
           set -euo pipefail
           test -s "$ANDROID_SIGNING_STORE_FILE"
-          gradle -p android :app:testDebugUnitTest :app:lintRelease :app:assembleRelease :app:bundleRelease
+          # A signed release candidate cannot silently ship without its public gateway origin.
+          # Unsigned PR smoke builds still deliberately allow an empty value.
+          test -n "$JARVIS_GATEWAY_ORIGIN" || {
+            echo "::error::Missing public Jarvis gateway origin for signed candidate"; exit 1;
+          }
+          gradle -p android :app:testDebugUnitTest :app:lintRelease :app:assembleRelease :app:bundleRelease :app:lintPlay :app:assemblePlay :app:bundlePlay
       - name: Verify production target API and cryptographic signatures
         shell: bash
         run: |
@@ -70,14 +75,40 @@ jobs:
           aab=android/app/build/outputs/bundle/release/app-release.aab
           test -s "$apk"
           test -s "$aab"
-          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose "$apk"
-          jarsigner -verify -strict "$aab" >/dev/null
+          play_apk=android/app/build/outputs/apk/play/app-play.apk
+          play_aab=android/app/build/outputs/bundle/play/app-play.aab
+          test -s "$play_apk" && test -s "$play_aab"
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$apk" > "$RUNNER_TEMP/github-cert.txt"
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$play_apk" > "$RUNNER_TEMP/play-cert.txt"
+          jarsigner -verify "$aab" | grep -Fq 'jar verified.'
+          jarsigner -verify "$play_aab" | grep -Fq 'jar verified.'
           "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$apk" | grep "targetSdkVersion:'36'"
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$play_apk" | grep "targetSdkVersion:'36'"
+          # Refuse accidental new certificates and check Github/Play upload signer continuity.
+          EXPECTED_SIGNER=955338795da61366091ed256b0f6b2a948b9aaf9d7771b022a65b88a94b2d86a
+          github_signer="$(grep -iE 'Signer #1 certificate SHA-256 digest: [0-9a-f]{64}' "$RUNNER_TEMP/github-cert.txt" | awk '{print $NF}' | tr A-F a-f)"
+          play_signer="$(grep -iE 'Signer #1 certificate SHA-256 digest: [0-9a-f]{64}' "$RUNNER_TEMP/play-cert.txt" | awk '{print $NF}' | tr A-F a-f)"
+          test "$github_signer" = "$EXPECTED_SIGNER" && test "$play_signer" = "$EXPECTED_SIGNER" || {
+            echo "::error::Android signing certificate changed, refusing candidate"; exit 1;
+          }
+          # Check actual signed Play package, not only the manifest source or an unsigned PR APK.
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump permissions "$play_apk" > "$RUNNER_TEMP/play-permissions.txt"
+          for p in REQUEST_INSTALL_PACKAGES ACCESS_BACKGROUND_LOCATION SCHEDULE_EXACT_ALARM; do
+            if grep -Fq "android.permission.$p" "$RUNNER_TEMP/play-permissions.txt"; then
+              echo "::error::Forbidden permission in signed Play candidate: $p"; exit 1
+            fi
+          done
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump xmltree "$play_apk" AndroidManifest.xml > "$RUNNER_TEMP/play-manifest.txt"
+          if grep -Fq 'JarvisAccessibilityService' "$RUNNER_TEMP/play-manifest.txt"; then
+            echo "::error::Accessibility control may not ship in Play candidate"; exit 1
+          fi
           unzip -t "$apk" >/dev/null
+          unzip -t "$play_apk" >/dev/null
           mkdir -p dist
           cp "$apk" dist/Jarvis-Android-release-candidate.apk
           cp "$aab" dist/Jarvis-Android-release-candidate.aab
-          (cd dist && sha256sum *.apk *.aab > SHA256SUMS.txt)
+          cp "$play_aab" dist/Jarvis-Android-Play-owner-review.aab
+          (cd dist && sha256sum *.apk *.aab > SHA256SUMS.txt && sha256sum --check SHA256SUMS.txt)
       - name: Upload private release-candidate artifacts (not a public release)
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
