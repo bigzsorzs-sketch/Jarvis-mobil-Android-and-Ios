@@ -76,6 +76,16 @@ jobs:
           done
           echo "::error::Pinned source Android checks did not complete successfully"
           exit 1
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22"
+      - name: Verify hosted backend before signing mobile candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd server
+          npm install --ignore-scripts --no-audit --no-fund
+          npm test
       - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
         with:
           distribution: temurin
@@ -188,7 +198,7 @@ jobs:
           **0.2.44 / versionCode 54**; Android csomag: **ai.jarvis.mobile**.
           **Ez TESZTkiadás, nem éles Google Play-verzió és nem teljesen tesztelt késztermék.**
 
-          A 0.2.44-ról telepíthető Android tesztfrissítés:
+          A korábbi 0.2.43-ra telepíthető Android tesztfrissítés:
           - A régi AI-agy menü és API-kulcsos beállítóoldal eltűnik, a
             korábban engedélyezett AI-kapcsolat és titkosított beállítások megmaradnak.
           - Maximum 10 kép előnézete és eltávolítása, automatikus képtömörítés
