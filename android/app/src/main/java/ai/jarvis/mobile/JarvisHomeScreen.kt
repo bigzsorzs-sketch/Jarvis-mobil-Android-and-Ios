@@ -246,7 +246,8 @@ internal fun JarvisHomeScreen(
                 color = if (isDark) Color(0xFFFFB6B6) else Color(0xFFAA2732),
                 fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp))
         }
-        if (HandsFreeStatus.status != "Kikapcsolva") {
+        if (HandsFreeStatus.status != "Kikapcsolva" &&
+            !JarvisPendingTurn.isWaitingPlaceholder(HandsFreeStatus.status)) {
             Text(HandsFreeStatus.status, color = JarvisMuted, fontSize = 12.sp,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
         }
@@ -346,14 +347,16 @@ internal fun JarvisHomeScreen(
                                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp))
                         }
                     }
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
-                        Surface(
-                            color = if (isDark) Color(0xFF172741) else Color(0xFFF0F4FC),
-                            shape = RoundedCornerShape(17.dp),
-                            modifier = Modifier.fillMaxWidth(0.90f)
-                        ) {
-                            androidx.compose.material3.Text(answer, color = JarvisMuted, fontSize = 14.sp,
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp))
+                    if (!JarvisPendingTurn.isWaitingPlaceholder(answer)) {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
+                            Surface(
+                                color = if (isDark) Color(0xFF172741) else Color(0xFFF0F4FC),
+                                shape = RoundedCornerShape(17.dp),
+                                modifier = Modifier.fillMaxWidth(0.90f)
+                            ) {
+                                androidx.compose.material3.Text(answer, color = JarvisMuted, fontSize = 14.sp,
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp))
+                            }
                         }
                     }
                 }
